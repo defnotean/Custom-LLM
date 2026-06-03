@@ -1,0 +1,104 @@
+# Architecture
+
+A local-LLM-powered Discord bot platform built to scale to 400+ tools and to capture every interaction as future fine-tuning data. The companion research document (`discord-bot-architecture.md` at the repo root) explains *why* this shape; this document explains *what is built*.
+
+## Message flow
+
+```
+Discord message
+  → messageCreate handler          (src/discord/events/messageCreate.ts)
+  → context builder                (src/discord/utils/discordContext.ts)
+  → pending-confirmation check     (AgentController — "yes"/"no" resolution)
+  → safety pre-check               (SafetyService: rate limit + content screen)
+  → memory retrieval (top ~5)      (MemoryService → vector store)
+  → tool candidate retrieval (~10) (ToolRouter — NEVER the whole registry)
+  → prompt builder                 (systemPrompt + tool/memory/safety sections)
+  → LLM call                       (LLMRouter → OpenAI-compatible / Ollama)
+  → response parser                (parseAssistantResponse: JSON + repair + Zod)
+  → tool gates                     (validate args → permissions → cooldown → risk/confirmation)
+  → tool executor                  (ToolExecutor, with timeout)
+  → follow-up LLM turn             (tool result → natural reply; template fallback)
+  → Discord reply                  (typing indicator, 2000-char splitting)
+  → conversation + training log    (TrainingDataLogger → Conversation + TrainingExample)
+  → optional memory write-back     (MemoryPolicy decides)
+```
+
+Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsTool: false`, the prompt contains no tool section and there is no second LLM turn — one model call, minimal context.
+
+## Layers
+
+| Layer | Location | Responsibility |
+|---|---|---|
+| Discord | `src/discord/` | Gateway events, context normalization, prefix commands, typing/splitting |
+| Orchestration | `src/ai/orchestration/` | AgentController + thin agents (conversation, tool-router, memory, safety, evaluation) |
+| LLM | `src/ai/llm/` | Provider abstraction, OpenAI-compatible + native Ollama, fallback router |
+| Parsing | `src/ai/parsing/` | JSON extraction/repair, strict action-protocol validation |
+| Prompts | `src/ai/prompts/` | Versioned system prompt, tool/memory/safety sections |
+| Tools | `src/tools/` | Registry, router, executor, permission/cooldown services, categories |
+| Memory | `src/memory/` | Service + policy + embedding providers + stores (pgvector/Qdrant/in-memory) |
+| Safety | `src/safety/` | Rate limiting, moderation screen (placeholder), confirmation gating |
+| Training | `src/training/` | Full-fidelity interaction capture, JSONL exporters, synthetic generation |
+| Persistence | `src/database/`, `prisma/` | Prisma models + repositories |
+| API | `src/server/` | Fastify ops API (health/tools/memory/training/stats) |
+| Jobs | `src/jobs/` | In-process queue scaffold + workers |
+
+### Trust model (non-negotiable)
+
+The LLM's output is **data, not authority**:
+
+1. Output must parse into one of four protocol shapes (`message`, `tool_call`, `confirmation_request`, `clarification`); anything else degrades to plain text and is logged as a format failure.
+2. A `tool_call` only executes after, in order: tool exists → tool enabled → Zod argument validation → member permission check → cooldown check → risk/confirmation gate. All in code (`ToolExecutor`), none delegated to the model.
+3. High/critical-risk tools always require explicit user confirmation while safety is enabled.
+4. User content, tool output, and retrieved memory are all treated as untrusted prompt inputs (injection surface); the safety section + code gates assume hostile text.
+
+### Tool routing at 400+ tools
+
+LLM tool-selection accuracy collapses past ~30–50 in-context tools, so the registry is never rendered wholesale into a prompt. The `ToolRetrievalStrategy` interface isolates retrieval; today's implementation is deterministic keyword/category/example scoring with permission pre-filtering (top 10 default). The planned upgrade is embedding retrieval (RAG-MCP style: embed tool descriptions → ANN search → optional rerank) behind the same interface — no agent-layer changes required. Tool descriptions/examples are deliberately written like search documents because they feed routing today and embeddings tomorrow.
+
+### Ports & adapters
+
+The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort`, `TrainingSink` in `src/types/ai.ts`; `ToolMemoryAccess` in `ToolDefinition.ts`) rather than concrete services. Services satisfy them structurally. This keeps every stage testable with fakes (see `tests/agentController.test.ts`) and lets the bot boot with any subsystem disabled.
+
+### Graceful degradation
+
+| Missing dependency | Behavior |
+|---|---|
+| Database unreachable | Bot runs; conversations/tool logs/training capture disabled (loud warning) |
+| Vector store init fails | Falls back to in-process memory store (non-persistent) |
+| Embedding endpoint down | Falls back to in-process store; memory effectively session-only |
+| No `DISCORD_TOKEN` | API-only mode (useful for development) |
+| LLM endpoint down | Friendly error reply per message; trace still logged |
+
+## Decisions log
+
+| # | Decision | Rationale |
+|---|---|---|
+| 1 | TypeScript CommonJS (`module: commonjs`) | Avoids ESM `.js`-extension friction across ~80 files; all deps (discord.js 14, fastify 5, prisma 6, pino 9) are CJS-compatible; `node dist/` runs directly |
+| 2 | Engagement: mention / DM / reply / `!ai` prefix only | Spam + cost control; per-guild channel allowlists reserved in `GuildProfile.settingsJson` (TODO: enforcement) |
+| 3 | Cooldowns/rate limits in-process behind store interfaces | Single-process correctness now; Redis store is a drop-in for multi-process (interfaces: `CooldownStore`, rate-limit map) |
+| 4 | In-process job queue (`InProcessJobQueue`) | Real scheduling semantics without infra; BullMQ/Redis is the documented production swap with the same `JobQueue` interface |
+| 5 | pgvector DDL at store init, not in Prisma migrations | Prisma lacks a vector type; runtime `CREATE EXTENSION/TABLE IF NOT EXISTS` keeps `migrate deploy` clean and lets missing pgvector degrade instead of block |
+| 6 | Qdrant keeps a relational copy of memories in Postgres when available | Qdrant stays a rebuildable index; user data lives in the relational store (deletion requests, audits) |
+| 7 | Tool-role messages mapped to labeled user messages for OpenAI-compatible providers | Maximum compatibility across local servers with inconsistent `tool` role support; native tool wire-format is a future optimization |
+| 8 | Training capture stores the full system prompt per example | Disk-cheap, fidelity-expensive to lose; exports can filter/dedupe later |
+| 9 | DPO export only emits real pairs (synthetic valid-vs-hallucinated, or future feedback pairs) | Never fabricate preference data |
+| 10 | `API_PORT`/`API_HOST` added beyond the spec env list | The API server needs a bind address; documented in `.env.example` |
+| 11 | discord.js permission names normalized to UPPER_SNAKE | Spec/tool definitions use `MODERATE_MEMBERS` style; conversion at the Discord boundary (`toUpperSnake`) |
+| 12 | Bot identity name "Assistant" hardcoded at composition root | Per-guild persona config belongs in `GuildProfile.settingsJson` (TODO) |
+
+## Placeholders & TODOs (honest status)
+
+| Area | Status |
+|---|---|
+| Content moderation (`ModerationRules`) | **Placeholder** — minimal regex screen. Production: Llama Guard via local endpoint + Discord AutoMod + provider moderation |
+| Slash commands (`interactionCreate`) | **Placeholder** — replies with a pointer to `!ai`; registration script + defer/followUp flow not built |
+| Memory summarizer worker | **Placeholder** — scheduled and observable, performs no writes; intended: rolling channel summaries + memory consolidation |
+| Embedding-based tool routing | **Not built** — interface ready (`ToolRetrievalStrategy`); keyword strategy shipping |
+| QdrantMemoryStore | **Implemented, not integration-tested** — REST calls per documented API; exercise against `docker compose up qdrant` before relying on it |
+| `summarize_channel_recent_messages` | Returns raw transcript; the follow-up LLM turn summarizes. Dedicated summarization pass TODO |
+| `get_guild_stats` | Structural stats only; activity metrics (messages/day) TODO |
+| `warn_user` | Records to tool log + DMs; dedicated warnings table TODO |
+| Per-guild settings enforcement (channel allowlists, disabled tools) | Schema + cache exist (`GuildRepository`); enforcement TODO |
+| Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
+| LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
+| Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |

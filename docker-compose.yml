@@ -1,0 +1,72 @@
+# Local infrastructure: Postgres (with pgvector), Redis, Qdrant.
+#   docker compose up -d            → infra only (recommended for dev)
+#   docker compose --profile app up → infra + the bot container
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: custom_llm_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: custom_discord_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d custom_discord_ai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: custom_llm_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: custom_llm_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrantdata:/qdrant/storage
+
+  # The bot itself — opt-in via profile so plain `docker compose up` gives
+  # you infra while you run the bot with `npm run dev` on the host
+  # (where it can reach Ollama on localhost).
+  app:
+    build: .
+    profiles: ["app"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/custom_discord_ai
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
+      # Reach an LLM server on the docker host:
+      LLM_BASE_URL: http://host.docker.internal:11434/v1
+      EMBEDDING_BASE_URL: http://host.docker.internal:11434/v1
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  qdrantdata:
