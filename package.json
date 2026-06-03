@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Local-LLM-powered Discord bot platform: tool routing for 400+ tools, RAG memory, safety layer, and fine-tuning data capture.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=20.0.0"
   },
