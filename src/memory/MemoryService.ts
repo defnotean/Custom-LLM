@@ -1,0 +1,173 @@
+import type { Logger } from "pino";
+import type { MemoryHit, MemoryPort, MemoryQueryContext, MemoryScopeName } from "../types/ai";
+import type { JsonValue } from "../types/common";
+import { toErrorMessage } from "../utils/errors";
+import { buildMemorySection } from "../ai/prompts/memoryPrompt";
+import type { EmbeddingProvider } from "./EmbeddingProvider";
+import type { MemoryStore } from "./MemoryStore";
+import { MemoryPolicy } from "./MemoryPolicy";
+
+/**
+ * High-level memory façade. Implements both the agent-facing MemoryPort and
+ * the tool-facing ToolMemoryAccess (structurally). Owns: embedding, policy
+ * enforcement, scope rules, prompt formatting.
+ */
+
+export interface RememberInput {
+  content: string;
+  scope?: MemoryScopeName;
+  userId?: string | null;
+  guildId?: string | null;
+  channelId?: string | null;
+  importance?: number;
+  metadata?: JsonValue;
+  /** Explicit user request (tool/command) — bypasses heuristics, not the secret check. */
+  explicit?: boolean;
+}
+
+export interface RememberResult {
+  id: string | null;
+  stored: boolean;
+  reason: string;
+}
+
+export class MemoryService implements MemoryPort {
+  private readonly policy: MemoryPolicy;
+
+  constructor(
+    private readonly store: MemoryStore,
+    private readonly embeddings: EmbeddingProvider,
+    private readonly logger: Logger,
+    options?: { policy?: MemoryPolicy },
+  ) {
+    this.policy = options?.policy ?? new MemoryPolicy();
+  }
+
+  get storeName(): string {
+    return this.store.name;
+  }
+
+  async remember(input: RememberInput): Promise<RememberResult> {
+    const verdict = this.policy.evaluate({
+      content: input.content,
+      explicit: input.explicit ?? false,
+    });
+    if (!verdict.store) {
+      return { id: null, stored: false, reason: verdict.reason };
+    }
+
+    const scope = input.scope ?? "USER";
+    if (scope === "USER" && !input.userId) {
+      return { id: null, stored: false, reason: "USER scope requires a userId" };
+    }
+    if (scope === "GUILD" && !input.guildId) {
+      return { id: null, stored: false, reason: "GUILD scope requires a guildId" };
+    }
+
+    const [embedding] = await this.embeddings.embed([input.content]);
+    if (!embedding) {
+      return { id: null, stored: false, reason: "embedding failed" };
+    }
+
+    const record = await this.store.upsert({
+      scope,
+      userId: scope === "USER" ? (input.userId ?? null) : null,
+      guildId: input.guildId ?? null,
+      channelId: scope === "CHANNEL" ? (input.channelId ?? null) : null,
+      content: input.content,
+      importance: input.importance ?? verdict.importance,
+      metadata: input.metadata ?? {},
+      embedding,
+    });
+
+    this.logger.debug({ id: record.id, scope }, "memory stored");
+    return { id: record.id, stored: true, reason: verdict.reason };
+  }
+
+  async search(
+    query: string,
+    ctx: { userId: string; guildId: string | null; channelId: string },
+    topK = 5,
+  ): Promise<MemoryHit[]> {
+    const [embedding] = await this.embeddings.embed([query]);
+    if (!embedding) return [];
+    const hits = await this.store.search(
+      embedding,
+      { userId: ctx.userId, guildId: ctx.guildId, channelId: ctx.channelId },
+      topK,
+    );
+    return hits.map((h) => ({
+      id: h.record.id,
+      content: h.record.content,
+      scope: h.record.scope,
+      importance: h.record.importance,
+      score: h.score,
+    }));
+  }
+
+  async forget(
+    id: string,
+    requester: { userId: string; isAdmin: boolean },
+  ): Promise<{ deleted: boolean; reason: string }> {
+    const record = await this.store.getById(id);
+    if (!record) return { deleted: false, reason: "memory not found" };
+
+    const ownsIt = record.scope === "USER" && record.userId === requester.userId;
+    if (!ownsIt && !requester.isAdmin) {
+      return {
+        deleted: false,
+        reason: "you can only delete your own memories (admins can delete any)",
+      };
+    }
+    const deleted = await this.store.delete(id);
+    return deleted
+      ? { deleted: true, reason: "deleted" }
+      : { deleted: false, reason: "delete failed" };
+  }
+
+  // ── MemoryPort ────────────────────────────────────────────────────────────
+
+  async getContextForPrompt(
+    ctx: MemoryQueryContext,
+    query: string,
+    topK = 5,
+  ): Promise<{ section: string; hits: MemoryHit[] }> {
+    const hits = await this.search(query, ctx, topK);
+    // Drop weak matches so irrelevant memories don't pollute the prompt.
+    const relevant = hits.filter((h) => h.score > 0.25);
+    return { section: buildMemorySection(relevant) ?? "", hits: relevant };
+  }
+
+  /**
+   * Post-conversation write-back: the policy inspects the *user's* message
+   * for durable facts. Current implementation is heuristic (regex patterns);
+   * LLM-assisted extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) is the
+   * documented next step and slots in behind this same method.
+   */
+  async maybeExtractMemoryFromConversation(
+    ctx: MemoryQueryContext,
+    userMessage: string,
+    _assistantResponse: string,
+  ): Promise<{ stored: boolean; id?: string; reason: string }> {
+    try {
+      const result = await this.remember({
+        content: userMessage,
+        scope: "USER",
+        userId: ctx.userId,
+        guildId: ctx.guildId,
+        channelId: ctx.channelId,
+        explicit: false,
+      });
+      return result.stored
+        ? { stored: true, id: result.id ?? undefined, reason: result.reason }
+        : { stored: false, reason: result.reason };
+    } catch (err) {
+      this.logger.warn({ err: toErrorMessage(err) }, "memory extraction failed");
+      return { stored: false, reason: `error: ${toErrorMessage(err)}` };
+    }
+  }
+
+  async count(): Promise<number> {
+    return this.store.count();
+  }
+}
