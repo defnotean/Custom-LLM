@@ -1,0 +1,304 @@
+import { Events } from "discord.js";
+import { env, commandPrefix } from "./config/env";
+import { logger, childLogger } from "./config/logger";
+import { toErrorMessage } from "./utils/errors";
+import type { HealthPayload, StatsPayload } from "./types/common";
+
+import { buildLLMRouterFromEnv } from "./ai/llm/LLMRouter";
+import { AgentController } from "./ai/orchestration/AgentController";
+import { ToolRouterAgent } from "./ai/orchestration/ToolRouterAgent";
+import { MemoryAgent } from "./ai/orchestration/MemoryAgent";
+import { SafetyAgent } from "./ai/orchestration/SafetyAgent";
+
+import { buildToolRegistry } from "./tools";
+import { ToolRouter } from "./tools/ToolRouter";
+import { ToolExecutor } from "./tools/ToolExecutor";
+import { ToolPermissionService } from "./tools/ToolPermissionService";
+import { ToolCooldownService } from "./tools/ToolCooldownService";
+
+import { initDatabase, closeDatabase } from "./database/prisma";
+import { ConversationRepository } from "./database/repositories/ConversationRepository";
+import { UserRepository } from "./database/repositories/UserRepository";
+import { ToolLogRepository } from "./database/repositories/ToolLogRepository";
+import { TrainingExampleRepository } from "./database/repositories/TrainingExampleRepository";
+
+import { MemoryService } from "./memory/MemoryService";
+import type { MemoryStore } from "./memory/MemoryStore";
+import { InMemoryMemoryStore } from "./memory/InMemoryMemoryStore";
+import { PgVectorMemoryStore } from "./memory/PgVectorMemoryStore";
+import { QdrantMemoryStore } from "./memory/QdrantMemoryStore";
+import {
+  HashingEmbeddingProvider,
+  OpenAICompatibleEmbeddingProvider,
+  type EmbeddingProvider,
+} from "./memory/EmbeddingProvider";
+
+import { SafetyService } from "./safety/SafetyService";
+import { TrainingDataLogger } from "./training/TrainingDataLogger";
+import { DatasetExporter } from "./training/DatasetExporter";
+
+import { createDiscordClient, startDiscordClient } from "./discord/client";
+import { createMessageHandler } from "./discord/events/messageCreate";
+import { createInteractionHandler } from "./discord/events/interactionCreate";
+import type { CommandServices } from "./discord/commands";
+
+import { buildApiServer, startApiServer } from "./server/api";
+import { InProcessJobQueue } from "./jobs/queue";
+import { registerMemorySummarizerWorker } from "./jobs/workers/memorySummarizerWorker";
+import { registerDatasetExportWorker } from "./jobs/workers/datasetExportWorker";
+
+/**
+ * Composition root. Degrades gracefully: no DB → persistence off; no
+ * vector store → in-process memory; no Discord token → API-only mode.
+ * Every degradation is logged loudly at startup.
+ */
+async function main(): Promise<void> {
+  const startedAt = Date.now();
+  logger.info({ nodeEnv: env.NODE_ENV }, "starting custom-llm-discord-bot");
+
+  // ── Database (optional) ────────────────────────────────────────────────
+  const prisma = await initDatabase(childLogger("database"));
+  const conversationRepo = prisma ? new ConversationRepository(prisma) : null;
+  const userRepo = prisma ? new UserRepository(prisma) : null;
+  const toolLogRepo = prisma ? new ToolLogRepository(prisma) : null;
+  const trainingRepo = prisma ? new TrainingExampleRepository(prisma) : null;
+
+  // ── LLM ────────────────────────────────────────────────────────────────
+  const llm = buildLLMRouterFromEnv(env, childLogger("llm"));
+  logger.info({ providers: llm.listProviders() }, "llm configured");
+
+  // ── Embeddings + memory ────────────────────────────────────────────────
+  let memoryService: MemoryService | null = null;
+  if (env.MEMORY_ENABLED) {
+    const embeddings: EmbeddingProvider =
+      env.EMBEDDING_PROVIDER === "hashing"
+        ? new HashingEmbeddingProvider()
+        : new OpenAICompatibleEmbeddingProvider({
+            baseUrl: env.EMBEDDING_BASE_URL,
+            model: env.EMBEDDING_MODEL,
+            logger: childLogger("embeddings"),
+          });
+
+    const store = await selectMemoryStore(embeddings, prisma);
+    memoryService = new MemoryService(store, embeddings, childLogger("memory"));
+    logger.info({ store: store.name, embeddings: embeddings.name }, "memory system ready");
+  } else {
+    logger.info("memory system disabled via MEMORY_ENABLED=false");
+  }
+
+  // ── Safety ─────────────────────────────────────────────────────────────
+  const safetyService = new SafetyService(childLogger("safety"), {
+    enabled: env.SAFETY_ENABLED,
+  });
+
+  // ── Tools ──────────────────────────────────────────────────────────────
+  const registry = buildToolRegistry();
+  const toolRouter = new ToolRouter(registry, { logger: childLogger("tool-router") });
+  const executor = new ToolExecutor({
+    registry,
+    permissions: new ToolPermissionService(),
+    cooldowns: new ToolCooldownService(),
+    logger: childLogger("tool-executor"),
+    logSink: toolLogRepo,
+    safetyEnabled: env.SAFETY_ENABLED,
+  });
+  logger.info(
+    { tools: registry.size, categories: registry.categories() },
+    "tool registry ready",
+  );
+
+  // ── Training capture ───────────────────────────────────────────────────
+  const trainingLogger = new TrainingDataLogger({
+    conversations: conversationRepo,
+    examples: trainingRepo,
+    users: userRepo,
+    logger: childLogger("training"),
+    enabled: env.TRAINING_LOGGING_ENABLED,
+  });
+  const exporter = trainingRepo
+    ? new DatasetExporter({ source: trainingRepo, logger: childLogger("exporter") })
+    : null;
+
+  // ── Discord client + agent ─────────────────────────────────────────────
+  const discordClient = createDiscordClient();
+
+  const agent = new AgentController({
+    llm,
+    registry,
+    executor,
+    toolRouterAgent: env.TOOL_CALLING_ENABLED
+      ? new ToolRouterAgent(registry, toolRouter)
+      : null,
+    memoryAgent: memoryService
+      ? new MemoryAgent(memoryService, childLogger("memory-agent"))
+      : null,
+    safetyAgent: env.SAFETY_ENABLED ? new SafetyAgent(safetyService) : null,
+    training: trainingLogger,
+    logger: childLogger("agent"),
+    botName: "Assistant",
+    toolCallingEnabled: env.TOOL_CALLING_ENABLED,
+    toolContextExtras: { db: prisma, memory: memoryService, discordClient },
+  });
+
+  // ── Health/stats providers (shared by API + !ai commands) ──────────────
+  const getHealth = async (): Promise<HealthPayload> => ({
+    status: discordClient.isReady() || !env.DISCORD_TOKEN ? "ok" : "degraded",
+    uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
+    discord: { configured: env.DISCORD_TOKEN.length > 0, connected: discordClient.isReady() },
+    llm: { provider: llm.info.name, model: llm.info.model, baseUrl: llm.info.baseUrl },
+    database: { available: prisma !== null },
+    memory: {
+      enabled: memoryService !== null,
+      store: memoryService ? memoryService.storeName : "disabled",
+    },
+  });
+
+  const getStats = async (): Promise<StatsPayload> => ({
+    uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
+    registry: { tools: registry.size, categories: registry.categories() },
+    llm: { provider: llm.info.name, model: llm.info.model },
+    db: prisma
+      ? {
+          available: true,
+          conversations: await safeCount(() => conversationRepo?.count()),
+          toolLogs: await safeCount(() => toolLogRepo?.count()),
+          trainingExamples: await safeCount(() => trainingRepo?.count()),
+          memories: await safeCount(() => memoryService?.count()),
+        }
+      : { available: false },
+  });
+
+  // ── Discord event handlers ─────────────────────────────────────────────
+  const commandServices: CommandServices = {
+    registry,
+    executor,
+    buildToolContext: (ctx) => ({
+      guildId: ctx.guildId,
+      channelId: ctx.channelId,
+      userId: ctx.userId,
+      memberPermissions: ctx.memberPermissions,
+      message: ctx.raw,
+      discordClient,
+      logger: childLogger("tool"),
+      db: prisma,
+      memory: memoryService,
+    }),
+    memory: memoryService,
+    exporter,
+    stats: getStats,
+    health: getHealth,
+    logger: childLogger("commands"),
+  };
+
+  discordClient.on(
+    Events.MessageCreate,
+    createMessageHandler({
+      client: discordClient,
+      agent,
+      commandServices,
+      commandPrefix,
+      logger: childLogger("discord"),
+    }),
+  );
+  discordClient.on(Events.InteractionCreate, createInteractionHandler({ logger: childLogger("discord") }));
+
+  // ── API server ─────────────────────────────────────────────────────────
+  const api = buildApiServer({
+    registry,
+    memory: memoryService ? (q, ctx, topK) => memoryService.search(q, ctx, topK) : null,
+    exporter: exporter ? (outDir) => exporter.exportAll(outDir) : null,
+    getHealth,
+    getStats,
+    logger: childLogger("api"),
+  });
+  await startApiServer(api, { port: env.API_PORT, host: env.API_HOST }, childLogger("api"));
+
+  // ── Background jobs ────────────────────────────────────────────────────
+  const queue = new InProcessJobQueue(childLogger("jobs"));
+  registerMemorySummarizerWorker(queue, { logger: childLogger("jobs") });
+  registerDatasetExportWorker(queue, { exporter, logger: childLogger("jobs") });
+  queue.start();
+
+  // ── Discord login (optional in API-only/dev mode) ──────────────────────
+  if (env.DISCORD_TOKEN) {
+    await startDiscordClient(discordClient, env.DISCORD_TOKEN, childLogger("discord"));
+  } else {
+    logger.warn("DISCORD_TOKEN not set — running in API-only mode (no Discord connection)");
+  }
+
+  // ── Graceful shutdown ──────────────────────────────────────────────────
+  const shutdown = async (signal: string): Promise<void> => {
+    logger.info({ signal }, "shutting down");
+    queue.stop();
+    await api.close().catch(() => undefined);
+    await discordClient.destroy().catch(() => undefined);
+    await closeDatabase();
+    process.exit(0);
+  };
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+  logger.info("startup complete");
+}
+
+async function selectMemoryStore(
+  embeddings: EmbeddingProvider,
+  prisma: Awaited<ReturnType<typeof initDatabase>>,
+): Promise<MemoryStore> {
+  const log = childLogger("memory");
+
+  // Stores need embedding dims; resolve them once up-front (remote providers
+  // discover dims on first call). Failure → hashing/in-memory fallback.
+  let dims = embeddings.dims;
+  if (dims <= 0) {
+    try {
+      await embeddings.embed(["dimension probe"]);
+      dims = embeddings.dims;
+    } catch (err) {
+      log.warn(
+        { err: toErrorMessage(err) },
+        "embedding endpoint unreachable — falling back to in-process memory store",
+      );
+      return new InMemoryMemoryStore();
+    }
+  }
+
+  try {
+    if (env.VECTOR_STORE === "pgvector") {
+      if (!prisma) throw new Error("pgvector store requires a database connection");
+      const store = new PgVectorMemoryStore(prisma, log, { dims });
+      await store.init();
+      return store;
+    }
+    if (env.VECTOR_STORE === "qdrant") {
+      const store = new QdrantMemoryStore({
+        url: env.QDRANT_URL,
+        collection: env.QDRANT_COLLECTION,
+        dims,
+        prisma,
+        logger: log,
+      });
+      await store.init();
+      return store;
+    }
+  } catch (err) {
+    log.warn(
+      { err: toErrorMessage(err), configured: env.VECTOR_STORE },
+      "configured vector store failed to initialize — falling back to in-process memory store",
+    );
+  }
+  return new InMemoryMemoryStore();
+}
+
+async function safeCount(fn: () => Promise<number> | undefined): Promise<number | undefined> {
+  try {
+    return await fn();
+  } catch {
+    return undefined;
+  }
+}
+
+main().catch((err: unknown) => {
+  logger.fatal({ err: toErrorMessage(err) }, "fatal startup error");
+  process.exit(1);
+});

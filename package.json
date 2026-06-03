@@ -1,0 +1,42 @@
+{
+  "name": "custom-llm-discord-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-LLM-powered Discord bot platform: tool routing for 400+ tools, RAG memory, safety layer, and fine-tuning data capture.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "main": "dist/src/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/src/index.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test-llm": "tsx scripts/test-llm.ts",
+    "export:training": "tsx scripts/export-training-data.ts",
+    "seed:tools": "tsx scripts/seed-tools.ts",
+    "generate:examples": "tsx scripts/generate-tool-examples.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.0",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.0",
+    "pino": "^9.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "pino-pretty": "^13.0.0",
+    "prisma": "^6.2.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

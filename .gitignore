@@ -1,0 +1,20 @@
+# Dependencies / build
+node_modules/
+dist/
+coverage/
+
+# Environment & secrets — never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# Generated data
+exports/
+*.log
+*.tsbuildinfo
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

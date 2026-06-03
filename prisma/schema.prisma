@@ -1,0 +1,160 @@
+// Prisma schema — relational spine for the Discord AI platform.
+// Vector data lives alongside (pgvector table managed by PgVectorMemoryStore,
+// or Qdrant via vectorId references). See docs/ARCHITECTURE.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id            String   @id @default(cuid())
+  discordUserId String   @unique
+  username      String
+  displayName   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model GuildProfile {
+  id             String   @id @default(cuid())
+  discordGuildId String   @unique
+  name           String
+  settingsJson   Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ChannelProfile {
+  id               String   @id @default(cuid())
+  discordChannelId String   @unique
+  guildId          String?
+  name             String
+  settingsJson     Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Conversation {
+  id                String   @id @default(cuid())
+  guildId           String?
+  channelId         String
+  userId            String
+  discordMessageId  String
+  userMessage       String
+  assistantResponse String?
+  metadataJson      Json     @default("{}")
+  createdAt         DateTime @default(now())
+
+  @@index([channelId, createdAt])
+  @@index([userId, createdAt])
+}
+
+enum MemoryScope {
+  USER
+  GUILD
+  CHANNEL
+  GLOBAL
+}
+
+model Memory {
+  id           String      @id @default(cuid())
+  userId       String?
+  guildId      String?
+  channelId    String?
+  scope        MemoryScope
+  content      String
+  summary      String?
+  importance   Int         @default(1)
+  metadataJson Json        @default("{}")
+  vectorId     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([scope, userId])
+  @@index([scope, guildId])
+  @@index([scope, channelId])
+}
+
+model ToolLog {
+  id           String   @id @default(cuid())
+  toolName     String
+  toolCategory String
+  guildId      String?
+  channelId    String?
+  userId       String?
+  inputJson    Json
+  outputJson   Json?
+  error        String?
+  latencyMs    Int?
+  success      Boolean
+  createdAt    DateTime @default(now())
+
+  @@index([toolName, createdAt])
+  @@index([success])
+}
+
+enum TrainingSource {
+  CONVERSATION
+  TOOL_CALL
+  SYNTHETIC
+  FEEDBACK
+}
+
+enum TrainingFormat {
+  CHATML
+  ALPACA
+  TOOL_CALLING_JSONL
+}
+
+model TrainingExample {
+  id           String         @id @default(cuid())
+  source       TrainingSource
+  format       TrainingFormat
+  inputJson    Json
+  outputJson   Json
+  qualityScore Float?
+  reviewed     Boolean        @default(false)
+  metadataJson Json           @default("{}")
+  createdAt    DateTime       @default(now())
+
+  @@index([format, createdAt])
+  @@index([source])
+}
+
+model UserFeedback {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String?
+  rating         Int?
+  feedbackText   String?
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId])
+}
+
+enum ToolRisk {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model ToolDefinitionRecord {
+  id                      String   @id @default(cuid())
+  name                    String   @unique
+  category                String
+  description             String
+  schemaJson              Json
+  riskLevel               ToolRisk
+  enabled                 Boolean  @default(true)
+  requiresConfirmation    Boolean  @default(false)
+  requiredPermissionsJson Json     @default("[]")
+  cooldownSeconds         Int      @default(0)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
