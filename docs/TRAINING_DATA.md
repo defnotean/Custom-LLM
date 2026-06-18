@@ -24,7 +24,7 @@ Parse failures and tool denials are logged too. Failure data is signal for forma
 - Candidate content and metadata are scrubbed for obvious tokens/API keys before storage.
 - Candidates are not automatically trained into weights or promoted into parameter modules. They require review, queueing, background training, eval gates, and parameter-module promotion.
 - Approved `skill` candidates with `skill_registry` access are retrieved into future prompts as workflow hints. They do not bypass tool retrieval, permissions, confirmations, or executor gates.
-- Active promoted parameter modules are selected per request and retrieved into future prompts with any retrievable source-learning summaries. This makes a newly promoted adapter/specialist/expert visible to Irene immediately, while real model-weight loading remains the model server hot-loader step.
+- Active promoted parameter modules are selected per request and retrieved into future prompts with any retrievable source-learning summaries. This makes a newly promoted adapter/specialist/expert visible to Irene immediately. Real model-weight loading uses the checked hotload handoff and requires a configured model-server control endpoint.
 - Approved queued candidates are also scanned by `ParameterGrowthPlanner`, which writes trainer handoff manifests with source ids, content/metadata hashes, target module type, parameter budget estimates, gate requirements, and risk flags. These manifests do not train weights; they tell the future trainer exactly what to train and what must pass before promotion.
 - Trained parameter-module candidates must ship a staging manifest checked by `ParameterModuleStagingGate`: dataset manifest hash, emitted dataset hashes, artifact hashes, source learned-item ids, required eval passes, and rollback target all have to match before the module should be registered or promoted.
 
@@ -57,6 +57,12 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-modules/<module-id>/promot
 
 npm run build:parameter-hotload
 npm run check:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json
+npm run apply:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json --dry-run
+npm run apply:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json --endpoint-url http://127.0.0.1:8088/parameter-hotload
+
+curl -X POST http://127.0.0.1:3000/learning/parameter-hotload/apply \
+  -H "content-type: application/json" \
+  -d '{"manifestPath":"training/plans/parameter-hotload/latest.json","dryRun":true}'
 
 curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<module-id>"
 ```
@@ -74,6 +80,8 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 `build:parameter-hotload` writes `training/plans/parameter-hotload/latest.json`, a deterministic model-server handoff manifest for active non-base modules. It includes load actions, artifact paths and hashes, routes/base-module ids, rollback targets, dataset hashes, source learned-item ids, and eval summaries. The command exits blocked if any active non-base module lacks staging artifacts or rollback evidence, because active prompt visibility should not drift away from model-server loadability.
 
 `check:parameter-hotload` verifies that handoff before a model server consumes it: manifest status must match the request/skipped payload, blocked manifests fail loader readiness, summary counts and parameter totals must be internally consistent, load request ids must be unique, required config plus checkpoint/adapter artifacts must exist, eval reports must not be failed, and artifact byte counts/hashes must match disk.
+
+`apply:parameter-hotload` and `POST /learning/parameter-hotload/apply` run the same quality gate first. Dry runs return the exact `parameter-module-hotload-apply-v1` payload without calling a loader. Non-dry-run applies require `PARAMETER_HOTLOAD_ENDPOINT` or `--endpoint-url`; the service posts the checked manifest to that private model-server control endpoint and reports accepted/rejected module ids. If the manifest is blocked or hash-invalid, the loader is never called.
 
 ## Export Formats
 

@@ -342,6 +342,121 @@ describe("learning routes", () => {
     await app.close();
   });
 
+  it("applies a parameter hotload manifest through the configured service", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      applyParameterHotloadManifest: async (input) => {
+        calls.push(input);
+        return {
+          status: "dry_run",
+          manifestPath: input.manifestPath,
+          manifestId: "parameter-hotload-fixture",
+          generatedAt: "2026-06-18T22:15:00.000Z",
+          dryRun: input.dryRun ?? false,
+          requestId: input.requestId ?? "generated-request",
+          summary: {
+            manifestStatus: "ready",
+            loadRequests: 1,
+            skippedModules: 0,
+            artifacts: 2,
+            totalLoadedParameters: 2_000_000,
+            activeParametersPerRequest: 500_000,
+          },
+          qualityReport: {
+            status: "pass",
+            manifestPath: input.manifestPath,
+            generatedAt: "2026-06-18T22:15:00.000Z",
+            summary: {
+              manifestStatus: "ready",
+              loadRequests: 1,
+              skippedModules: 0,
+              artifacts: 2,
+              totalLoadedParameters: 2_000_000,
+              activeParametersPerRequest: 500_000,
+            },
+            checks: [],
+          },
+        };
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-hotload/apply",
+      payload: {
+        manifestPath: "training/plans/parameter-hotload/latest.json",
+        dryRun: true,
+        requestId: "api-hotload-1",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "dry_run",
+      manifestPath: "training/plans/parameter-hotload/latest.json",
+      requestId: "api-hotload-1",
+    });
+    expect(calls).toEqual([
+      {
+        manifestPath: "training/plans/parameter-hotload/latest.json",
+        dryRun: true,
+        requestId: "api-hotload-1",
+      },
+    ]);
+    await app.close();
+  });
+
+  it("reports blocked hotload manifests without applying them", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, {
+      getStats: null,
+      applyParameterHotloadManifest: async (input) => ({
+        status: "blocked",
+        manifestPath: input.manifestPath,
+        generatedAt: "2026-06-18T22:15:00.000Z",
+        dryRun: input.dryRun ?? false,
+        requestId: input.requestId ?? "generated-request",
+        summary: {
+          manifestStatus: "blocked",
+          loadRequests: 0,
+          skippedModules: 1,
+          artifacts: 0,
+          totalLoadedParameters: 0,
+          activeParametersPerRequest: 0,
+        },
+        qualityReport: {
+          status: "fail",
+          manifestPath: input.manifestPath,
+          generatedAt: "2026-06-18T22:15:00.000Z",
+          summary: {
+            manifestStatus: "blocked",
+            loadRequests: 0,
+            skippedModules: 1,
+            artifacts: 0,
+            totalLoadedParameters: 0,
+            activeParametersPerRequest: 0,
+          },
+          checks: [{ id: "loader-ready-status", status: "fail", summary: "blocked" }],
+        },
+      }),
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-hotload/apply",
+      payload: { manifestPath: "training/plans/parameter-hotload/latest.json" },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      status: "blocked",
+      qualityReport: { checks: [{ id: "loader-ready-status", status: "fail" }] },
+    });
+    await app.close();
+  });
+
   it("reports staging gate failures without creating a parameter module", async () => {
     const app = Fastify({ logger: false });
     registerLearningRoutes(app, {

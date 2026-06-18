@@ -34,6 +34,11 @@ const envSchema = z.object({
   OLLAMA_BASE_URL: z.string().default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().default("qwen2.5:7b-instruct"),
 
+  // Runtime parameter-module hotload control endpoint
+  PARAMETER_HOTLOAD_ENDPOINT: z.string().default(""),
+  PARAMETER_HOTLOAD_API_KEY: z.string().default(""),
+  PARAMETER_HOTLOAD_TIMEOUT_MS: z.coerce.number().int().min(1).max(600_000).default(30_000),
+
   // Embeddings
   EMBEDDING_PROVIDER: z.enum(["local", "openai-compatible", "hashing"]).default("local"),
   EMBEDDING_BASE_URL: z.string().default("http://localhost:11434/v1"),

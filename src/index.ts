@@ -48,6 +48,10 @@ import { InteractionLearningCapture } from "./learning/InteractionLearningCaptur
 import { SkillRetrievalService } from "./learning/SkillRetrievalService";
 import { ParameterActivationService } from "./learning/ParameterActivationService";
 import { ParameterModuleStagingService } from "./learning/ParameterModuleStagingService";
+import {
+  HttpParameterModuleHotloadLoader,
+  ParameterModuleHotloadService,
+} from "./learning/ParameterModuleHotloadService";
 import { ParameterGrowthPlanner } from "./training/parameter/ParameterGrowthPlanner";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
@@ -141,6 +145,15 @@ async function main(): Promise<void> {
   const skillRetriever = learningRepo ? new SkillRetrievalService(learningRepo) : null;
   const parameterActivator = learningRepo ? new ParameterActivationService(learningRepo) : null;
   const parameterModuleStaging = learningRepo ? new ParameterModuleStagingService(learningRepo) : null;
+  const parameterHotloadLoader = env.PARAMETER_HOTLOAD_ENDPOINT
+    ? new HttpParameterModuleHotloadLoader({
+        endpointUrl: env.PARAMETER_HOTLOAD_ENDPOINT,
+        ...(env.PARAMETER_HOTLOAD_API_KEY ? { apiKey: env.PARAMETER_HOTLOAD_API_KEY } : {}),
+        timeoutMs: env.PARAMETER_HOTLOAD_TIMEOUT_MS,
+      })
+    : undefined;
+  const parameterHotloadService = new ParameterModuleHotloadService(parameterHotloadLoader);
+  logger.info({ configured: Boolean(parameterHotloadLoader) }, "parameter hotload service ready");
   const parameterGrowthPlanner = learningRepo ? new ParameterGrowthPlanner(learningRepo) : null;
 
   // ── Discord client + agent ─────────────────────────────────────────────
@@ -248,6 +261,7 @@ async function main(): Promise<void> {
     stageParameterModuleFromManifest: parameterModuleStaging
       ? (input) => parameterModuleStaging.stageFromManifest(input)
       : null,
+    applyParameterHotloadManifest: (input) => parameterHotloadService.apply(input),
     promoteParameterModule: learningRepo ? (id, options) => learningRepo.promoteParameterModule(id, options) : null,
     retireParameterModule: learningRepo ? (id) => learningRepo.retireParameterModule(id) : null,
     getParameterSnapshot: learningRepo ? (options) => learningRepo.getParameterSnapshot(options) : null,

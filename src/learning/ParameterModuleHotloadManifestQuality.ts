@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { z } from "zod";
+import type { ParameterModuleHotloadManifest } from "./ParameterModuleHotloadPlanner";
 
 export type ParameterModuleHotloadQualityStatus = "pass" | "fail";
 
@@ -91,7 +92,7 @@ export async function checkParameterModuleHotloadManifestQuality(
   manifestPath: string,
 ): Promise<ParameterModuleHotloadQualityReport> {
   const checks: ParameterModuleHotloadQualityCheck[] = [];
-  const manifest = hotloadManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
+  const manifest = await readParameterModuleHotloadManifest(manifestPath);
 
   checks.push(...manifestStatusChecks(manifest));
   checks.push(...identityChecks(manifest));
@@ -112,6 +113,12 @@ export async function checkParameterModuleHotloadManifestQuality(
     },
     checks,
   };
+}
+
+export async function readParameterModuleHotloadManifest(
+  manifestPath: string,
+): Promise<ParameterModuleHotloadManifest> {
+  return hotloadManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8"))) as ParameterModuleHotloadManifest;
 }
 
 function manifestStatusChecks(manifest: HotloadManifest): ParameterModuleHotloadQualityCheck[] {

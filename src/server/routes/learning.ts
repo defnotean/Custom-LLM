@@ -15,6 +15,10 @@ import type {
   StageParameterModuleFromManifestInput,
   StageParameterModuleFromManifestResult,
 } from "../../learning/ParameterModuleStagingService";
+import type {
+  ApplyParameterModuleHotloadInput,
+  ParameterModuleHotloadApplyReport,
+} from "../../learning/ParameterModuleHotloadService";
 import {
   PARAMETER_MODULE_STAGING_EVAL_KINDS,
   type ParameterModuleStagingEvalKind,
@@ -64,6 +68,9 @@ export interface LearningRouteDeps {
   stageParameterModuleFromManifest?: ((
     input: StageParameterModuleFromManifestInput,
   ) => Promise<StageParameterModuleFromManifestResult>) | null;
+  applyParameterHotloadManifest?: ((
+    input: ApplyParameterModuleHotloadInput,
+  ) => Promise<ParameterModuleHotloadApplyReport>) | null;
   promoteParameterModule?: ((
     id: string,
     options: { gateStatus: "pass" | "fail" | "warn"; evalReport?: ParameterEvalReport },
@@ -173,6 +180,14 @@ const stageParameterModuleBodySchema = z
     requireEvalReportHashes: z.boolean().optional(),
     verifyDatasetFiles: z.boolean().optional(),
     metadata: z.record(z.unknown()).optional(),
+  })
+  .strict();
+
+const applyParameterHotloadBodySchema = z
+  .object({
+    manifestPath: z.string().trim().min(1).max(2_048),
+    dryRun: z.boolean().optional(),
+    requestId: z.string().trim().min(1).max(256).optional(),
   })
   .strict();
 
@@ -344,6 +359,23 @@ export function registerLearningRoutes(app: FastifyInstance, deps: LearningRoute
     }
   });
 
+  app.post("/learning/parameter-hotload/apply", async (request, reply) => {
+    if (!deps.applyParameterHotloadManifest) {
+      return reply.status(503).send({ error: "parameter hotload service disabled" });
+    }
+    const body = applyParameterHotloadBodySchema.safeParse(request.body ?? {});
+    if (!body.success) {
+      return reply.status(400).send({ error: "invalid parameter hotload payload", details: body.error.flatten() });
+    }
+    try {
+      const result = await deps.applyParameterHotloadManifest(body.data);
+      const statusCode = result.status === "blocked" || result.status === "failed" ? 409 : 200;
+      return reply.status(statusCode).send(result);
+    } catch (err) {
+      return parameterMutationError(reply, err);
+    }
+  });
+
   app.get("/learning/parameter-modules/:id", async (request, reply) => {
     if (!deps.getParameterModule) {
       return reply.status(503).send({ error: "live learning persistence disabled" });
@@ -404,7 +436,9 @@ function learningMutationError(reply: FastifyReply, err: unknown) {
 function parameterMutationError(reply: FastifyReply, err: unknown) {
   const message = err instanceof Error ? err.message : String(err);
   if (/not found/i.test(message)) return reply.status(404).send({ error: "parameter module not found" });
-  if (/already exists|not staged|cannot be promoted|passing gates|staging gate failed|staging manifest/i.test(message)) {
+  if (
+    /already exists|not staged|cannot be promoted|passing gates|staging gate failed|staging manifest|hotload loader/i.test(message)
+  ) {
     return reply.status(409).send({ error: "parameter module cannot be changed", reason: message });
   }
   throw err;

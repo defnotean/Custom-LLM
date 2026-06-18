@@ -27,6 +27,7 @@ export interface ApiDeps {
   getParameterModule?: LearningRouteDeps["getParameterModule"];
   createParameterModule?: LearningRouteDeps["createParameterModule"];
   stageParameterModuleFromManifest?: LearningRouteDeps["stageParameterModuleFromManifest"];
+  applyParameterHotloadManifest?: LearningRouteDeps["applyParameterHotloadManifest"];
   promoteParameterModule?: LearningRouteDeps["promoteParameterModule"];
   retireParameterModule?: LearningRouteDeps["retireParameterModule"];
   getParameterSnapshot?: LearningRouteDeps["getParameterSnapshot"];
@@ -58,6 +59,7 @@ export function buildApiServer(deps: ApiDeps): FastifyInstance {
     getParameterModule: deps.getParameterModule ?? null,
     createParameterModule: deps.createParameterModule ?? null,
     stageParameterModuleFromManifest: deps.stageParameterModuleFromManifest ?? null,
+    applyParameterHotloadManifest: deps.applyParameterHotloadManifest ?? null,
     promoteParameterModule: deps.promoteParameterModule ?? null,
     retireParameterModule: deps.retireParameterModule ?? null,
     getParameterSnapshot: deps.getParameterSnapshot ?? null,
