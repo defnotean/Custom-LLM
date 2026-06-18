@@ -43,6 +43,7 @@ curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/queue \
 npm run plan:parameter-growth
 npm run check:parameter-growth-plan -- --allow-risk-review
 npm run build:parameter-growth-data -- --allow-risk-review
+npm run check:parameter-growth-data -- --manifest training/data/parameter-growth/<plan-id>/manifest.json
 
 curl -X POST http://127.0.0.1:3000/learning/parameter-modules \
   -H "content-type: application/json" \
@@ -60,6 +61,8 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 `check:parameter-growth-plan` fails plans that are not ready, have too few ready batches, exceed the parameter budget, include inconsistent record/hash counts, miss required gates, or still need risk review. Use `--allow-risk-review` only after a human has reviewed the plan's risk flags and source provenance.
 
 `build:parameter-growth-data` re-fetches every source learned item from the live store, verifies the plan's content and metadata hashes, re-checks review/training/retention state, then writes per-batch JSONL plus a manifest under `training/data/parameter-growth/`. If any source item changed after planning, the build fails instead of training on stale or unreviewed data.
+
+`check:parameter-growth-data` verifies the generated manifest and JSONL files after the build: recorded hashes and byte counts must match, record schemas must be valid, batch counts must line up, record ids must be unique, and obvious token/API-key patterns must be absent.
 
 ## Export Formats
 

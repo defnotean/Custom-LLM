@@ -15,7 +15,7 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Safety**: rate limiting, content screen (placeholder rules), mandatory confirmation for high-risk actions
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `/learning/status`, `/learning/items`, `/learning/parameter-modules`, `/learning/parameter-snapshot`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 191 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 194 passing tests
 
 ## Quickstart
 
@@ -66,6 +66,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run plan:parameter-growth` | Write a parameter-growth training-batch manifest from approved queued learned items |
 | `npm run check:parameter-growth-plan` | Gate a parameter-growth plan before any trainer consumes it |
 | `npm run build:parameter-growth-data` | Build gated parameter-growth JSONL handoff data from the live learned-item store |
+| `npm run check:parameter-growth-data` | Verify parameter-growth data manifests, hashes, record schema, and obvious secret leakage |
 | `npm run download:datasets` / `npm run prepare:datasets` | Acquire and prepare open SFT datasets with provenance + quality reports |
 | `npm run build:sft-mixture` / `npm run build:preference-mixture` | Build production SFT and DPO/preference train/validation mixtures |
 | `npm run build:protocol-sft` | Build a contamination-guarded protocol-only scratch SFT set from synthetic tool examples |
@@ -153,7 +154,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/skill eval gates, ops API, docker compose, 191 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/skill eval gates, ops API, docker compose, 194 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 
