@@ -5,6 +5,7 @@ interface Args {
   contextChars?: number[];
   positions?: LongContextNeedlePosition[];
   includeRepoArtifacts: boolean;
+  includeRepoSnapshots: boolean;
   maxCases?: number;
 }
 
@@ -15,6 +16,7 @@ async function main(): Promise<void> {
     ...(args.contextChars ? { contextCharTargets: args.contextChars } : {}),
     ...(args.positions ? { needlePositions: args.positions } : {}),
     includeRepoArtifacts: args.includeRepoArtifacts,
+    includeRepoSnapshots: args.includeRepoSnapshots,
     ...(args.maxCases !== undefined ? { maxCases: args.maxCases } : {}),
   });
   // eslint-disable-next-line no-console
@@ -26,6 +28,7 @@ function parseArgs(argv: string[]): Args {
   let contextChars: number[] | undefined;
   let positions: LongContextNeedlePosition[] | undefined;
   let includeRepoArtifacts = true;
+  let includeRepoSnapshots = true;
   let maxCases: number | undefined;
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
@@ -33,6 +36,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--context-chars") contextChars = parseIntegerList(requireValue(argv[++index], arg), arg);
     else if (arg === "--positions") positions = parsePositions(requireValue(argv[++index], arg));
     else if (arg === "--no-repo-artifacts") includeRepoArtifacts = false;
+    else if (arg === "--no-repo-snapshots") includeRepoSnapshots = false;
     else if (arg === "--max-cases") maxCases = parseInteger(argv[++index], arg);
     else throw new Error(`Unknown argument: ${arg}`);
   }
@@ -41,6 +45,7 @@ function parseArgs(argv: string[]): Args {
     ...(contextChars ? { contextChars } : {}),
     ...(positions ? { positions } : {}),
     includeRepoArtifacts,
+    includeRepoSnapshots,
     ...(maxCases !== undefined ? { maxCases } : {}),
   };
 }

@@ -24,6 +24,7 @@ describe("LongContextEvalPredictionRunner", () => {
       contextCharTargets: [1024],
       needlePositions: ["middle"],
       includeRepoArtifacts: false,
+      includeRepoSnapshots: false,
     });
     const [evalCase] = await readJsonl<LongContextEvalCase>(suite);
     if (!evalCase) throw new Error("expected generated eval case");

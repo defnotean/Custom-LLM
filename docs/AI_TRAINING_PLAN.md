@@ -79,7 +79,7 @@ Promotion criteria for this track are stricter than "it trains": the checkpoint 
 
 ## Long-Context Retrieval Gate
 
-The SubQ/SSA path now has its own held-out gate. It builds deterministic synthetic needle-in-context prompts with early/middle/late answer positions, many similar distractor trace values, increasing context sizes, and synthetic repository artifact bundles that ask for exact file paths, environment variables, and routing contracts. Live predictions are sent through the normal LLM router with `metadata.longContext=true`; pass `--preferred-provider subq` when you want to pin the SubQ route instead of relying on automatic long-context routing.
+The SubQ/SSA path now has its own held-out gate. It builds deterministic synthetic needle-in-context prompts with early/middle/late answer positions, many similar distractor trace values, increasing context sizes, synthetic repository artifact bundles that ask for exact file paths, environment variables, and routing contracts, plus real repository snapshot lookups from `package.json`, `ProductionTrainingReadiness.ts`, and `LLMRouter.ts`. Live predictions are sent through the normal LLM router with `metadata.longContext=true`; pass `--preferred-provider subq` when you want to pin the SubQ route instead of relying on automatic long-context routing.
 
 ```bash
 npm run build:long-context-eval
@@ -88,7 +88,7 @@ npm run eval:long-context -- --predictions training/evals/long-context-oracle.pr
 npm run eval:long-context:gate -- --candidate training/evals/long-context-oracle.report.json --out training/evals/long-context-oracle.gate.json
 
 # Live configured long-context route, then score it
-npm run eval:long-context:llm -- --preferred-provider subq --max-cases 12
+npm run eval:long-context:llm -- --preferred-provider subq --max-cases 15
 npm run eval:long-context -- --predictions training/evals/long-context-llm.predictions.jsonl --out training/evals/long-context-llm.report.json
 npm run eval:long-context:gate -- --candidate training/evals/long-context-llm.report.json --baseline training/evals/current-production-long-context.report.json
 

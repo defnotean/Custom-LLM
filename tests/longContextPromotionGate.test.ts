@@ -73,7 +73,7 @@ function makeReport(
     latencyP95Ms: number | null;
   }>,
 ): LongContextEvalReport {
-  const total = 12;
+  const total = 15;
   const falsePositiveRate = overrides?.falsePositiveRate ?? 0;
   return {
     suitePath: "training/evals/long-context.eval.jsonl",
@@ -93,20 +93,24 @@ function makeReport(
       max: overrides?.latencyP95Ms === null ? null : 180,
     },
     byNeedlePosition: {
-      early: { total: 4, exactMatchRate: 1, expectedContainRate: 1 },
-      middle: { total: 4, exactMatchRate: 1, expectedContainRate: 1 },
-      late: { total: 4, exactMatchRate: 0.875, expectedContainRate: 1 },
+      early: { total: 5, exactMatchRate: 1, expectedContainRate: 1 },
+      middle: { total: 5, exactMatchRate: 1, expectedContainRate: 1 },
+      late: { total: 5, exactMatchRate: 0.9, expectedContainRate: 1 },
     },
     byContextTarget: {},
     bySource: {
       "synthetic-needle-in-context": { total: 9, exactMatchRate: 1, expectedContainRate: 1 },
       "synthetic-repo-artifact": { total: 3, exactMatchRate: 1, expectedContainRate: 1 },
+      "real-repo-snapshot": { total: 3, exactMatchRate: 1, expectedContainRate: 1 },
     },
     byTaskType: {
       needle_retrieval: { total: 9, exactMatchRate: 1, expectedContainRate: 1 },
       repo_file_lookup: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
       repo_env_lookup: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
       repo_routing_contract: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
+      repo_script_lookup: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
+      repo_readiness_contract: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
+      repo_router_provider: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
     },
     failures: [],
   };

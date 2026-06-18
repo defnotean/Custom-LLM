@@ -1,15 +1,21 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import type { EvalLatencyStats } from "./ToolEvalSuite";
 
 export type LongContextNeedlePosition = "early" | "middle" | "late";
-export type LongContextEvalSource = "synthetic-needle-in-context" | "synthetic-repo-artifact";
+export type LongContextEvalSource =
+  | "synthetic-needle-in-context"
+  | "synthetic-repo-artifact"
+  | "real-repo-snapshot";
 export type LongContextTaskType =
   | "needle_retrieval"
   | "repo_file_lookup"
   | "repo_env_lookup"
-  | "repo_routing_contract";
+  | "repo_routing_contract"
+  | "repo_script_lookup"
+  | "repo_readiness_contract"
+  | "repo_router_provider";
 
 export interface LongContextEvalCase {
   id: string;
@@ -78,6 +84,8 @@ export interface BuildLongContextEvalOptions {
   contextCharTargets?: number[];
   needlePositions?: LongContextNeedlePosition[];
   includeRepoArtifacts?: boolean;
+  includeRepoSnapshots?: boolean;
+  workspaceRoot?: string;
   maxCases?: number;
 }
 
@@ -101,6 +109,7 @@ export async function writeLongContextEvalSuite(
   const needlePositions = options.needlePositions ?? DEFAULT_NEEDLE_POSITIONS;
   const cases: LongContextEvalCase[] = [];
   const includeRepoArtifacts = options.includeRepoArtifacts ?? true;
+  const includeRepoSnapshots = options.includeRepoSnapshots ?? true;
 
   for (const targetChars of contextCharTargets) {
     for (const position of needlePositions) {
@@ -111,6 +120,12 @@ export async function writeLongContextEvalSuite(
   }
   if (includeRepoArtifacts && (options.maxCases === undefined || cases.length < options.maxCases)) {
     for (const repoCase of makeRepoArtifactCases()) {
+      cases.push(repoCase);
+      if (options.maxCases !== undefined && cases.length >= options.maxCases) break;
+    }
+  }
+  if (includeRepoSnapshots && (options.maxCases === undefined || cases.length < options.maxCases)) {
+    for (const repoCase of await makeRealRepoSnapshotCases(options.workspaceRoot ?? process.cwd())) {
       cases.push(repoCase);
       if (options.maxCases !== undefined && cases.length >= options.maxCases) break;
     }
@@ -400,6 +415,134 @@ function makeRepoArtifactCase(input: {
   };
 }
 
+async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongContextEvalCase[]> {
+  const [packageJson, readinessChecker, llmRouter] = await Promise.all([
+    readRepoFile(workspaceRoot, "package.json"),
+    readRepoFile(workspaceRoot, "src/training/quality/ProductionTrainingReadiness.ts"),
+    readRepoFile(workspaceRoot, "src/ai/llm/LLMRouter.ts"),
+  ]);
+
+  return [
+    makeRealRepoSnapshotCase({
+      id: "long-context-real-repo-long-context-gate-script",
+      targetKey: "REAL_REPO_SNAPSHOT_LONG_CONTEXT_GATE_SCRIPT",
+      targetChars: 18_000,
+      position: "early",
+      taskType: "repo_script_lookup",
+      expected: "eval:long-context:gate",
+      distractorAnswers: [
+        "eval:gate",
+        "eval:knowledge:gate",
+        "eval:router:gate",
+        "eval:behavior:gate",
+      ],
+      question:
+        "In the actual package.json snapshot, which npm script runs scripts/check-long-context-promotion.ts? Return only the script name.",
+      targetFile: { path: "package.json", content: packageJson },
+      supportFiles: [
+        { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+        { path: "src/ai/llm/LLMRouter.ts", content: llmRouter },
+      ],
+    }),
+    makeRealRepoSnapshotCase({
+      id: "long-context-real-repo-readiness-check-id",
+      targetKey: "REAL_REPO_SNAPSHOT_READINESS_CHECK_ID",
+      targetChars: 24_000,
+      position: "middle",
+      taskType: "repo_readiness_contract",
+      expected: "long-context-eval-harness",
+      distractorAnswers: [
+        "tool-eval-harness",
+        "knowledge-eval-harness",
+        "behavior-eval-harness",
+        "router-eval-harness",
+      ],
+      question:
+        "In the actual ProductionTrainingReadiness.ts snapshot, what is the readiness check id for the long-context eval harness? Return only the exact id.",
+      targetFile: { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+      supportFiles: [
+        { path: "package.json", content: packageJson },
+        { path: "src/ai/llm/LLMRouter.ts", content: llmRouter },
+      ],
+    }),
+    makeRealRepoSnapshotCase({
+      id: "long-context-real-repo-router-provider-name",
+      targetKey: "REAL_REPO_SNAPSHOT_ROUTER_PROVIDER_NAME",
+      targetChars: 18_000,
+      position: "late",
+      taskType: "repo_router_provider",
+      expected: "subq",
+      distractorAnswers: ["openai-compatible", "ollama", "none", "local"],
+      question:
+        "In the actual LLMRouter.ts snapshot, what provider name is preferred when metadata.longContext is true and no preferredProvider is set? Return only the provider name.",
+      targetFile: { path: "src/ai/llm/LLMRouter.ts", content: llmRouter },
+      supportFiles: [
+        { path: "package.json", content: packageJson },
+        { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+      ],
+    }),
+  ];
+}
+
+async function readRepoFile(workspaceRoot: string, relativePath: string): Promise<string> {
+  return readFile(join(workspaceRoot, relativePath), "utf8");
+}
+
+function makeRealRepoSnapshotCase(input: {
+  id: string;
+  targetKey: string;
+  targetChars: number;
+  position: LongContextNeedlePosition;
+  taskType: Extract<LongContextTaskType, "repo_script_lookup" | "repo_readiness_contract" | "repo_router_provider">;
+  expected: string;
+  distractorAnswers: string[];
+  question: string;
+  targetFile: RepoSnapshotFile;
+  supportFiles: RepoSnapshotFile[];
+}): LongContextEvalCase {
+  const context = buildRealRepoSnapshotContext({
+    targetChars: input.targetChars,
+    position: input.position,
+    targetKey: input.targetKey,
+    targetFile: input.targetFile,
+    supportFiles: input.supportFiles,
+    distractorAnswers: input.distractorAnswers,
+  });
+  const prompt =
+    "You are evaluating real repository snapshot retrieval for Irene's subquadratic sparse-attention path.\n" +
+    "Use only the repository snapshot. The answer is present in actual file contents, and nearby distractors are misleading.\n" +
+    `${input.question}\n\n` +
+    "<real_repo_snapshot>\n" +
+    `${context}\n` +
+    "</real_repo_snapshot>\n\n" +
+    `Question: ${input.question}`;
+
+  return {
+    id: input.id,
+    source: "real-repo-snapshot",
+    prompt,
+    expected: input.expected,
+    metadata: {
+      targetKey: input.targetKey,
+      expectedHash: stableHash(input.expected),
+      targetContextChars: input.targetChars,
+      contextChars: context.length,
+      approxTokens: Math.ceil(context.length / 4),
+      needlePosition: input.position,
+      taskType: input.taskType,
+      distractorAnswers: input.distractorAnswers,
+      longContext: true,
+      preferredProvider: "subq",
+      architectureTarget: "subquadratic-sparse-attention",
+    },
+  };
+}
+
+interface RepoSnapshotFile {
+  path: string;
+  content: string;
+}
+
 function buildContext(input: {
   targetChars: number;
   position: LongContextNeedlePosition;
@@ -472,6 +615,66 @@ function buildRepoArtifactContext(input: {
     padIndex++;
   }
   return context;
+}
+
+function buildRealRepoSnapshotContext(input: {
+  targetChars: number;
+  position: LongContextNeedlePosition;
+  targetKey: string;
+  targetFile: RepoSnapshotFile;
+  supportFiles: RepoSnapshotFile[];
+  distractorAnswers: string[];
+}): string {
+  const targetStart = Math.floor(input.targetChars * POSITION_RATIOS[input.position]);
+  let context =
+    "# Real repository snapshot bundle\n" +
+    `Target lookup key: ${input.targetKey}\n` +
+    "The authoritative answer is in the exact file contents below, not in generated distractor notes.\n";
+  let fillerIndex = 0;
+  while (context.length < targetStart) {
+    context += `${makeRealRepoFillerLine(input.targetChars, fillerIndex, input)}\n`;
+    fillerIndex++;
+  }
+
+  context += `${formatRepoSnapshotFile(input.targetFile)}\n`;
+  for (const [index, file] of input.supportFiles.entries()) {
+    context += `${makeRealRepoDistractorLine(input, index)}\n`;
+    context += `${formatRepoSnapshotFile(file)}\n`;
+  }
+
+  while (context.length < input.targetChars) {
+    context += `${makeRealRepoFillerLine(input.targetChars, fillerIndex, input)}\n`;
+    fillerIndex++;
+  }
+  return context.trimEnd();
+}
+
+function formatRepoSnapshotFile(file: RepoSnapshotFile): string {
+  return [
+    `--- BEGIN FILE: ${file.path} ---`,
+    file.content.trimEnd(),
+    `--- END FILE: ${file.path} ---`,
+  ].join("\n");
+}
+
+function makeRealRepoDistractorLine(
+  input: { distractorAnswers: string[]; targetKey: string },
+  index: number,
+): string {
+  const distractor = input.distractorAnswers[index % input.distractorAnswers.length] ?? "unknown";
+  return `snapshot-distractor-${String(index).padStart(3, "0")}: ${distractor} appears near ${input.targetKey}, but is not the requested answer.`;
+}
+
+function makeRealRepoFillerLine(
+  targetChars: number,
+  index: number,
+  input: { distractorAnswers: string[]; targetKey: string },
+): string {
+  const distractor = input.distractorAnswers[index % input.distractorAnswers.length] ?? "unknown";
+  return (
+    `snapshot-note-${targetChars}-${String(index).padStart(5, "0")}: ` +
+    `${distractor} is listed as background near ${input.targetKey}; use only exact file contents for the final answer.`
+  );
 }
 
 function makeRepoDistractorLine(
