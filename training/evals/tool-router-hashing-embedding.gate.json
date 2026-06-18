@@ -13,7 +13,7 @@
   },
   "candidate": {
     "suitePath": "training/evals/tool-router.eval.jsonl",
-    "strategy": "keyword",
+    "strategy": "hashing-embedding",
     "total": 53,
     "expectedToolRecall": 1,
     "caseRecallAccuracy": 1,

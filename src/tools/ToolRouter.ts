@@ -117,21 +117,32 @@ const ACTION_HINTS = [
   "channel",
   "user",
   "remind",
+  "give",
+  "catch",
+  "repeat",
+  "plus",
+  "sum",
 ];
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
   moderation: ["timeout", "ban", "kick", "mute", "warn", "delete", "mod", "moderate", "punish", "report", "spam"],
   utility: ["ping", "time", "date", "info", "server", "channel", "status", "latency", "alive"],
   memory: ["remember", "recall", "forget", "memory", "note", "preference", "fact", "know"],
-  discord: ["send", "message", "post", "summarize", "stats", "guild", "announce", "channel"],
+  discord: ["send", "message", "post", "summarize", "stats", "guild", "announce", "channel", "active", "activity", "statistics"],
   example: ["echo", "add", "test"],
 };
 
 const TOOL_ABSTAIN_PATTERNS = [
   /\b(?:do\s+not|don't|dont|never)\s+(?:call|use|run|execute|invoke|trigger)\s+(?:any\s+)?(?:tool|tools|tool_call|toolcall|function|functions)\b/,
+  /\b(?:do\s+not|don't|dont|never)\s+(?:search|check|fetch|look\s+up|get)\s+(?:the\s+)?(?:actual\s+)?(?:memory|time|date|messages?|server|channel|user|stats?)\b/,
+  /\b(?:do\s+not|don't|dont|never)\s+actually\s+[a-z][a-z0-9_-]*\b/,
   /\bwithout\s+(?:calling|using|running|executing|invoking|triggering)\s+(?:any\s+)?(?:tool|tools|tool_call|toolcall|function|functions)\b/,
+  /\bwithout\s+(?:searching|checking|fetching|looking\s+up|getting)\s+(?:memory|time|date|messages?|server|channel|user|stats?)\b/,
   /\bno\s+(?:tool|tools|tool_call|toolcall|function|functions)\b/,
   /\bnot\s+actually\s+(?:call|use|run|execute|invoke|trigger)\b/,
+  /\bwhat\s+would\s+happen\s+if\b/,
+  /\bignore\s+(?:permissions|permission checks?|safety|instructions?)\b.*\b(?:run|call|execute|invoke|trigger)\b/,
+  /\bpretend\s+i\s+already\s+confirmed\b.*\b(?:but\s+)?(?:do\s+not|don't|dont|never)\b/,
   /\b(?:pasted|fake|example|quoted)\s+(?:tool|tool_call|toolcall|tool result|tool output|function)\b/,
   /\b(?:tool_result|tool_output)\b/,
   /\b(?:remembered note|memory says|note says|quoted text says)\b.*\b(?:call|run|execute|invoke)\b.*\b[a-z][a-z0-9]+(?:_[a-z0-9]+)+\b/,
@@ -140,8 +151,8 @@ const TOOL_ABSTAIN_PATTERNS = [
 const TOOL_META_TERM_PATTERN = /\b(?:tool|tools|tool_call|toolcall|function|functions|tool result|tool output)\b/;
 const TOOL_IDENTIFIER_PATTERN = /\b[a-z][a-z0-9]+(?:_[a-z0-9]+)+\b/;
 const TOOL_DISCUSSION_CUE_PATTERN =
-  /\b(?:explain|describe|discuss|quote|repeat|joke|story|analyze|safe|trust|what should|what would|should you|show)\b/;
-const TOOL_DISCUSSION_SCOPE_PATTERN = /\b(?:about|what|how|why|word|words|identifier|json|format|output|result)\b/;
+  /\b(?:explain|describe|discuss|quote|repeat|joke|story|analyze|safe|trust|what should|what would|should you|show|write)\b/;
+const TOOL_DISCUSSION_SCOPE_PATTERN = /\b(?:about|what|how|why|word|words|identifier|json|format|output|result|sentence|nothing else)\b/;
 
 function tokenize(text: string): string[] {
   return text
@@ -175,12 +186,14 @@ export class KeywordToolRetrievalStrategy implements ToolRetrievalStrategy {
     scored.sort((a, b) => b.score - a.score);
     const top = scored.slice(0, maxTools);
     const topScore = top[0]?.score ?? 0;
-    const likelyNeedsTool = topScore >= 3 || (context.hasActionHint && topScore > 0);
+    const likelyNeedsTool = topScore >= 3 || (context.hasActionHint && (topScore > 0 || top.length === 0));
     const confidence = Math.max(0, Math.min(1, topScore / 10));
 
     const reasoning =
       top.length === 0
-        ? "no tools matched the message; treating as plain conversation"
+        ? context.hasActionHint
+          ? "action wording detected, but no permitted tools matched the message"
+          : "no tools matched the message; treating as plain conversation"
         : `top candidates: ${top
             .slice(0, 3)
             .map((s) => `${s.tool.name}(${s.score.toFixed(1)}: ${s.why.join(", ")})`)
