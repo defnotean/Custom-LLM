@@ -72,8 +72,8 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run eval:tool:tiny` | Run a local scratch Transformer checkpoint against the held-out protocol/tool suite |
 | `npm run build:knowledge-eval` / `npm run eval:knowledge:llm` / `npm run eval:knowledge` / `npm run eval:knowledge:gate` | Build held-out knowledge evals, collect live model answers, score reference overlap, and enforce knowledge gates |
 | `npm run eval:knowledge:tiny` | Run the promoted local scratch Transformer checkpoint against the held-out knowledge suite |
-| `npm run build:behavior-eval` / `npm run eval:behavior:llm` / `npm run eval:behavior` / `npm run eval:behavior:gate` | Build held-out persona/social-cue evals, collect live JSON outputs, score behavior requirements, and enforce behavior gates |
-| `npm run build:router-eval` / `npm run eval:router:oracle` / `npm run eval:router` / `npm run eval:router:gate` | Build and gate held-out specialist routing evals for tool/knowledge/persona/casual/social/boundary routing |
+| `npm run build:behavior-eval` / `npm run eval:behavior:llm` / `npm run eval:behavior:tiny` / `npm run eval:behavior` / `npm run eval:behavior:gate` | Build held-out persona/social-cue evals, collect live or scratch-checkpoint JSON outputs, score behavior requirements, and enforce behavior gates |
+| `npm run build:router-eval` / `npm run eval:router:oracle` / `npm run eval:router:tiny` / `npm run eval:router` / `npm run eval:router:gate` | Build and gate held-out specialist routing evals for tool/knowledge/persona/casual/social/boundary routing |
 | `npm run check:contamination` | Audit train JSONL against held-out eval suites for exact leakage and high n-gram overlap |
 | `npm run train:tiny-transformer` / `npm run train:tiny-char` | Run local from-scratch training smoke baselines, including assistant-loss masking experiments |
 | `npm run check:training` | Validate dataset splits, hashes, model artifacts, and training loss movement |
@@ -131,6 +131,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 | Doc | Contents |
 |---|---|
 | `docs/ARCHITECTURE.md` | Layers, trust model, decisions log, honest TODO list |
+| `docs/PROJECT_SCOPE_AND_ROADMAP.md` | Irene product scope, MoE-style specialist roadmap, current measured status, milestones |
 | `docs/LOCAL_LLM_SETUP.md` | Ollama/vLLM/LM Studio setup, models, VRAM guidance |
 | `docs/TOOL_REGISTRY.md` | Tool authoring, routing at 400+ tools |
 | `docs/TRAINING_DATA.md` | Capture pipeline, export formats, privacy |

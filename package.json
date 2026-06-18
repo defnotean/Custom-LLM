@@ -32,6 +32,8 @@
     "eval:knowledge:llm": "tsx scripts/run-knowledge-eval-llm.ts",
     "eval:tool:tiny": "py -3.11 training/evaluate_tiny_transformer_protocol.py",
     "eval:knowledge:tiny": "py -3.11 training/evaluate_tiny_transformer_lm.py",
+    "eval:behavior:tiny": "py -3.11 training/evaluate_tiny_transformer_behavior.py",
+    "eval:router:tiny": "py -3.11 training/evaluate_tiny_transformer_router.py",
     "eval:knowledge:oracle": "tsx scripts/make-knowledge-oracle-predictions.ts",
     "eval:knowledge": "tsx scripts/evaluate-knowledge-predictions.ts",
     "eval:knowledge:gate": "tsx scripts/check-knowledge-eval-promotion.ts",

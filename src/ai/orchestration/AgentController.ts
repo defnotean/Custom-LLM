@@ -13,6 +13,7 @@ import { newId } from "../../utils/ids";
 import { nowIso } from "../../utils/time";
 import type { LLMProvider } from "../llm/LLMProvider";
 import {
+  DEFAULT_BOT_NAME,
   SYSTEM_PROMPT_VERSION,
   buildSystemPrompt,
 } from "../prompts/systemPrompt";
@@ -102,7 +103,7 @@ export class AgentController {
     this.safetyAgent = options.safetyAgent ?? null;
     this.training = options.training ?? null;
     this.logger = options.logger;
-    this.botName = options.botName ?? "Assistant";
+    this.botName = options.botName ?? DEFAULT_BOT_NAME;
     this.toolCallingEnabled = options.toolCallingEnabled ?? true;
     this.conversation = new ConversationAgent(options.llm, options.logger);
     this.toolContextExtras = options.toolContextExtras ?? {};

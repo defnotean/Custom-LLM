@@ -6,6 +6,7 @@ import type { HealthPayload, StatsPayload } from "./types/common";
 
 import { buildLLMRouterFromEnv } from "./ai/llm/LLMRouter";
 import { AgentController } from "./ai/orchestration/AgentController";
+import { DEFAULT_BOT_NAME } from "./ai/prompts/systemPrompt";
 import { ToolRouterAgent } from "./ai/orchestration/ToolRouterAgent";
 import { MemoryAgent } from "./ai/orchestration/MemoryAgent";
 import { SafetyAgent } from "./ai/orchestration/SafetyAgent";
@@ -145,7 +146,7 @@ async function main(): Promise<void> {
     safetyAgent: env.SAFETY_ENABLED ? new SafetyAgent(safetyService) : null,
     training: trainingLogger,
     logger: childLogger("agent"),
-    botName: "Assistant",
+    botName: DEFAULT_BOT_NAME,
     toolCallingEnabled: env.TOOL_CALLING_ENABLED,
     toolContextExtras: { db: prisma, memory: memoryService, discordClient },
   });

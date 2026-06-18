@@ -5,6 +5,8 @@
  */
 
 export const SYSTEM_PROMPT_VERSION = "v1.2.0";
+export const DEFAULT_BOT_NAME = "Irene";
+export const DEFAULT_BOT_PRONOUNS = "she/her";
 
 export interface SystemPromptOptions {
   botName: string;

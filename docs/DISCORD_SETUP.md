@@ -40,7 +40,7 @@ The bot responds to:
 | Trigger | Example |
 |---|---|
 | Prefix commands | `!ai ping`, `!ai tools`, `!ai help` |
-| @mention | `@Assistant what's the server's game night?` |
+| @mention | `@Irene what's the server's game night?` |
 | Reply to one of its messages | (continues the conversation) |
 | DM | anything |
 

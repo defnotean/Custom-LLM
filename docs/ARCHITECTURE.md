@@ -84,7 +84,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | 9 | DPO export only emits explicit pairs (synthetic valid-vs-hallucinated, reviewed feedback preferred-vs-rejected) | Never fabricate preference data |
 | 10 | `API_PORT`/`API_HOST` added beyond the spec env list | The API server needs a bind address; documented in `.env.example` |
 | 11 | discord.js permission names normalized to UPPER_SNAKE | Spec/tool definitions use `MODERATE_MEMBERS` style; conversion at the Discord boundary (`toUpperSnake`) |
-| 12 | Bot identity name "Assistant" hardcoded at composition root | Per-guild persona config belongs in `GuildProfile.settingsJson` (TODO) |
+| 12 | Bot identity name "Irene" hardcoded at composition root | Product identity is intentionally fixed to Irene/she-her for consistency; per-guild style overrides can still live in `GuildProfile.settingsJson` later without changing identity |
 
 ## Placeholders & TODOs (honest status)
 
