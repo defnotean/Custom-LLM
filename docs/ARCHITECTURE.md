@@ -30,6 +30,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 | Layer | Location | Responsibility |
 |---|---|---|
 | Discord | `src/discord/` | Gateway events, context normalization, prefix commands, typing/splitting |
+| Voice & Presence | planned `src/discord/voice/` | Bot identity, status, voice-channel join/leave, TTS playback, opt-in STT/transcription |
 | Orchestration | `src/ai/orchestration/` | AgentController + thin agents (conversation, tool-router, memory, safety, evaluation) |
 | LLM | `src/ai/llm/` | Provider abstraction, OpenAI-compatible + native Ollama, fallback router |
 | Parsing | `src/ai/parsing/` | JSON extraction/repair, strict action-protocol validation |
@@ -50,6 +51,21 @@ The LLM's output is **data, not authority**:
 2. A `tool_call` only executes after, in order: tool exists → tool enabled → Zod argument validation → member permission check → cooldown check → risk/confirmation gate. All in code (`ToolExecutor`), none delegated to the model.
 3. High/critical-risk tools always require explicit user confirmation while safety is enabled.
 4. User content, tool output, and retrieved memory are all treated as untrusted prompt inputs (injection surface); the safety section + code gates assume hostile text.
+
+### Discord identity boundary
+
+Irene is designed to feel like a persistent Discord presence, but the supported implementation is a Discord application/bot account, not automation of a normal user account. A bot account can own Irene's name, avatar, status, text messages, typing indicators, and planned voice presence. Normal user-token automation/self-bot behavior is outside this architecture.
+
+Voice features are planned as an opt-in bot capability: join allowed voice channels, play TTS, receive voice data for speech-to-text, and pass transcripts into the same router/tool/memory gates used for text. Raw audio should be transient by default; durable summaries, transcripts, and training examples require explicit guild policy and review.
+
+### Live learning boundary
+
+Irene should not be a closed-door model that only improves after manual restarts. The architecture needs two live learning paths:
+
+- **Immediate knowledge path:** approved memories, summaries, documents, corrections, preferences, and skill recipes are written to durable stores and indexed for retrieval while Irene is running.
+- **Parameter growth path:** reviewed data feeds a background learner that can train adapters, specialists, router heads, or experts. New modules are staged, evaluated, registered, and hot-loaded only after gates pass, with rollback available.
+
+Memory retrieval is not the same thing as model-weight learning. Durable memories make Irene more useful immediately, but they do not increase parameter count. Parameter count grows only when the deployed architecture gains trainable modules: adapters, router heads, specialists, experts, ensembles, or a bigger base model. The runtime should track base parameters, adapter parameters, specialist/expert parameters, total deployed parameters, and active parameters per request.
 
 ### Tool routing at 400+ tools
 
@@ -101,4 +117,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Per-guild settings enforcement (channel allowlists, disabled tools) | Schema + cache exist (`GuildRepository`); enforcement TODO |
 | Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
+| Voice presence, STT, and TTS | **Planned** - use bot voice connections for compliant join/speak/listen behavior; requires opt-in retention policy and evals |
+| Live memory/skill learning | **Planned** - approved memories and skills should update retrieval/skill stores without restarting Irene |
+| Lifelong parameter-growth loop | **Planned** - reviewed memories and skills should feed background adapter/specialist training; raw memories do not automatically update weights |
 | Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |

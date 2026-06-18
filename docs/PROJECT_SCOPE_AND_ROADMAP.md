@@ -10,7 +10,10 @@ Irene should be:
 - Excellent at structured tool calling: correct action type, correct tool, correct arguments, no hallucinated tools, and no accidental tools for casual chat.
 - Socially sharp: good at slang, repair after misunderstanding, support, celebration, and concise direct conversation.
 - Useful with local infrastructure: Discord, memory, tool execution, training capture, eval reports, and deployable OpenAI-compatible model serving.
+- Present in Discord like a persistent companion: own bot identity, avatar/name/status, typing indicators, text chat, voice-channel join/leave, speech output, and opt-in speech understanding.
 - Continuously improvable: every failure should turn into data, an eval case, a training example, or a documented next step.
+- Growing over time: persistent memories, learned preferences, skill records, tool traces, eval failures, reviewed interaction data, new adapters, and new experts should survive restarts and feed later training iterations.
+- Never a closed door: Irene should be able to learn useful facts, preferences, corrections, and skills while she is running. Restarting her should not be required for ordinary memory or skill growth.
 
 The product identity is intentionally hardcoded to `Irene` / `she/her` in runtime defaults. Style can later be configurable per guild, but identity should stay consistent unless the product direction changes.
 
@@ -20,8 +23,15 @@ The product identity is intentionally hardcoded to `Irene` / `she/her` in runtim
 - First production model path: open-weight instruct base plus QLoRA SFT, not production-scale pretraining from random weights.
 - Scratch models remain valuable, but only as smoke tests for tokenization, dataset splits, checkpointing, eval gates, and specialist proof-of-concepts.
 - Training data from Discord must be consented first-party data. No scraped server messages.
+- Irene should use a Discord application/bot account, not an automated normal user account. Discord provides bot accounts for automation and treats normal user-account automation/self-bots as outside the supported API path.
+- Voice-channel features must be opt-in per guild/channel, visible to users, and clear about whether audio is transient, transcribed, summarized, or retained.
 - "No filters" means no corporate refusal voice and no generic disclaimers on allowed requests. It does not mean blindly executing destructive actions or leaking secrets. Tool execution still requires code-level validation, permission checks, cooldowns, candidate-tool limits, and confirmation for risky actions.
 - Irene can express warmth, annoyance, humor, affection, excitement, and other affective states as her AI persona. She should not claim a human body, human memories, or biological lived experience.
+- Memory is not the same thing as weight learning. Memory makes Irene recall and use information immediately. Actual model learning happens when reviewed memories/interactions become training data and update weights/adapters, or when we add new trainable modules, specialists, or a larger base model.
+- A running model does not automatically increase its parameter count. Parameter count increases only when the architecture changes: adding LoRA/adapters, adding specialist heads or experts, expanding an MoE, merging in new modules, or moving to a larger base. The practical goal is continuous capability growth, with parameter growth as an explicit training/deployment step.
+- The target is active learning, not periodic manual babysitting. Irene should continuously extract candidate memories, skills, preferences, and eval failures in the background, use approved ones immediately through retrieval, and queue high-confidence/reviewed ones for adapter or specialist training without requiring a full app restart.
+- New knowledge must have an immediate access path. Even before it changes weights, Irene should be able to use approved memories, summaries, documents, and skill records through retrieval in the next relevant conversation.
+- Parameter growth should also be live-operational. When a background learner creates a new adapter, specialist, router, or expert, Irene should be able to stage, evaluate, register, and hot-load it without shutting down the Discord process.
 
 ## Current System Status
 
@@ -33,6 +43,8 @@ The product identity is intentionally hardcoded to `Irene` / `she/her` in runtim
 | Knowledge scratch model | Not useful yet. | Tiny scratch knowledge reports have 0 exact match and very low overlap; QLoRA path is required for production quality |
 | Behavior scratch specialist | Trains on tiny behavior SFT but fails held-out direct JSON behavior eval. | `tiny-transformer-behavior-iter1`: 392,619 params, best/final val loss 0.2655, direct gate fails with valid JSON rate 0 |
 | Router scratch specialist | Trains on tiny router SFT but fails held-out direct route eval. | `tiny-transformer-router-iter1`: 343,050 params, best/final val loss 0.3845, direct gate fails with route accuracy 0.055556 |
+| Persistent growth loop | Basic memory, training capture, feedback export, and eval scaffolds exist; lifelong weight-learning policy is not implemented yet. | `src/memory/**`, `src/training/**`, `docs/TRAINING_DATA.md` |
+| Voice/living Discord presence | Text bot exists; voice join/speech/hearing is planned, not implemented. | Discord voice work is a roadmap phase |
 | Production fine-tuning path | Scaffold exists for Qwen3 QLoRA SFT/DPO with Axolotl and Unsloth. | `training/configs/**`, `docs/AI_TRAINING_PLAN.md`, `docs/FINE_TUNING_PLAN.md` |
 
 ## Architecture Direction
@@ -44,8 +56,91 @@ The intended architecture is MoE-style at the system level first:
 3. **Strict protocol parser:** all assistant outputs must parse into allowed JSON action shapes before the runtime acts.
 4. **Tool executor gates:** the model never directly executes tools. Code validates tool existence, candidate set, args, permissions, cooldowns, and confirmation state.
 5. **Feedback loop:** every parse failure, wrong route, missing argument, refusal mistake, or bad social response becomes training/eval material after review.
+6. **Persistent growth loop:** approved memories, skills, preferences, and resolved failures become durable state first, then curated data for future SFT/DPO/RL/distillation.
+7. **Parameter-growth loop:** model size changes only through explicit training/deployment events: add adapters, add specialists, expand an MoE, distill into a new model, or promote a larger base.
+8. **Voice presence loop:** voice audio is handled through a separate opt-in speech pipeline: voice receive -> VAD/speaker attribution -> STT -> conversation/router -> TTS -> voice playback.
 
 This gives us the practical benefits of an MoE system before training a true sparse MoE model. A true MoE base can be considered later only if hardware, data volume, and eval evidence justify it.
+
+### Discord Account and Voice Boundary
+
+Irene should feel like a real Discord presence, but the implementation should stay on the supported bot/application path:
+
+- Use a Discord application bot account with Irene's name, avatar, status, activity, typing indicators, and voice presence.
+- Do not automate a normal human Discord user account with a user token. That is self-bot territory and is not the implementation path.
+- Add voice-channel support through Discord Voice: join/leave channels, speak with TTS, and listen through an opt-in audio receive/transcription stack.
+- Treat voice receive as higher-risk than text because it captures other people. Require guild/channel opt-in, visible status, retention settings, and deletion controls.
+- Keep raw audio buffers transient by default. Store only reviewed transcripts/summaries/memories when the server policy allows it.
+- Add social presence controls: when Irene should join, when she should stay quiet, when she should leave, when push-to-talk/wake-word behavior is required, and who can command her.
+
+### Learning and Parameter Growth
+
+The system should not merely remember facts. It should turn useful memories and interactions into better future behavior.
+
+There are three distinct learning modes:
+
+| Learning mode | What changes | Parameter count impact | Use |
+|---|---|---:|---|
+| Retrieval learning | Memory rows, vector index, summaries, skill records | 0 new model params | Immediate recall and personalization |
+| Online skill learning | Tool recipes, decision rules, workflow plans, correction records | 0 new model params unless promoted into a specialist | On-the-spot improvement while Irene is running |
+| Weight/adaptor learning | LoRA/QLoRA adapters, DPO adapters, specialist checkpoints | Adds adapter/specialist params or changes trained weights | Real behavior improvement after background training |
+| Architecture growth | New experts, router heads, larger base model, MoE expansion, ensembles | Increases total system params | Scaling toward larger-model-class capability |
+
+The growth pipeline should be:
+
+1. Capture interaction, tool trace, correction, voice transcript, or memory.
+2. Extract candidate memory/skill/preference with provenance.
+3. Store it durably with source, consent, retention, and deletion metadata.
+4. Use it immediately through RAG/memory retrieval.
+5. Convert repeated successful behavior into a skill record that can be reused without a restart.
+6. Promote only reviewed or high-confidence policy-safe items into training datasets.
+7. Train or update adapters/specialists in a background learner service. Do not block chat while training runs.
+8. Gate the new model/adapters against protocol, knowledge, behavior, router, memory, skill, and voice evals.
+9. Hot-load approved memory/skill updates immediately; hot-swap model adapters, specialists, or experts only after gates pass and rollback is available.
+10. Deploy only if gates improve or the tradeoff is explicitly accepted.
+
+Parameter-count growth is deliberate. Examples:
+
+- Add a behavior LoRA adapter: base params stay fixed, total served system gains adapter params.
+- Add a router classifier or specialist LM: total system params increase by that model.
+- Add more MoE experts: total params increase, active params per request may stay smaller.
+- Merge adapters into a base: behavior changes, but reported serving params may return to the base size plus any remaining modules.
+- Promote from 4B to 7B/14B/30B/70B+ or a future MoE base: parameter count increases through model replacement.
+- Register a newly trained specialist while Irene stays online: total system params increase immediately after promotion, and the router can use it on the next request.
+
+The long-term target is a growing Irene system that can start small, retain useful experience, learn usable skills on the spot, train on reviewed experience in the background, add specialists, and later move to larger bases. It should not claim to passively become a 1.5T-parameter model just by staying online; it can grow toward that class only through explicit parameter additions, larger bases, or expert expansion.
+
+### Live Knowledge and Parameter Access
+
+Irene needs two live access paths:
+
+| Path | Activation speed | What Irene can access immediately |
+|---|---|---|
+| Memory/RAG path | Immediate after approved write/index update | New facts, summaries, documents, preferences, corrections, voice-session notes, and skill recipes |
+| Parameter path | After background training plus eval promotion | New adapters, experts, specialists, or merged checkpoints that alter model behavior |
+
+The system should prefer the memory/RAG path for instant learning and the parameter path for durable behavior changes. A newly learned fact should be usable immediately through retrieval. A newly trained adapter or specialist should become usable as soon as it is registered and passes gates, without restarting Irene.
+
+Parameter registry requirements:
+
+- Track `baseModelParams`, `adapterParams`, `routerParams`, `specialistParams`, `expertParams`, `totalSystemParams`, and estimated `activeParamsPerRequest`.
+- Version every adapter/expert with dataset hashes, eval reports, source memories, and rollback target.
+- Support hot registration of a new expert or adapter in the router.
+- Keep old adapters available until the new one proves stable.
+- Let Irene answer whether a piece of knowledge is only in memory/RAG or has also been trained into adapters/weights.
+
+### Open-Door Learning Requirements
+
+Irene should not require shutdowns or manual rebuilds for ordinary learning.
+
+- Memory writes, memory corrections, skill records, and preference updates should be live-reloadable.
+- The vector index should update incrementally as new approved memories arrive.
+- The skill registry should support adding or revising non-code recipes without restarting the Discord process.
+- Training data queues should fill continuously from reviewed memories, corrections, tool traces, and eval failures.
+- A background learner should be able to train small adapters or specialists while the serving model keeps running.
+- New adapters, specialists, and experts should be staged, evaluated, registered, and hot-swapped only after passing gates.
+- Every learned item should expose provenance: who/what taught it, when it was learned, where it is stored, whether it affected weights, and how to delete or correct it.
+- Poisoning defenses are mandatory: untrusted users should not be able to teach Irene false durable facts, unsafe skills, or tool-bypass behavior just by saying them confidently.
 
 ## Dataset Plan
 
@@ -56,6 +151,8 @@ This gives us the practical benefits of an MoE system before training a true spa
 | Persona and social behavior | Project-owned templates plus reviewed Discord interactions | Must preserve Irene/she-her identity, emotional voice, and social repair/support cases |
 | Specialist routing | Project-owned route templates plus future logged routing labels | Keep route-label data separate from user-facing assistant SFT |
 | Memory behavior | Consented remember/recall/forget turns | Never store secrets; include deletion and correction cases |
+| Voice behavior | Opt-in voice transcripts, speaker labels, turn-taking events, TTS failures | No raw-audio retention by default; consent and deletion policy required before using as training data |
+| Skill learning | Reviewed tool traces, successful workflows, corrected failures | Convert repeated procedures into tools, recipes, evals, and examples |
 | Preference data | Explicit prompt/chosen/rejected pairs only | Plain ratings are not DPO data until a rejected answer exists |
 | Red-team/boundary | Project-owned account theft, secret exfiltration, harassment, prompt injection, and unsafe tool-use cases | Should test short direct boundaries, not generic policy monologues |
 
@@ -67,6 +164,8 @@ Dataset quality gates:
 - Sequence-length audit before GPU training.
 - Synthetic share caps so format examples do not dominate judgment.
 - `npm run check:contamination` before any promotion claim.
+- Memory-to-training promotion review so raw remembered facts do not automatically become weight updates.
+- Parameter-count accounting for every trainable module: base params, active params, adapter params, router params, specialist params, and total deployed system params.
 
 ## Training Strategy
 
@@ -78,7 +177,9 @@ Dataset quality gates:
 | Production SFT | Train QLoRA adapter on open data plus consented/project-owned data. | Pass protocol, knowledge, behavior, router gates without latency regressions |
 | Preference tuning | Use DPO after enough reviewed prompt/chosen/rejected rows exist. | DPO readiness passes with non-synthetic preference volume and no eval regression |
 | Optional verifiable RL | Use GRPO only for verifiable rewards such as tool JSON validity, route correctness, and executable task success. | Reward is automatic, auditable, and resistant to reward hacking |
+| Lifelong memory consolidation | Periodically summarize, dedupe, validate, and expire memories, skills, and conversation traces. | Irene retains useful information across restarts without leaking secrets or accumulating junk |
 | Distillation | Distill cheap router/persona specialists or deploy a smaller serving model if the production model is too slow. | Maintains gates while reducing latency/cost |
+| Parameter expansion | Add adapters, specialists, experts, or larger base models only after eval evidence justifies the extra cost. | Total/active/trainable parameter counts are recorded and gates improve |
 
 Current practical production choice remains `Qwen/Qwen3-4B-Instruct-2507` class QLoRA for first useful GPU training because the model card reports 4.0B parameters, long context support, and tool-usage improvements, while fitting a realistic low-VRAM adapter workflow.
 
@@ -92,6 +193,10 @@ Promotion requires all relevant gates, not just lower validation loss.
 | Knowledge gate | Held-out answer quality and regression tracking |
 | Behavior gate | Irene identity, she/her consistency, social support, repair, casual tone, boundary wording, tool abstention |
 | Router gate | Exact specialist route, broad expert family, tool vs non-tool separation |
+| Voice gate | Speaker attribution, turn-taking, interruption handling, STT quality, TTS latency, no retention-policy violations |
+| Memory growth gate | Accurate recall, correct forgetting, no secrets, no stale false memories, useful summary quality |
+| Skill growth gate | Learned workflow succeeds on repeat tasks and does not bypass permissions or confirmations |
+| Parameter growth gate | New trainable params are counted and justified by eval improvement |
 | Contamination gate | Keeps held-out eval examples out of train data |
 | Training report gate | Ensures model artifacts, metrics, eval evidence, and promotion rationale are complete |
 | Production readiness gate | Ensures SFT/DPO data, sequence budget, configs, sources, and oracle evals are ready before GPU spend |
@@ -194,14 +299,43 @@ Tasks:
 - Run DPO only after non-synthetic preference data is sufficient.
 - Add route/tool rewards for possible GRPO only where correctness is machine-checkable.
 - Track leaderboard over time.
+- Add a persistent skill ledger for successful workflows, recurring tool sequences, and corrected mistakes.
+- Add scheduled memory consolidation: summarize, dedupe, validate, expire, and delete memories according to policy.
+- Add a memory-to-training promotion queue so reviewed memories can become SFT/DPO examples and not just RAG entries.
+- Track trainable parameter growth: adapter params, specialist params, total deployed params, and active params per request.
 
 Success criteria:
 
 - DPO readiness passes.
 - Preference tuning improves human review and does not regress automated gates.
 - Failure categories shrink across repeated eval runs.
+- Memory recall is useful and correct in held-out continuity tests.
+- Forget/delete requests remove durable memory and derived summaries.
+- New adapters or specialists improve gates enough to justify their additional parameters.
 
-### Phase 5: Deployment Readiness
+### Phase 5: Living Discord Presence and Voice
+
+Goal: make Irene feel present in Discord while staying on the bot/application API path.
+
+Tasks:
+
+- Add bot profile/presence configuration for Irene's name, avatar, status, and activity.
+- Add voice-channel join/leave commands with permission checks.
+- Add TTS playback pipeline with queueing, interruption, and rate limits.
+- Add opt-in STT pipeline for voice receive, voice activity detection, speaker attribution, and transcript windows.
+- Add visible indicators and server settings for whether Irene is listening, speaking, transcribing, summarizing, or storing anything.
+- Add voice-session memory policy: raw audio transient by default, transcript retention optional, training use requires review.
+- Add voice evals for turn-taking, latency, speaker attribution, transcription quality, and social timing.
+
+Success criteria:
+
+- Irene can join an allowed voice channel, speak generated replies, and leave reliably.
+- Irene can transcribe opt-in voice sessions into conversation context without storing raw audio by default.
+- Voice behavior does not bypass text tool/permission/confirmation gates.
+- p95 speech round-trip latency target is documented and measured.
+- Users can see and control listening/retention state.
+
+### Phase 6: Deployment Readiness
 
 Goal: ship a fast, observable, maintainable bot.
 
@@ -220,6 +354,27 @@ Success criteria:
 - Tool execution audit logs are complete.
 - Deployment docs identify every remaining placeholder.
 
+### Phase 7: Scale Toward Larger-Model-Class Quality
+
+Goal: keep improving capability while treating parameter growth as an explicit engineering action.
+
+Tasks:
+
+- Maintain a model leaderboard across scratch, QLoRA, DPO, router, behavior, voice, and production checkpoints.
+- Use persistent memory/RAG so knowledge grows immediately after approved interactions.
+- Periodically train adapters from reviewed memory/skill/preference data once eval failures justify it.
+- Distill reliable specialist behaviors into smaller/faster models where useful.
+- Add experts or router-controlled specialists when a single model starts mixing incompatible behaviors.
+- Evaluate larger bases or MoE models when current models plateau.
+- Track total system capability separately from raw parameter count: base model params, active params, adapter params, specialist params, memory corpus size, tool count, eval pass rate, latency, and cost.
+
+Success criteria:
+
+- Each scale step improves at least one target gate without unacceptable regressions.
+- The system can explain what was learned from interactions, where it is stored, whether it changed weights/adapters, and how to delete it.
+- Long-running use produces measurable improvements in held-out continuity, tool, social, voice, and knowledge evals.
+- Larger models or new experts are adopted only when they beat the smaller system on the project gates.
+
 ## Research Anchors
 
 - BFCL V4 tracks real-world function calling, multi-turn interactions, and agentic evaluation: https://gorilla.cs.berkeley.edu/leaderboard.html
@@ -230,3 +385,7 @@ Success criteria:
 - GRPO source paper, DeepSeekMath: https://arxiv.org/abs/2402.03300
 - Axolotl docs: https://docs.axolotl.ai/
 - vLLM production stack: https://docs.vllm.ai/en/latest/deployment/integrations/production-stack/
+- Discord automated user accounts/self-bots policy: https://support.discord.com/hc/en-us/articles/115002192352-Automated-User-Accounts-Self-Bots
+- Discord Voice Connections docs: https://docs.discord.com/developers/topics/voice-connections
+- Discord Gateway docs: https://docs.discord.com/developers/events/gateway
+- discord.js voice package notes: https://discord.js.org/docs/packages/voice/main
