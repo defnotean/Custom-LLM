@@ -126,6 +126,102 @@ model TrainingExample {
   @@index([source])
 }
 
+enum LearningKind {
+  MEMORY
+  SKILL
+  PREFERENCE
+  CORRECTION
+  EVAL_FAILURE
+  VOICE_SUMMARY
+  DOCUMENT
+}
+
+enum LearningReviewStatus {
+  CANDIDATE
+  APPROVED
+  REJECTED
+}
+
+enum TrainingPromotionStatus {
+  NOT_QUEUED
+  QUEUED
+  TRAINED
+  BLOCKED
+}
+
+model LearnedItem {
+  id               String                  @id @default(cuid())
+  kind             LearningKind
+  content          String
+  source           String
+  confidence       Float                   @default(0.5)
+  reviewStatus     LearningReviewStatus    @default(CANDIDATE)
+  trainingStatus   TrainingPromotionStatus @default(NOT_QUEUED)
+  accessPathsJson  Json                    @default("[]")
+  provenanceJson   Json                    @default("{}")
+  retentionJson    Json                    @default("{}")
+  trainingJson     Json                    @default("{}")
+  metadataJson     Json                    @default("{}")
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  parameterLinks   LearnedParameterModule[]
+
+  @@index([kind, createdAt])
+  @@index([reviewStatus])
+  @@index([trainingStatus])
+}
+
+enum ParameterModuleKind {
+  BASE_MODEL
+  ADAPTER
+  ROUTER
+  SPECIALIST
+  EXPERT
+  MERGED_CHECKPOINT
+  ENSEMBLE_MEMBER
+}
+
+enum ParameterModuleStatus {
+  STAGED
+  ACTIVE
+  RETIRED
+  REJECTED
+}
+
+model ParameterModuleRecord {
+  id                        String                   @id @default(cuid())
+  name                      String                   @unique
+  kind                      ParameterModuleKind
+  parameters                BigInt
+  activeParameters          BigInt
+  trainableParameters       BigInt
+  status                    ParameterModuleStatus    @default(STAGED)
+  baseModuleId              String?
+  route                     String?
+  datasetHashesJson         Json                     @default("[]")
+  evalReportsJson           Json                     @default("[]")
+  sourceLearningItemIdsJson Json                     @default("[]")
+  rollbackTargetId          String?
+  metadataJson              Json                     @default("{}")
+  createdAt                 DateTime                 @default(now())
+  promotedAt                DateTime?
+  retiredAt                 DateTime?
+  learningLinks             LearnedParameterModule[]
+
+  @@index([kind, status])
+  @@index([status])
+}
+
+model LearnedParameterModule {
+  learnedItemId      String
+  parameterModuleId  String
+  linkedAt           DateTime              @default(now())
+  learnedItem        LearnedItem           @relation(fields: [learnedItemId], references: [id], onDelete: Cascade)
+  parameterModule    ParameterModuleRecord @relation(fields: [parameterModuleId], references: [id], onDelete: Cascade)
+
+  @@id([learnedItemId, parameterModuleId])
+}
+
 model UserFeedback {
   id                String   @id @default(cuid())
   conversationId    String

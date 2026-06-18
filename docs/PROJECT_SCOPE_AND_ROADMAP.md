@@ -43,7 +43,7 @@ The product identity is intentionally hardcoded to `Irene` / `she/her` in runtim
 | Knowledge scratch model | Not useful yet. | Tiny scratch knowledge reports have 0 exact match and very low overlap; QLoRA path is required for production quality |
 | Behavior scratch specialist | Trains on tiny behavior SFT but fails held-out direct JSON behavior eval. | `tiny-transformer-behavior-iter1`: 392,619 params, best/final val loss 0.2655, direct gate fails with valid JSON rate 0 |
 | Router scratch specialist | Trains on tiny router SFT but fails held-out direct route eval. | `tiny-transformer-router-iter1`: 343,050 params, best/final val loss 0.3845, direct gate fails with route accuracy 0.055556 |
-| Persistent growth loop | Basic memory, training capture, feedback export, eval scaffolds, and the first live-learning/parameter registry exist; persistence/runtime wiring for lifelong weight learning is not implemented yet. | `src/memory/**`, `src/training/**`, `src/learning/LiveLearningRegistry.ts`, `docs/TRAINING_DATA.md` |
+| Persistent growth loop | Basic memory, training capture, feedback export, eval scaffolds, live-learning/parameter registry, and Prisma persistence scaffold exist; runtime wiring, background training, and hot-loading are not implemented yet. | `src/memory/**`, `src/training/**`, `src/learning/LiveLearningRegistry.ts`, `src/database/repositories/LiveLearningRepository.ts`, `prisma/schema.prisma`, `docs/TRAINING_DATA.md` |
 | Voice/living Discord presence | Text bot exists; voice join/speech/hearing is planned, not implemented. | Discord voice work is a roadmap phase |
 | Production fine-tuning path | Scaffold exists for Qwen3 QLoRA SFT/DPO with Axolotl and Unsloth. | `training/configs/**`, `docs/AI_TRAINING_PLAN.md`, `docs/FINE_TUNING_PLAN.md` |
 
@@ -129,7 +129,7 @@ Parameter registry requirements:
 - Keep old adapters available until the new one proves stable.
 - Let Irene answer whether a piece of knowledge is only in memory/RAG or has also been trained into adapters/weights.
 
-Initial implementation: `src/learning/LiveLearningRegistry.ts` provides the in-process contract for learned items, training-queue promotion, parameter-module staging, gate-protected promotion, parameter accounting, and links from learned knowledge/skills to the modules trained from them. The next step is persistence plus runtime wiring into memory, tools, eval reports, and the future background learner.
+Initial implementation: `src/learning/LiveLearningRegistry.ts` provides the in-process contract for learned items, training-queue promotion, parameter-module staging, gate-protected promotion, parameter accounting, and links from learned knowledge/skills to the modules trained from them. `src/database/repositories/LiveLearningRepository.ts` persists the same contract through Prisma models for learned items, training status, provenance, retention, parameter modules, eval reports, and learned-item-to-module links. The next step is runtime wiring into memory, tools, eval reports, and the future background learner.
 
 ### Open-Door Learning Requirements
 

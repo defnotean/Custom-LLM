@@ -37,7 +37,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 | Prompts | `src/ai/prompts/` | Versioned system prompt, tool/memory/safety sections |
 | Tools | `src/tools/` | Registry, router, executor, permission/cooldown services, categories |
 | Memory | `src/memory/` | Service + policy + embedding providers + stores (pgvector/Qdrant/in-memory) |
-| Live Learning | `src/learning/` | Runtime learning ledger, immediate memory/skill access, parameter-module accounting |
+| Live Learning | `src/learning/`, `src/database/repositories/LiveLearningRepository.ts` | Runtime learning ledger, persisted learned-item records, immediate memory/skill access, parameter-module accounting |
 | Safety | `src/safety/` | Rate limiting, moderation screen (placeholder), confirmation gating |
 | Training | `src/training/` | Full-fidelity interaction capture, JSONL exporters, synthetic generation |
 | Persistence | `src/database/`, `prisma/` | Prisma models + repositories |
@@ -119,6 +119,6 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
 | Voice presence, STT, and TTS | **Planned** - use bot voice connections for compliant join/speak/listen behavior; requires opt-in retention policy and evals |
-| Live memory/skill learning | **Core registry implemented** - `LiveLearningRegistry` tracks immediate memory/RAG and skill access; persistence and runtime wiring TODO |
-| Lifelong parameter-growth loop | **Core registry implemented** - parameter modules can be staged, gate-promoted, counted, and linked to source learned items; background trainer/hot-loader TODO |
+| Live memory/skill learning | **Core registry + persistence scaffold implemented** - `LiveLearningRegistry` tracks immediate memory/RAG and skill access; `LiveLearningRepository` persists learned items, training queue status, provenance, retention, and module links; runtime wiring TODO |
+| Lifelong parameter-growth loop | **Core registry + persistence scaffold implemented** - parameter modules can be staged, gate-promoted, counted, persisted, and linked to source learned items; background trainer/hot-loader TODO |
 | Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |

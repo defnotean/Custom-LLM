@@ -335,32 +335,10 @@ export class LiveLearningRegistry {
   }
 
   getParameterSnapshot(options?: { selectedModuleIds?: string[] }): ParameterGrowthSnapshot {
-    const active = [...this.parameterModules.values()].filter((module) => module.status === "active");
-    const staged = [...this.parameterModules.values()].filter((module) => module.status === "staged");
-    const selectedIds = new Set(options?.selectedModuleIds ?? []);
-    const selectedActive = active.filter((module) => selectedIds.has(module.id));
-    const alwaysActive = active.filter((module) =>
-      ["base_model", "adapter", "router", "merged_checkpoint"].includes(module.kind),
-    );
-    const perRequestModules = selectedIds.size > 0 ? uniqueModules([...alwaysActive, ...selectedActive]) : active;
-
-    return {
+    return buildParameterGrowthSnapshot([...this.parameterModules.values()], {
       generatedAt: this.now(),
-      baseModelParams: sumParams(active, "base_model"),
-      adapterParams: sumParams(active, "adapter"),
-      routerParams: sumParams(active, "router"),
-      specialistParams: sumParams(active, "specialist"),
-      expertParams: sumParams(active, "expert"),
-      otherParams: active
-        .filter((module) => !["base_model", "adapter", "router", "specialist", "expert"].includes(module.kind))
-        .reduce((sum, module) => sum + module.parameters, 0),
-      totalSystemParams: active.reduce((sum, module) => sum + module.parameters, 0),
-      stagedParams: staged.reduce((sum, module) => sum + module.parameters, 0),
-      activeParamsPerRequest: perRequestModules.reduce((sum, module) => sum + module.activeParameters, 0),
-      activeModuleIds: active.map((module) => module.id),
-      stagedModuleIds: staged.map((module) => module.id),
-      selectedModuleIds: [...selectedIds],
-    };
+      selectedModuleIds: options?.selectedModuleIds,
+    });
   }
 
   private requireLearnedItem(id: string): LearnedItem {
@@ -374,6 +352,38 @@ export class LiveLearningRegistry {
     if (!module) throw new Error(`parameter module not found: ${id}`);
     return module;
   }
+}
+
+export function buildParameterGrowthSnapshot(
+  modules: ParameterModule[],
+  options?: { generatedAt?: string; selectedModuleIds?: string[] },
+): ParameterGrowthSnapshot {
+  const active = modules.filter((module) => module.status === "active");
+  const staged = modules.filter((module) => module.status === "staged");
+  const selectedIds = new Set(options?.selectedModuleIds ?? []);
+  const selectedActive = active.filter((module) => selectedIds.has(module.id));
+  const alwaysActive = active.filter((module) =>
+    ["base_model", "adapter", "router", "merged_checkpoint"].includes(module.kind),
+  );
+  const perRequestModules = selectedIds.size > 0 ? uniqueModules([...alwaysActive, ...selectedActive]) : active;
+
+  return {
+    generatedAt: options?.generatedAt ?? new Date().toISOString(),
+    baseModelParams: sumParams(active, "base_model"),
+    adapterParams: sumParams(active, "adapter"),
+    routerParams: sumParams(active, "router"),
+    specialistParams: sumParams(active, "specialist"),
+    expertParams: sumParams(active, "expert"),
+    otherParams: active
+      .filter((module) => !["base_model", "adapter", "router", "specialist", "expert"].includes(module.kind))
+      .reduce((sum, module) => sum + module.parameters, 0),
+    totalSystemParams: active.reduce((sum, module) => sum + module.parameters, 0),
+    stagedParams: staged.reduce((sum, module) => sum + module.parameters, 0),
+    activeParamsPerRequest: perRequestModules.reduce((sum, module) => sum + module.activeParameters, 0),
+    activeModuleIds: active.map((module) => module.id),
+    stagedModuleIds: staged.map((module) => module.id),
+    selectedModuleIds: [...selectedIds],
+  };
 }
 
 function defaultAccessPaths(kind: LearningKind): LearningAccessPath[] {
