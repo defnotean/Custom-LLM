@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import type { Logger } from "pino";
 import { ConfigError } from "../utils/errors";
+import { applyDiscordPresence, type DiscordPresenceOptions } from "./presence";
 
 /**
  * Discord client factory. Requires the privileged MessageContent intent —
@@ -29,6 +30,7 @@ export async function startDiscordClient(
   client: Client,
   token: string,
   logger: Logger,
+  presence?: DiscordPresenceOptions,
 ): Promise<void> {
   if (!token) {
     throw new ConfigError(
@@ -37,6 +39,7 @@ export async function startDiscordClient(
   }
 
   client.once(Events.ClientReady, (ready) => {
+    if (presence) applyDiscordPresence(ready, presence, logger);
     logger.info(
       { user: ready.user.tag, guilds: ready.guilds.cache.size },
       "discord client ready",

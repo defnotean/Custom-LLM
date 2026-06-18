@@ -282,7 +282,11 @@ async function main(): Promise<void> {
 
   // ── Discord login (optional in API-only/dev mode) ──────────────────────
   if (env.DISCORD_TOKEN) {
-    await startDiscordClient(discordClient, env.DISCORD_TOKEN, childLogger("discord"));
+    await startDiscordClient(discordClient, env.DISCORD_TOKEN, childLogger("discord"), {
+      status: env.DISCORD_PRESENCE_STATUS,
+      activityType: env.DISCORD_PRESENCE_ACTIVITY_TYPE,
+      activityName: env.DISCORD_PRESENCE_ACTIVITY_NAME,
+    });
   } else {
     logger.warn("DISCORD_TOKEN not set — running in API-only mode (no Discord connection)");
   }

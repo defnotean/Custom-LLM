@@ -33,7 +33,21 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot+applicat
 
 Set `DISCORD_GUILD_ID` to your test server's id (enable Developer Mode in Discord → right-click server → Copy Server ID). It is reserved for guild-scoped slash-command registration (instant updates vs ~1h global) once slash commands land — the current build uses prefix commands and mentions.
 
-## 5. Talk to the bot
+## 5. Presence
+
+Irene's Discord presence is configured after login:
+
+```env
+DISCORD_PRESENCE_STATUS=online
+DISCORD_PRESENCE_ACTIVITY_TYPE=Listening
+DISCORD_PRESENCE_ACTIVITY_NAME=for tool calls
+```
+
+Supported activity types are `Playing`, `Listening`, `Watching`, `Competing`, and `Custom`.
+
+Voice connection, TTS, and STT commands are not shipped yet. The current voice code is a policy/session scaffold so future voice features require guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training.
+
+## 6. Talk to the bot
 
 The bot responds to:
 

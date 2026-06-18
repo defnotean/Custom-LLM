@@ -1,12 +1,15 @@
 import type { PrismaClient } from "@prisma/client";
 import type { JsonValue } from "../../types/common";
+import type { GuildVoiceSettings } from "../../discord/voice/VoiceSessionPolicy";
 
 export interface GuildSettings {
   /** Channels where the bot may converse without being mentioned (TODO: enforcement). */
   allowChannels?: string[];
   /** Per-guild disabled tool names (TODO: enforcement in ToolRouter/Executor). */
   disabledTools?: string[];
-  [key: string]: JsonValue | undefined;
+  /** Opt-in voice policy for join/speak/listen/transcription behavior. */
+  voice?: GuildVoiceSettings;
+  [key: string]: JsonValue | GuildVoiceSettings | undefined;
 }
 
 export class GuildRepository {

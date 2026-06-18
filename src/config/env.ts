@@ -19,6 +19,11 @@ const envSchema = z.object({
   DISCORD_TOKEN: z.string().default(""),
   DISCORD_CLIENT_ID: z.string().default(""),
   DISCORD_GUILD_ID: z.string().default(""),
+  DISCORD_PRESENCE_STATUS: z.enum(["online", "idle", "dnd", "invisible"]).default("online"),
+  DISCORD_PRESENCE_ACTIVITY_TYPE: z
+    .enum(["Playing", "Listening", "Watching", "Competing", "Custom"])
+    .default("Listening"),
+  DISCORD_PRESENCE_ACTIVITY_NAME: z.string().default("for tool calls"),
 
   // Data spine
   DATABASE_URL: z
