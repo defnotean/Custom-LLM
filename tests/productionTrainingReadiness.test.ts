@@ -31,6 +31,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "subq-architecture-contract")).toBe("pass");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("warn");
   });
 
@@ -118,6 +119,7 @@ describe("ProductionTrainingReadiness", () => {
     const routerEvalReportPath = join(evalDir, "specialist-routing-oracle.report.json");
     const toolRouterEvalReportPath = join(evalDir, "tool-router-keyword.report.json");
     const longContextEvalReportPath = join(evalDir, "long-context-oracle.report.json");
+    const longContextSuitePath = join(evalDir, "long-context.eval.jsonl");
     await writeJson(toolEvalReportPath, {
       total: 35,
       validJsonRate: 1,
@@ -181,15 +183,34 @@ describe("ProductionTrainingReadiness", () => {
       falsePositiveRate: 0,
       failures: [],
     });
+    await writeLongContextSuiteFixture(longContextSuitePath);
 
     const axolotlSftConfigPath = join(configDir, "qwen3-qlora-sft.yaml");
     const axolotlDpoConfigPath = join(configDir, "qwen3-qlora-dpo.yaml");
     const unslothSftConfigPath = join(configDir, "qwen3_qlora_sft.py");
     const unslothDpoConfigPath = join(configDir, "qwen3_dpo.py");
+    const llmRouterSourcePath = join(configDir, "LLMRouter.ts");
+    const tinyTrainerPath = join(configDir, "train_tiny_transformer_lm.py");
+    const tinyEvaluatorPath = join(configDir, "evaluate_tiny_transformer_lm.py");
     await writeFile(axolotlSftConfigPath, overrides.axolotlSft ?? goodAxolotlSftConfig(), "utf8");
     await writeFile(axolotlDpoConfigPath, overrides.axolotlDpo ?? goodAxolotlDpoConfig(), "utf8");
     await writeFile(unslothSftConfigPath, overrides.unslothSft ?? goodUnslothSftConfig(), "utf8");
     await writeFile(unslothDpoConfigPath, overrides.unslothDpo ?? goodUnslothDpoConfig(), "utf8");
+    await writeFile(
+      llmRouterSourcePath,
+      'const preferredProvider = request.metadata?.preferredProvider;\nconst provider = request.metadata?.longContext === true ? "subq" : preferredProvider;\n',
+      "utf8",
+    );
+    await writeFile(
+      tinyTrainerPath,
+      'parser.add_argument("--attention-mode", choices=["dense", "local-log-sparse"])\ndef sparse_attention_indices(): pass\ndef local_log_sparse_attention(): pass\nsparse_local_window = 32\nsparse_log_base = 2\n',
+      "utf8",
+    );
+    await writeFile(
+      tinyEvaluatorPath,
+      'attention_mode=str(config.get("attention_mode", "dense"))\nsparse_local_window=int(config.get("sparse_local_window", 32))\nsparse_log_base=int(config.get("sparse_log_base", 2))\n',
+      "utf8",
+    );
 
     return {
       options: {
@@ -201,6 +222,10 @@ describe("ProductionTrainingReadiness", () => {
         routerEvalReportPath,
         toolRouterEvalReportPath,
         longContextEvalReportPath,
+        longContextSuitePath,
+        llmRouterSourcePath,
+        tinyTrainerPath,
+        tinyEvaluatorPath,
         axolotlSftConfigPath,
         axolotlDpoConfigPath,
         unslothSftConfigPath,
@@ -226,6 +251,49 @@ function checkStatus(checks: Array<{ id: string; status: string }>, id: string):
 
 async function writeJson(path: string, body: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+}
+
+async function writeLongContextSuiteFixture(path: string): Promise<void> {
+  const required = [
+    ["synthetic-needle-in-context", "needle_retrieval"],
+    ["synthetic-repo-artifact", "repo_file_lookup"],
+    ["synthetic-repo-artifact", "repo_env_lookup"],
+    ["synthetic-repo-artifact", "repo_routing_contract"],
+    ["real-repo-snapshot", "repo_script_lookup"],
+    ["real-repo-snapshot", "repo_readiness_contract"],
+    ["real-repo-snapshot", "repo_router_provider"],
+    ["real-repo-multifile", "repo_script_readiness_chain"],
+    ["real-repo-multifile", "repo_router_subq_chain"],
+  ] as const;
+  const rows = [
+    ...required.map(([source, taskType], index) => longContextCase(`lc-required-${index}`, source, taskType)),
+    ...Array.from({ length: 8 }, (_, index) =>
+      longContextCase(`lc-extra-${index}`, "synthetic-needle-in-context", "needle_retrieval", 16_000),
+    ),
+  ];
+  await writeFile(path, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`, "utf8");
+}
+
+function longContextCase(id: string, source: string, taskType: string, targetContextChars = 4096): Record<string, unknown> {
+  return {
+    id,
+    source,
+    prompt: "Use the long context.",
+    expected: "answer",
+    metadata: {
+      targetKey: id,
+      expectedHash: "0".repeat(64),
+      targetContextChars,
+      contextChars: targetContextChars + 10,
+      approxTokens: Math.ceil(targetContextChars / 4),
+      needlePosition: "middle",
+      taskType,
+      distractorAnswers: [],
+      longContext: true,
+      preferredProvider: "subq",
+      architectureTarget: "subquadratic-sparse-attention",
+    },
+  };
 }
 
 async function fileReport(path: string): Promise<{ path: string; lines: number; bytes: number; sha256: string }> {

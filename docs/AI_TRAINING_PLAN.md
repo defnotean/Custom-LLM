@@ -73,13 +73,16 @@ The production long-context target is subquadratic sparse attention, not dense a
 ```bash
 npm run train:tiny-transformer -- --train training/data/protocol/sft.train.jsonl --val training/data/protocol/sft.validation.jsonl --steps 20 --eval-every 10 --block-size 128 --batch-size 8 --n-embd 96 --n-head 4 --n-layer 2 --vocab-size 1024 --tokenizer-mode byte-fallback --loss-scope assistant --attention-mode local-log-sparse --sparse-local-window 32 --sparse-log-base 2 --out-dir training/runs/tiny-transformer-subquadratic-smoke
 npm run check:training -- --metrics training/runs/tiny-transformer-subquadratic-smoke/metrics.json
+npm run check:subq-architecture
 ```
 
-Promotion criteria for this track are stricter than "it trains": the checkpoint must reload through the direct evaluators, preserve tool protocol behavior, and eventually beat dense attention on long-context retrieval/cost before any SSA model replaces the normal serving path.
+Promotion criteria for this track are stricter than "it trains": the checkpoint must reload through the direct evaluators, preserve tool protocol behavior, keep the `check:subq-architecture` contract passing, and eventually beat dense attention on long-context retrieval/cost before any SSA model replaces the normal serving path.
 
 ## Long-Context Retrieval Gate
 
 The SubQ/SSA path now has its own held-out gate. It builds deterministic synthetic needle-in-context prompts with early/middle/late answer positions, many similar distractor trace values, increasing context sizes, synthetic repository artifact bundles that ask for exact file paths, environment variables, and routing contracts, real repository snapshot lookups from `package.json`, `ProductionTrainingReadiness.ts`, and `LLMRouter.ts`, plus multi-file repo reasoning cases that connect package scripts, readiness checks, router behavior, and setup docs. Live predictions are sent through the normal LLM router with `metadata.longContext=true`; pass `--preferred-provider subq` when you want to pin the SubQ route instead of relying on automatic long-context routing.
+
+`npm run check:subq-architecture` is the static contract gate for this track. It verifies the checked-in long-context suite is tagged with `metadata.longContext=true`, `preferredProvider="subq"`, and `architectureTarget="subquadratic-sparse-attention"`, confirms required synthetic/real repo sources and task types are present, and checks that `LLMRouter` plus the tiny trainer/evaluator still expose the SubQ route and `local-log-sparse` smoke path. `npm run check:production-readiness` includes the same contract as `subq-architecture-contract`.
 
 ```bash
 npm run build:long-context-eval

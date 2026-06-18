@@ -5,6 +5,10 @@ import {
   analyzeTrainingMixtureSequences,
   type TrainingMixtureSequenceReport,
 } from "./TrainingMixtureSequenceStats";
+import {
+  checkSubquadraticArchitectureReadiness,
+  type SubquadraticArchitectureReadinessReport,
+} from "./SubquadraticArchitectureReadiness";
 
 const outputFileSchema = z.object({
   path: z.string().min(1),
@@ -128,6 +132,10 @@ export interface ProductionTrainingReadinessOptions {
   routerEvalReportPath?: string;
   toolRouterEvalReportPath?: string;
   longContextEvalReportPath?: string;
+  longContextSuitePath?: string;
+  llmRouterSourcePath?: string;
+  tinyTrainerPath?: string;
+  tinyEvaluatorPath?: string;
   axolotlSftConfigPath?: string;
   axolotlDpoConfigPath?: string;
   unslothSftConfigPath?: string;
@@ -192,6 +200,10 @@ const DEFAULTS = {
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
   toolRouterEvalReportPath: "training/evals/tool-router-keyword.report.json",
   longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
+  longContextSuitePath: "training/evals/long-context.eval.jsonl",
+  llmRouterSourcePath: "src/ai/llm/LLMRouter.ts",
+  tinyTrainerPath: "training/train_tiny_transformer_lm.py",
+  tinyEvaluatorPath: "training/evaluate_tiny_transformer_lm.py",
   axolotlSftConfigPath: "training/configs/axolotl/qwen3-qlora-sft.yaml",
   axolotlDpoConfigPath: "training/configs/axolotl/qwen3-qlora-dpo.yaml",
   unslothSftConfigPath: "training/configs/unsloth/qwen3_qlora_sft.py",
@@ -223,7 +235,15 @@ export async function checkProductionTrainingReadiness(
     sequenceLength: config.sequenceLength,
     topLongest: 5,
   });
-  const [toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport, toolRouterEvalReport, longContextEvalReport] =
+  const [
+    toolEvalReport,
+    knowledgeEvalReport,
+    behaviorEvalReport,
+    routerEvalReport,
+    toolRouterEvalReport,
+    longContextEvalReport,
+    subqArchitectureReport,
+  ] =
     await Promise.all([
       readJson(config.toolEvalReportPath, toolEvalReportSchema),
       readJson(config.knowledgeEvalReportPath, knowledgeEvalReportSchema),
@@ -231,6 +251,12 @@ export async function checkProductionTrainingReadiness(
       readJson(config.routerEvalReportPath, routerEvalReportSchema),
       readJson(config.toolRouterEvalReportPath, toolRouterEvalReportSchema),
       readJson(config.longContextEvalReportPath, longContextEvalReportSchema),
+      checkSubquadraticArchitectureReadiness({
+        suitePath: config.longContextSuitePath,
+        routerSourcePath: config.llmRouterSourcePath,
+        trainerPath: config.tinyTrainerPath,
+        evaluatorPath: config.tinyEvaluatorPath,
+      }),
     ]);
   const [axolotlSft, axolotlDpo, unslothSft, unslothDpo] = await Promise.all([
     readFile(config.axolotlSftConfigPath, "utf8"),
@@ -251,6 +277,7 @@ export async function checkProductionTrainingReadiness(
       routerEvalReport,
       toolRouterEvalReport,
       longContextEvalReport,
+      subqArchitectureReport,
     ),
   );
 
@@ -473,6 +500,7 @@ function evalHarnessChecks(
   routerReport: RouterEvalReport,
   toolRouterReport: ToolRouterEvalReport,
   longContextReport: LongContextEvalReport,
+  subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
     toolReport.total >= 10 &&
@@ -579,6 +607,21 @@ function evalHarnessChecks(
           missingPredictions: longContextReport.missingPredictions,
           falsePositiveRate: longContextReport.falsePositiveRate,
           failures: longContextReport.failures.length,
+        }),
+    subqArchitectureReport.status === "pass"
+      ? pass(
+          "subq-architecture-contract",
+          `SubQ/SSA architecture contract is healthy with ${subqArchitectureReport.summary.cases} long-context cases`,
+          {
+            maxTargetContextChars: subqArchitectureReport.summary.maxTargetContextChars,
+            sources: subqArchitectureReport.summary.sources,
+            taskTypes: subqArchitectureReport.summary.taskTypes,
+          },
+        )
+      : fail("subq-architecture-contract", "SubQ/SSA architecture contract is incomplete", {
+          failures: subqArchitectureReport.checks
+            .filter((check) => check.status === "fail")
+            .map((check) => ({ id: check.id, summary: check.summary, details: check.details })),
         }),
   ];
 }

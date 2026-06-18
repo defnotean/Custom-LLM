@@ -97,6 +97,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run check:training-report` | Verify an iteration report is complete for review or strict promotion |
 | `npm run check:production-readiness` | Preflight production SFT/DPO datasets, eval reports, and QLoRA configs before GPU training |
 | `npm run check:training-configs` | Validate Axolotl/Unsloth production QLoRA config scaffolds and their dataset paths |
+| `npm run check:subq-architecture` | Verify the SubQ/SSA architecture contract: long-context suite metadata, SubQ routing, and local sparse trainer/evaluator support |
 | `npm run generate:examples` | Deterministic synthetic tool examples (JSONL + DB) |
 | `npm run seed:tools` | Sync registry metadata into `ToolDefinitionRecord` |
 | `npm run prisma:migrate` | Apply migrations |
@@ -167,7 +168,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, adversarial no-tool, first-pass multi-turn confirmation, and prompt-injection protocol cases, ops API, docker compose, 251 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, SubQ/SSA architecture contract check, adversarial no-tool, first-pass multi-turn confirmation, and prompt-injection protocol cases, ops API, docker compose, 254 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 

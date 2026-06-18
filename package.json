@@ -77,6 +77,7 @@
     "check:training": "tsx scripts/check-training-artifacts.ts",
     "check:production-readiness": "tsx scripts/check-production-training-readiness.ts",
     "check:training-configs": "tsx scripts/validate-training-configs.ts",
+    "check:subq-architecture": "tsx scripts/check-subq-architecture.ts",
     "train:tiny-transformer": "py -3.11 training/train_tiny_transformer_lm.py",
     "train:tiny-char": "py -3.11 training/train_tiny_char_lm.py",
     "seed:tools": "tsx scripts/seed-tools.ts",

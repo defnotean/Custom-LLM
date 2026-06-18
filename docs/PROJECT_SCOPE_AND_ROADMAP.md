@@ -249,6 +249,7 @@ Success criteria:
 - `npm run check:contamination`
 - `npm run check:production-readiness`
 - `npm run check:training-configs`
+- `npm run check:subq-architecture`
 
 ### Phase 1: Fix Specialist JSON Stability
 
