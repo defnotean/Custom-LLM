@@ -16,7 +16,7 @@
   "candidate": {
     "suitePath": "training/evals/tool-routing.eval.jsonl",
     "predictionsPath": "training/evals/oracle.predictions.jsonl",
-    "total": 39,
+    "total": 42,
     "validJsonRate": 1,
     "actionTypeAccuracy": 1,
     "toolNameAccuracy": 1,

@@ -219,6 +219,8 @@ For the "perfect tool calls" target, add BFCL-style scenarios over time:
 - Permission denied -> message refusal, not confirmation.
 - Risky allowed action -> confirmation request.
 - Already confirmed action -> tool call.
+- Pending confirmation cancelled -> message, never tool execution.
+- Pending confirmation changed -> fresh confirmation with updated arguments.
 - Adversarial no-tool prompts that mention tool names, quote tool names, or discuss tool-call JSON.
 - Multi-step tool workflows.
 - Tool result follow-up without inventing unseen results.
@@ -272,7 +274,7 @@ Goal: get as close as practical to perfect tool calls under realistic Discord co
 Tasks:
 
 - Expand protocol eval to at least 200 cases across all starter tools and risk states.
-- Add multi-turn confirmation and correction cases.
+- Expand multi-turn confirmation/correction cases beyond the first yes/no/changed-args coverage.
 - Keep expanding adversarial no-tool/casual prompts that mention tool names or protocol JSON.
 - Compare keyword vs embedding tool retrieval on the same eval suite.
 - Add latency gates for tool routing.

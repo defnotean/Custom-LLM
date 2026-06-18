@@ -145,6 +145,45 @@ describe("EvalPredictionRunner", () => {
     expect(permissionBeforeConfirmationMessages[1]?.content).not.toContain("requires confirmation before execution");
   });
 
+  it("includes prior messages for multi-turn protocol cases", () => {
+    const registry = buildToolRegistry();
+    const messages = buildEvalMessages(
+      {
+        id: "case:multi-turn-cancel",
+        kind: "no_tool",
+        prompt: "no, cancel it",
+        priorMessages: [
+          { role: "user", content: "timeout user 123456789012345678 for 1 minute" },
+          {
+            role: "assistant",
+            content:
+              '{"type":"confirmation_request","content":"Confirm timeout?","pending_tool_call":{"tool":"timeout_user","arguments":{"userId":"123456789012345678","durationMinutes":1,"reason":"raid spam"}}}',
+          },
+        ],
+        expected: { type: "message", content: "cancelled" },
+        candidateTools: ["timeout_user"],
+        metadata: {
+          tool: "timeout_user",
+          cancelPending: true,
+          multiTurn: true,
+          requiredArgs: ["userId", "durationMinutes"],
+          providedArgs: { userId: "123456789012345678", durationMinutes: 1, reason: "raid spam" },
+          requiredPermissions: ["MODERATE_MEMBERS"],
+          memberPermissions: ["MODERATE_MEMBERS"],
+        },
+      },
+      registry,
+    );
+
+    expect(messages).toHaveLength(5);
+    expect(messages[1]?.content).toContain("cancels a pending confirmation");
+    expect(messages[1]?.content).not.toContain("required arguments for timeout_user");
+    expect(messages[2]).toEqual({ role: "user", content: "timeout user 123456789012345678 for 1 minute" });
+    expect(messages[3]?.role).toBe("assistant");
+    expect(messages[3]?.content).toContain("confirmation_request");
+    expect(messages[4]).toEqual({ role: "user", content: "no, cancel it" });
+  });
+
   it("writes prediction JSONL and forwards eval metadata to the LLM", async () => {
     dir = await mkdtemp(join(tmpdir(), "eval-runner-"));
     const suitePath = join(dir, "suite.jsonl");

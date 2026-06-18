@@ -43,6 +43,7 @@ export function buildEvalMessages(evalCase: ToolEvalCase, registry: ToolRegistry
   return [
     { role: "system", content: system },
     ...(evalContext ? [{ role: "system" as const, content: evalContext }] : []),
+    ...(evalCase.priorMessages ?? []),
     { role: "user", content: evalCase.prompt },
   ];
 }
@@ -56,6 +57,7 @@ function buildEvalContext(evalCase: ToolEvalCase): string | null {
   const memberPermissions = stringArray(evalCase.metadata.memberPermissions);
   const providedArgs = recordValue(evalCase.metadata.providedArgs);
   const lacksRequiredPermissions = requiredPermissions.length > 0 && memberPermissions.length === 0;
+  const cancelPending = evalCase.metadata.cancelPending === true;
 
   if (evalCase.candidateTools.length === 0) {
     lines.push("Eval tool context: no candidate tools are available. Return a message; do not call a tool.");
@@ -63,6 +65,13 @@ function buildEvalContext(evalCase: ToolEvalCase): string | null {
     lines.push(
       `Eval candidate context: only these candidate tools are allowed: ${evalCase.candidateTools.join(", ")}. Never call a tool outside this list.`,
     );
+  }
+
+  if (cancelPending) {
+    lines.push(
+      "Eval multi-turn context: the current user message cancels a pending confirmation. Return a message; do not call a tool or request confirmation.",
+    );
+    return lines.join("\n");
   }
 
   if (tool && requiredArgs.length > 0) {

@@ -55,6 +55,29 @@ describe("ToolEvalSuite", () => {
     ).toBe(true);
     expect(allCases.some((item) => item.id === "tool:send_message:clarify")).toBe(true);
     expect(allCases.some((item) => item.id === "tool:summarize_channel_recent_messages:clarify")).toBe(false);
+    expect(allCases.find((item) => item.id === "tool:timeout_user:multiturn_confirmed_yes")).toMatchObject({
+      kind: "tool_call",
+      prompt: "yes, do it",
+      candidateTools: ["timeout_user"],
+      metadata: { multiTurn: true, confirmed: true, scenario: "confirmation_yes" },
+    });
+    expect(allCases.find((item) => item.id === "no_tool:multiturn_cancel_pending_confirmation")).toMatchObject({
+      kind: "no_tool",
+      prompt: "no, cancel it",
+      candidateTools: ["timeout_user"],
+      metadata: { multiTurn: true, cancelPending: true, scenario: "confirmation_cancel" },
+    });
+    expect(allCases.find((item) => item.id === "tool:timeout_user:multiturn_changed_args_confirm_again")).toMatchObject({
+      kind: "confirmation_request",
+      prompt: "actually make it 10 minutes instead",
+      candidateTools: ["timeout_user"],
+      metadata: { multiTurn: true, confirmed: false, scenario: "confirmation_args_changed" },
+    });
+    expect(
+      allCases
+        .filter((item) => item.metadata.multiTurn === true)
+        .every((item) => (item.priorMessages?.length ?? 0) >= 2),
+    ).toBe(true);
     expect(
       allCases
         .filter((item) => item.metadata.tool === "send_message")
