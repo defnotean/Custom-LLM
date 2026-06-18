@@ -26,6 +26,7 @@ Parse failures and tool denials are logged too. Failure data is signal for forma
 - Approved `skill` candidates with `skill_registry` access are retrieved into future prompts as workflow hints. They do not bypass tool retrieval, permissions, confirmations, or executor gates.
 - Active promoted parameter modules are selected per request and retrieved into future prompts with any retrievable source-learning summaries. This makes a newly promoted adapter/specialist/expert visible to Irene immediately, while real model-weight loading remains the model server hot-loader step.
 - Approved queued candidates are also scanned by `ParameterGrowthPlanner`, which writes trainer handoff manifests with source ids, content/metadata hashes, target module type, parameter budget estimates, gate requirements, and risk flags. These manifests do not train weights; they tell the future trainer exactly what to train and what must pass before promotion.
+- Trained parameter-module candidates must ship a staging manifest checked by `ParameterModuleStagingGate`: dataset manifest hash, emitted dataset hashes, artifact hashes, source learned-item ids, required eval passes, and rollback target all have to match before the module should be registered or promoted.
 
 Review and queue candidates through the private ops API:
 
@@ -44,6 +45,7 @@ npm run plan:parameter-growth
 npm run check:parameter-growth-plan -- --allow-risk-review
 npm run build:parameter-growth-data -- --allow-risk-review
 npm run check:parameter-growth-data -- --manifest training/data/parameter-growth/<plan-id>/manifest.json
+npm run check:parameter-module-staging -- --manifest training/runs/parameter-modules/<run-id>/staging-manifest.json
 
 curl -X POST http://127.0.0.1:3000/learning/parameter-modules \
   -H "content-type: application/json" \
@@ -63,6 +65,8 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 `build:parameter-growth-data` re-fetches every source learned item from the live store, verifies the plan's content and metadata hashes, re-checks review/training/retention state, then writes per-batch JSONL plus a manifest under `training/data/parameter-growth/`. If any source item changed after planning, the build fails instead of training on stale or unreviewed data.
 
 `check:parameter-growth-data` verifies the generated manifest and JSONL files after the build: recorded hashes and byte counts must match, record schemas must be valid, batch counts must line up, record ids must be unique, and obvious token/API-key patterns must be absent.
+
+`check:parameter-module-staging` verifies the trainer's output before registry creation/promotion: module parameter counts must be within budget, source learned-item ids must match the dataset records, dataset and artifact hashes must match the staging manifest, required eval reports must pass, eval report evidence must be hash-verified, and rollback metadata must exist. This is the handoff gate between "a trainer produced files" and "Irene may stage a new adapter/specialist/expert."
 
 ## Export Formats
 

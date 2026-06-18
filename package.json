@@ -22,6 +22,7 @@
     "check:parameter-growth-plan": "tsx scripts/check-parameter-growth-plan.ts",
     "build:parameter-growth-data": "tsx scripts/build-parameter-growth-dataset.ts",
     "check:parameter-growth-data": "tsx scripts/check-parameter-growth-data.ts",
+    "check:parameter-module-staging": "tsx scripts/check-parameter-module-staging.ts",
     "download:datasets": "tsx scripts/download-open-datasets.ts",
     "prepare:datasets": "tsx scripts/prepare-open-datasets.ts",
     "build:sft-mixture": "tsx scripts/build-sft-mixture.ts",
