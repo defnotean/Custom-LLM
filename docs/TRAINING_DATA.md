@@ -42,6 +42,7 @@ curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/queue \
 
 npm run plan:parameter-growth
 npm run check:parameter-growth-plan -- --allow-risk-review
+npm run build:parameter-growth-data -- --allow-risk-review
 
 curl -X POST http://127.0.0.1:3000/learning/parameter-modules \
   -H "content-type: application/json" \
@@ -57,6 +58,8 @@ curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<modul
 The scheduled worker also writes parameter-growth plans to `training/plans/parameter-growth/` every six hours when the DB-backed learning repository is available. That directory is generated output and is intentionally ignored by Git.
 
 `check:parameter-growth-plan` fails plans that are not ready, have too few ready batches, exceed the parameter budget, include inconsistent record/hash counts, miss required gates, or still need risk review. Use `--allow-risk-review` only after a human has reviewed the plan's risk flags and source provenance.
+
+`build:parameter-growth-data` re-fetches every source learned item from the live store, verifies the plan's content and metadata hashes, re-checks review/training/retention state, then writes per-batch JSONL plus a manifest under `training/data/parameter-growth/`. If any source item changed after planning, the build fails instead of training on stale or unreviewed data.
 
 ## Export Formats
 
