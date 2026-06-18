@@ -45,7 +45,18 @@ DISCORD_PRESENCE_ACTIVITY_NAME=for tool calls
 
 Supported activity types are `Playing`, `Listening`, `Watching`, `Competing`, and `Custom`.
 
-Voice connection, TTS, and STT commands are not shipped yet. The current voice code is a policy/session scaffold so future voice features require guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training.
+Voice join/leave commands are shipped behind an opt-in policy. TTS and STT commands are not shipped yet. The current voice code requires guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training.
+
+To enable Irene for the voice channel you are currently in:
+
+```text
+!ai voice enable
+!ai voice join
+!ai voice status
+!ai voice leave
+```
+
+Only administrators, server managers, or voice moderators can use the voice control commands.
 
 ## 6. Talk to the bot
 

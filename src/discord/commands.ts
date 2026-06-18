@@ -4,6 +4,7 @@ import type { StatsPayload, HealthPayload } from "../types/common";
 import type { ToolRegistry } from "../tools/ToolRegistry";
 import type { ToolExecutor } from "../tools/ToolExecutor";
 import type { ToolExecutionContext, ToolMemoryAccess } from "../tools/ToolDefinition";
+import type { DiscordVoiceService } from "./voice/DiscordVoiceService";
 import { toErrorMessage } from "../utils/errors";
 
 /**
@@ -22,6 +23,7 @@ export interface CommandServices {
   executor: ToolExecutor;
   buildToolContext: (ctx: BotMessageContext) => ToolExecutionContext;
   memory?: ToolMemoryAccess | null;
+  voice?: DiscordVoiceService | null;
   exporter?: { exportAll(outDir: string): Promise<ExportSummary> } | null;
   stats?: (() => Promise<StatsPayload>) | null;
   health?: (() => Promise<HealthPayload>) | null;
@@ -35,6 +37,7 @@ const HELP_TEXT = [
   "`!ai tool <name>` — show one tool's details",
   "`!ai memory recall <query>` — search stored memories",
   "`!ai memory remember <text>` — store a memory",
+  "`!ai voice status|policy|enable|disable|join|leave` — manage opt-in voice presence",
   "`!ai export-training` — export training datasets (admin)",
   "`!ai stats` — runtime statistics",
   "`!ai health` — health summary",
@@ -133,6 +136,27 @@ export async function handleCommand(
             : `Not stored: ${result.reason}`;
         }
         return "Usage: `!ai memory recall <query>` or `!ai memory remember <text>`";
+      }
+
+      case "voice": {
+        if (!services.voice) return "Voice service is unavailable.";
+        const [sub = "status"] = rest;
+        switch (sub.toLowerCase()) {
+          case "status":
+            return services.voice.status(ctx).message;
+          case "policy":
+            return (await services.voice.describeCurrentPolicy(ctx)).message;
+          case "enable":
+            return (await services.voice.enableCurrentChannel(ctx)).message;
+          case "disable":
+            return (await services.voice.disableGuild(ctx)).message;
+          case "join":
+            return (await services.voice.joinCurrentChannel(ctx)).message;
+          case "leave":
+            return services.voice.leaveGuild(ctx).message;
+          default:
+            return "Usage: `!ai voice status|policy|enable|disable|join|leave`";
+        }
       }
 
       case "export-training": {

@@ -35,7 +35,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 | Layer | Location | Responsibility |
 |---|---|---|
 | Discord | `src/discord/` | Gateway events, context normalization, prefix commands, typing/splitting |
-| Voice & Presence | `src/discord/presence.ts`, `src/discord/voice/` | Bot identity/status config, opt-in voice policy, voice-session state scaffold; voice-channel join/leave, TTS playback, and opt-in STT/transcription are next |
+| Voice & Presence | `src/discord/presence.ts`, `src/discord/voice/` | Bot identity/status config, opt-in voice policy, voice-session state, command-gated voice-channel join/leave; TTS playback and opt-in STT/transcription are next |
 | Orchestration | `src/ai/orchestration/` | AgentController + thin agents (conversation, tool-router, memory, safety, evaluation) |
 | LLM | `src/ai/llm/` | Provider abstraction, OpenAI-compatible + native Ollama, fallback router, optional SubQ long-context route |
 | Parsing | `src/ai/parsing/` | JSON extraction/repair, strict action-protocol validation |
@@ -62,7 +62,7 @@ The LLM's output is **data, not authority**:
 
 Irene is designed to feel like a persistent Discord presence, but the supported implementation is a Discord application/bot account, not automation of a normal user account. A bot account can own Irene's name, avatar, status, text messages, typing indicators, and planned voice presence. Normal user-token automation/self-bot behavior is outside this architecture.
 
-Voice features are being built as an opt-in bot capability. The current code has configurable Irene presence plus a voice policy/session scaffold that requires guild/channel opt-in, keeps raw audio transient by default, and marks training use as review-gated. The next implementation step is the actual Discord Voice connection path: join allowed voice channels, play TTS, receive voice data for speech-to-text, and pass transcripts into the same router/tool/memory gates used for text. Durable summaries, transcripts, and training examples require explicit guild policy and review.
+Voice features are being built as an opt-in bot capability. The current code has configurable Irene presence plus a voice policy/session scaffold that requires guild/channel opt-in, keeps raw audio transient by default, marks training use as review-gated, and exposes command-gated Discord Voice join/leave. The next implementation step is the audio path: play TTS, receive voice data for speech-to-text, and pass transcripts into the same router/tool/memory gates used for text. Durable summaries, transcripts, and training examples require explicit guild policy and review.
 
 ### Live learning boundary
 
@@ -134,7 +134,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Per-guild settings enforcement (channel allowlists, disabled tools) | Schema + cache exist (`GuildRepository`); enforcement TODO |
 | Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
-| Voice presence, STT, and TTS | **Policy foundation implemented** - configurable bot presence plus opt-in voice policy/session state exist; Discord voice join/leave, TTS, STT, visible indicators, and voice evals are TODO |
+| Voice presence, STT, and TTS | **Join/leave foundation implemented** - configurable bot presence, opt-in voice policy/session state, and command-gated Discord Voice join/leave exist; TTS, STT, visible listening indicators, and voice evals are TODO |
 | Live memory/skill learning | **Memory + interaction capture + review API + skill retrieval implemented** - memory writes are retrievable immediately; tool workflows become skill candidates; `/learning/items` reviews/queues candidates; approved skills are retrieved into prompts as workflow hints; richer UI TODO |
 | Lifelong parameter-growth loop | **Accounting + persistence + planning + gating + data handoff + quality checks + trainer dispatch/control endpoint + staging evidence + promotion readiness + hotload handoff checks/apply client/backend-aware control endpoint + activation implemented** - parameter modules can be staged from checked manifests, readiness-gate-promoted, counted, persisted, reported through `/learning/status`, managed through `/learning/parameter-modules`, linked to source learned items, planned/gated/exported/checked/dispatched from approved queued learning, server-side rechecked by the trainer control endpoint, staging-checked from trainer artifacts, emitted as checked model-server hotload manifests, applied to the local/private loader-control contract, and retrieved into prompts when active/relevant; real training backend implementation and real model-server backend adapter TODO |
 | Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |

@@ -29,6 +29,7 @@ import { ToolLogRepository } from "./database/repositories/ToolLogRepository";
 import { TrainingExampleRepository } from "./database/repositories/TrainingExampleRepository";
 import { UserFeedbackRepository } from "./database/repositories/UserFeedbackRepository";
 import { LiveLearningRepository } from "./database/repositories/LiveLearningRepository";
+import { GuildRepository } from "./database/repositories/GuildRepository";
 
 import { MemoryService } from "./memory/MemoryService";
 import type { MemoryStore } from "./memory/MemoryStore";
@@ -57,6 +58,7 @@ import { ParameterGrowthPlanner } from "./training/parameter/ParameterGrowthPlan
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { createMessageHandler } from "./discord/events/messageCreate";
 import { createInteractionHandler } from "./discord/events/interactionCreate";
+import { DiscordVoiceService } from "./discord/voice/DiscordVoiceService";
 import type { CommandServices } from "./discord/commands";
 
 import { buildApiServer, startApiServer } from "./server/api";
@@ -82,6 +84,7 @@ async function main(): Promise<void> {
   const trainingRepo = prisma ? new TrainingExampleRepository(prisma) : null;
   const feedbackRepo = prisma ? new UserFeedbackRepository(prisma) : null;
   const learningRepo = prisma ? new LiveLearningRepository(prisma) : null;
+  const guildRepo = prisma ? new GuildRepository(prisma) : null;
 
   // ── LLM ────────────────────────────────────────────────────────────────
   const llm = buildLLMRouterFromEnv(env, childLogger("llm"));
@@ -158,6 +161,10 @@ async function main(): Promise<void> {
 
   // ── Discord client + agent ─────────────────────────────────────────────
   const discordClient = createDiscordClient();
+  const voiceService = new DiscordVoiceService({
+    settingsStore: guildRepo,
+    logger: childLogger("voice"),
+  });
 
   const agent = new AgentController({
     llm,
@@ -228,6 +235,7 @@ async function main(): Promise<void> {
       memory: memoryService,
     }),
     memory: memoryService,
+    voice: voiceService,
     exporter,
     stats: getStats,
     health: getHealth,

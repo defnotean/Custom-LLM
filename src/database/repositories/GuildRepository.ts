@@ -36,10 +36,11 @@ export class GuildRepository {
     return value;
   }
 
-  async updateSettings(discordGuildId: string, settings: GuildSettings): Promise<void> {
-    await this.prisma.guildProfile.update({
+  async updateSettings(discordGuildId: string, settings: GuildSettings, name?: string): Promise<void> {
+    await this.prisma.guildProfile.upsert({
       where: { discordGuildId },
-      data: { settingsJson: settings as object },
+      create: { discordGuildId, name: name ?? discordGuildId, settingsJson: settings as object },
+      update: { ...(name ? { name } : {}), settingsJson: settings as object },
     });
     this.settingsCache.delete(discordGuildId);
   }
