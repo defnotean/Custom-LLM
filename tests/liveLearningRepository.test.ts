@@ -81,6 +81,48 @@ describe("LiveLearningRepository", () => {
     expect(queued.accessPaths).toEqual(["memory_rag", "training_queue"]);
   });
 
+  it("stores review metadata when approving or rejecting learned items", async () => {
+    let updateArgs: { data: Record<string, unknown> } | undefined;
+    const prisma = {
+      learnedItem: {
+        findUnique: async () =>
+          learnedRow({
+            metadataJson: { existing: true },
+            accessPathsJson: ["skill_registry"],
+            retentionJson: { canRetrieve: true, canTrain: true },
+          }),
+        update: async (args: { data: Record<string, unknown> }) => {
+          updateArgs = args;
+          return learnedRow({
+            reviewStatus: args.data.reviewStatus,
+            metadataJson: args.data.metadataJson,
+            accessPathsJson: ["skill_registry"],
+            retentionJson: { canRetrieve: true, canTrain: true },
+          });
+        },
+      },
+    };
+
+    const repo = new LiveLearningRepository(prisma as never, () => "2026-06-18T15:00:00.000Z");
+    const reviewed = await repo.markReviewed("learned-1", "approved", {
+      reviewerId: "admin-1",
+      reason: "good reusable workflow",
+    });
+
+    const expectedMetadata = {
+      existing: true,
+      review: {
+        status: "approved",
+        reviewedAt: "2026-06-18T15:00:00.000Z",
+        reviewerId: "admin-1",
+        reason: "good reusable workflow",
+      },
+    };
+    expect(updateArgs?.data.reviewStatus).toBe("APPROVED");
+    expect(updateArgs?.data.metadataJson).toEqual(expectedMetadata);
+    expect(reviewed.metadata.review).toEqual(expectedMetadata.review);
+  });
+
   it("stores parameter counts as BigInt and reports active/staged growth snapshots", async () => {
     let createArgs: { data: Record<string, unknown> } | undefined;
     const prisma = {

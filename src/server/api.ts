@@ -19,6 +19,10 @@ export interface ApiDeps {
   registry: ToolRegistry;
   memory: MemoryRouteDeps["search"];
   learningStats?: LearningRouteDeps["getStats"];
+  listLearnedItems?: LearningRouteDeps["listLearnedItems"];
+  getLearnedItem?: LearningRouteDeps["getLearnedItem"];
+  markLearningReviewed?: LearningRouteDeps["markReviewed"];
+  queueLearningForTraining?: LearningRouteDeps["queueForTraining"];
   exporter: TrainingRouteDeps["exportAll"];
   recordFeedbackPreference?: TrainingRouteDeps["recordFeedbackPreference"];
   getHealth: () => Promise<HealthPayload>;
@@ -37,7 +41,13 @@ export function buildApiServer(deps: ApiDeps): FastifyInstance {
   registerHealthRoutes(app, { getHealth: deps.getHealth, getStats: deps.getStats });
   registerToolRoutes(app, deps.registry);
   registerMemoryRoutes(app, { search: deps.memory });
-  registerLearningRoutes(app, { getStats: deps.learningStats ?? null });
+  registerLearningRoutes(app, {
+    getStats: deps.learningStats ?? null,
+    listLearnedItems: deps.listLearnedItems ?? null,
+    getLearnedItem: deps.getLearnedItem ?? null,
+    markReviewed: deps.markLearningReviewed ?? null,
+    queueForTraining: deps.queueLearningForTraining ?? null,
+  });
   registerTrainingRoutes(app, {
     exportAll: deps.exporter,
     recordFeedbackPreference: deps.recordFeedbackPreference,

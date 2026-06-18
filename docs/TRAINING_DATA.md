@@ -24,6 +24,20 @@ Parse failures and tool denials are logged too. Failure data is signal for forma
 - Candidate content and metadata are scrubbed for obvious tokens/API keys before storage.
 - Candidates are not automatically trained into weights or promoted into parameter modules. They require review, queueing, background training, eval gates, and parameter-module promotion.
 
+Review and queue candidates through the private ops API:
+
+```bash
+curl "http://127.0.0.1:3000/learning/items?reviewStatus=candidate&limit=25"
+
+curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/review \
+  -H "content-type: application/json" \
+  -d '{"status":"approved","reviewerId":"admin","reason":"useful reusable skill"}'
+
+curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/queue \
+  -H "content-type: application/json" \
+  -d '{"datasetId":"skill-ledger-v1","reason":"approved for next adapter/specialist run"}'
+```
+
 ## Export Formats
 
 Run:

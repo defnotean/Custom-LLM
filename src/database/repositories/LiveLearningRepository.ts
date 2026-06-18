@@ -122,12 +122,30 @@ export class LiveLearningRepository {
     return rows.map((row) => learnedItemFromRow(row));
   }
 
-  async markReviewed(id: string, status: LearningReviewStatus): Promise<LearnedItem> {
+  async markReviewed(
+    id: string,
+    status: LearningReviewStatus,
+    options?: { reviewerId?: string | null; reason?: string | null },
+  ): Promise<LearnedItem> {
+    const existing = await this.getRequiredLearnedItem(id);
     const blockedTraining = { status: "blocked" as const, reason: "rejected" };
+    const reviewMetadata =
+      options?.reviewerId || options?.reason
+        ? {
+            ...existing.metadata,
+            review: {
+              status,
+              reviewedAt: this.now(),
+              ...(options.reviewerId ? { reviewerId: options.reviewerId } : {}),
+              ...(options.reason ? { reason: options.reason } : {}),
+            },
+          }
+        : existing.metadata;
     const row = await this.prisma.learnedItem.update({
       where: { id },
       data: {
         reviewStatus: reviewStatusToDb[status],
+        metadataJson: toInputJson(reviewMetadata),
         ...(status === "rejected"
           ? {
               trainingStatus: trainingStatusToDb.blocked,
