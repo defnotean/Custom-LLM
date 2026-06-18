@@ -92,11 +92,23 @@ describe("ToolEvalSuite", () => {
       candidateTools: ["timeout_user"],
       metadata: { multiTurn: true, confirmed: true, scenario: "confirmation_yes" },
     });
+    expect(allCases.find((item) => item.id === "tool:timeout_user:multiturn_confirmed_go_ahead")).toMatchObject({
+      kind: "tool_call",
+      prompt: "go ahead with that timeout",
+      candidateTools: ["timeout_user"],
+      metadata: { multiTurn: true, confirmed: true, scenario: "confirmation_yes_variant" },
+    });
     expect(allCases.find((item) => item.id === "no_tool:multiturn_cancel_pending_confirmation")).toMatchObject({
       kind: "no_tool",
       prompt: "no, cancel it",
       candidateTools: ["timeout_user"],
       metadata: { multiTurn: true, cancelPending: true, scenario: "confirmation_cancel" },
+    });
+    expect(allCases.find((item) => item.id === "no_tool:multiturn_defer_pending_confirmation")).toMatchObject({
+      kind: "no_tool",
+      prompt: "not yet, wait while I check with another mod",
+      candidateTools: ["timeout_user"],
+      metadata: { multiTurn: true, deferPending: true, scenario: "confirmation_defer" },
     });
     expect(allCases.find((item) => item.id === "tool:timeout_user:multiturn_changed_args_confirm_again")).toMatchObject({
       kind: "confirmation_request",
@@ -104,11 +116,24 @@ describe("ToolEvalSuite", () => {
       candidateTools: ["timeout_user"],
       metadata: { multiTurn: true, confirmed: false, scenario: "confirmation_args_changed" },
     });
+    expect(allCases.find((item) => item.id === "tool:timeout_user:multiturn_changed_target_confirm_again")).toMatchObject({
+      kind: "confirmation_request",
+      prompt: "actually timeout 222222222222222222 instead for raid spam",
+      candidateTools: ["timeout_user"],
+      expected: {
+        pending_tool_call: {
+          tool: "timeout_user",
+          arguments: { userId: "222222222222222222", durationMinutes: 1, reason: "raid spam" },
+        },
+      },
+      metadata: { multiTurn: true, confirmed: false, scenario: "confirmation_target_changed" },
+    });
     expect(
       allCases
         .filter((item) => item.metadata.multiTurn === true)
         .every((item) => (item.priorMessages?.length ?? 0) >= 2),
     ).toBe(true);
+    expect(allCases.filter((item) => item.metadata.multiTurn === true)).toHaveLength(11);
     expect(
       allCases
         .filter((item) => item.metadata.tool === "send_message")
@@ -118,11 +143,11 @@ describe("ToolEvalSuite", () => {
       counts[item.kind] = (counts[item.kind] ?? 0) + 1;
       return counts;
     }, {});
-    expect(casesByKind.tool_call).toBeGreaterThanOrEqual(90);
-    expect(casesByKind.no_tool).toBeGreaterThanOrEqual(70);
+    expect(casesByKind.tool_call).toBeGreaterThanOrEqual(99);
+    expect(casesByKind.no_tool).toBeGreaterThanOrEqual(82);
     expect(casesByKind.clarification).toBeGreaterThanOrEqual(30);
     expect(casesByKind.permission_refusal).toBeGreaterThanOrEqual(25);
-    expect(casesByKind.confirmation_request).toBeGreaterThanOrEqual(8);
+    expect(casesByKind.confirmation_request).toBeGreaterThanOrEqual(11);
     expect(allCases.find((item) => item.id === "tool:send_message:direct_variant_1")).toMatchObject({
       kind: "tool_call",
       candidateTools: ["send_message"],

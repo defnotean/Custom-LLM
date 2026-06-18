@@ -276,8 +276,8 @@ Goal: get as close as practical to perfect tool calls under realistic Discord co
 
 Tasks:
 
-- Keep the protocol eval above the 200-case promotion floor; the current suite has 246 cases across starter tools, no-tool prompts, confirmation, clarification, permission, and injection risk states.
-- Expand multi-turn confirmation/correction cases beyond the first yes/no/changed-args coverage.
+- Keep the protocol eval above the 200-case promotion floor; the current suite has 254 cases across starter tools, no-tool prompts, confirmation, clarification, permission, injection, and multi-turn confirmation/correction risk states.
+- Keep expanding multi-turn confirmation/correction cases beyond the current yes variants, cancel variants, defer turn, and changed-argument coverage.
 - Keep expanding adversarial no-tool/casual prompts that mention tool names or protocol JSON.
 - Expand prompt-injection cases beyond the first fake JSON, pasted tool output, memory override, permission-bypass, and confirmation-bypass coverage.
 - Keep expanding the 53-case tool-router retrieval eval with new starter tools, paraphrases, permission-filter contrasts, and prompts that mention tools without authorizing execution.

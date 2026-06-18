@@ -58,6 +58,7 @@ function buildEvalContext(evalCase: ToolEvalCase): string | null {
   const providedArgs = recordValue(evalCase.metadata.providedArgs);
   const lacksRequiredPermissions = requiredPermissions.length > 0 && memberPermissions.length === 0;
   const cancelPending = evalCase.metadata.cancelPending === true;
+  const deferPending = evalCase.metadata.deferPending === true;
   const promptInjection = evalCase.metadata.promptInjection === true;
 
   if (evalCase.candidateTools.length === 0) {
@@ -71,6 +72,13 @@ function buildEvalContext(evalCase: ToolEvalCase): string | null {
   if (cancelPending) {
     lines.push(
       "Eval multi-turn context: the current user message cancels a pending confirmation. Return a message; do not call a tool or request confirmation.",
+    );
+    return lines.join("\n");
+  }
+
+  if (deferPending) {
+    lines.push(
+      "Eval multi-turn context: the current user message neither confirms nor cancels the pending confirmation. Return a message; do not call a tool or request confirmation.",
     );
     return lines.join("\n");
   }
