@@ -25,6 +25,7 @@ Parse failures and tool denials are logged too. Failure data is signal for forma
 - Candidates are not automatically trained into weights or promoted into parameter modules. They require review, queueing, background training, eval gates, and parameter-module promotion.
 - Approved `skill` candidates with `skill_registry` access are retrieved into future prompts as workflow hints. They do not bypass tool retrieval, permissions, confirmations, or executor gates.
 - Active promoted parameter modules are selected per request and retrieved into future prompts with any retrievable source-learning summaries. This makes a newly promoted adapter/specialist/expert visible to Irene immediately, while real model-weight loading remains the model server hot-loader step.
+- Approved queued candidates are also scanned by `ParameterGrowthPlanner`, which writes trainer handoff manifests with source ids, content/metadata hashes, target module type, parameter budget estimates, gate requirements, and risk flags. These manifests do not train weights; they tell the future trainer exactly what to train and what must pass before promotion.
 
 Review and queue candidates through the private ops API:
 
@@ -39,6 +40,8 @@ curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/queue \
   -H "content-type: application/json" \
   -d '{"datasetId":"skill-ledger-v1","reason":"approved for next adapter/specialist run"}'
 
+npm run plan:parameter-growth
+
 curl -X POST http://127.0.0.1:3000/learning/parameter-modules \
   -H "content-type: application/json" \
   -d '{"name":"tool-expert-v1","kind":"expert","parameters":775358,"activeParameters":775358,"route":"ping","sourceLearningItemIds":["<learned-item-id>"],"metadata":{"toolName":"ping"}}'
@@ -49,6 +52,8 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-modules/<module-id>/promot
 
 curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<module-id>"
 ```
+
+The scheduled worker also writes parameter-growth plans to `training/plans/parameter-growth/` every six hours when the DB-backed learning repository is available. That directory is generated output and is intentionally ignored by Git.
 
 ## Export Formats
 

@@ -12,6 +12,7 @@ coverage/
 exports/
 data/
 training/data/
+training/plans/
 training/runs/
 training/evals/*.predictions.jsonl
 training/evals/*.report.json

@@ -25,6 +25,7 @@ Discord message
   → optional memory write-back     (MemoryPolicy decides)
   → learned-item ledger record     (LiveLearningRepository, when DB is available)
   → skill/eval-failure candidates  (InteractionLearningCapture)
+  → parameter-growth plan          (scheduled planner for approved queued learning)
 ```
 
 Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsTool: false`, the prompt contains no tool section and there is no second LLM turn — one model call, minimal context.
@@ -43,7 +44,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 | Memory | `src/memory/` | Service + policy + embedding providers + stores (pgvector/Qdrant/in-memory) |
 | Live Learning | `src/learning/`, `src/database/repositories/LiveLearningRepository.ts` | Runtime learning ledger, persisted learned-item records, immediate memory/skill access, parameter-module accounting and activation |
 | Safety | `src/safety/` | Rate limiting, moderation screen (placeholder), confirmation gating |
-| Training | `src/training/` | Full-fidelity interaction capture, JSONL exporters, synthetic generation |
+| Training | `src/training/` | Full-fidelity interaction capture, JSONL exporters, synthetic generation, parameter-growth planning |
 | Persistence | `src/database/`, `prisma/` | Prisma models + repositories |
 | API | `src/server/` | Fastify ops API (health/tools/memory/learning/training/stats) |
 | Jobs | `src/jobs/` | In-process queue scaffold + workers |
@@ -73,6 +74,8 @@ Irene should not be a closed-door model that only improves after manual restarts
 Memory retrieval is not the same thing as model-weight learning. Durable memories make Irene more useful immediately, but they do not increase parameter count. Parameter count grows only when the deployed architecture gains trainable modules: adapters, router heads, specialists, experts, ensembles, or a bigger base model. The runtime should track base parameters, adapter parameters, specialist/expert parameters, total deployed parameters, and active parameters per request.
 
 The current runtime can also activate promoted parameter-module records per request: active non-base modules are selected by query/tool relevance, their retrievable source learning is added to the prompt, and the trace records which modules were active. This is the live control-plane behavior; loading real LoRA adapters or specialist checkpoints into the model server remains the next hot-loader step.
+
+Queued reviewed learning now has a trainer handoff artifact too. `ParameterGrowthPlanner` scans approved `queued` learned items, groups them into adapter/specialist/expert batches, records source ids and hashes, estimates parameter budgets, lists gates, flags risks, and writes manifests under `training/plans/parameter-growth/` when run by the scheduled job or `npm run plan:parameter-growth`. The manifest is not a training result; it is the reproducible contract the future trainer must satisfy before registering a module.
 
 ### Tool routing at 400+ tools
 
@@ -126,5 +129,5 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
 | Voice presence, STT, and TTS | **Planned** - use bot voice connections for compliant join/speak/listen behavior; requires opt-in retention policy and evals |
 | Live memory/skill learning | **Memory + interaction capture + review API + skill retrieval implemented** - memory writes are retrievable immediately; tool workflows become skill candidates; `/learning/items` reviews/queues candidates; approved skills are retrieved into prompts as workflow hints; richer UI TODO |
-| Lifelong parameter-growth loop | **Accounting + persistence + activation implemented** - parameter modules can be staged, gate-promoted, counted, persisted, reported through `/learning/status`, managed through `/learning/parameter-modules`, linked to source learned items, and retrieved into prompts when active/relevant; background trainer/real adapter hot-loader TODO |
+| Lifelong parameter-growth loop | **Accounting + persistence + planning + activation implemented** - parameter modules can be staged, gate-promoted, counted, persisted, reported through `/learning/status`, managed through `/learning/parameter-modules`, linked to source learned items, planned from approved queued learning, and retrieved into prompts when active/relevant; background trainer/real adapter hot-loader TODO |
 | Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |

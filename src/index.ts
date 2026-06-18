@@ -47,6 +47,7 @@ import { DatasetExporter } from "./training/DatasetExporter";
 import { InteractionLearningCapture } from "./learning/InteractionLearningCapture";
 import { SkillRetrievalService } from "./learning/SkillRetrievalService";
 import { ParameterActivationService } from "./learning/ParameterActivationService";
+import { ParameterGrowthPlanner } from "./training/parameter/ParameterGrowthPlanner";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { createMessageHandler } from "./discord/events/messageCreate";
@@ -57,6 +58,7 @@ import { buildApiServer, startApiServer } from "./server/api";
 import { InProcessJobQueue } from "./jobs/queue";
 import { registerMemorySummarizerWorker } from "./jobs/workers/memorySummarizerWorker";
 import { registerDatasetExportWorker } from "./jobs/workers/datasetExportWorker";
+import { registerParameterGrowthPlannerWorker } from "./jobs/workers/parameterGrowthPlannerWorker";
 
 /**
  * Composition root. Degrades gracefully: no DB → persistence off; no
@@ -137,6 +139,7 @@ async function main(): Promise<void> {
   const learningCapture = learningRepo ? new InteractionLearningCapture(learningRepo, childLogger("learning-capture")) : null;
   const skillRetriever = learningRepo ? new SkillRetrievalService(learningRepo) : null;
   const parameterActivator = learningRepo ? new ParameterActivationService(learningRepo) : null;
+  const parameterGrowthPlanner = learningRepo ? new ParameterGrowthPlanner(learningRepo) : null;
 
   // ── Discord client + agent ─────────────────────────────────────────────
   const discordClient = createDiscordClient();
@@ -255,6 +258,7 @@ async function main(): Promise<void> {
   const queue = new InProcessJobQueue(childLogger("jobs"));
   registerMemorySummarizerWorker(queue, { logger: childLogger("jobs") });
   registerDatasetExportWorker(queue, { exporter, logger: childLogger("jobs") });
+  registerParameterGrowthPlannerWorker(queue, { planner: parameterGrowthPlanner, logger: childLogger("jobs") });
   queue.start();
 
   // ── Discord login (optional in API-only/dev mode) ──────────────────────
