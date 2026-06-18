@@ -45,13 +45,15 @@ DISCORD_PRESENCE_ACTIVITY_NAME=for tool calls
 
 Supported activity types are `Playing`, `Listening`, `Watching`, `Competing`, and `Custom`.
 
-Voice join/leave commands are shipped behind an opt-in policy. TTS and STT commands are not shipped yet. The current voice code requires guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training.
+Voice join/leave commands are shipped behind an opt-in policy. Speech queue commands are present, but `!ai voice say` requires a configured TTS/playback backend before it can produce audio. STT commands are not shipped yet. The current voice code requires guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training.
 
 To enable Irene for the voice channel you are currently in:
 
 ```text
 !ai voice enable
 !ai voice join
+!ai voice say hello from Irene
+!ai voice stop-speaking
 !ai voice status
 !ai voice leave
 ```

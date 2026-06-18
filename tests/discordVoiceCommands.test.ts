@@ -33,6 +33,8 @@ function services(): CommandServices {
       disableGuild: async () => ({ ok: true, message: "voice disabled" }),
       joinCurrentChannel: async () => ({ ok: true, message: "voice joined" }),
       leaveGuild: () => ({ ok: true, message: "voice left" }),
+      say: async (_ctx: BotMessageContext, text: string) => ({ ok: true, message: `voice said ${text}` }),
+      stopSpeaking: async () => ({ ok: true, message: "voice stopped" }),
     } as never,
   };
 }
@@ -45,10 +47,16 @@ describe("voice commands", () => {
     await expect(handleCommand(ctx("voice disable"), services())).resolves.toBe("voice disabled");
     await expect(handleCommand(ctx("voice join"), services())).resolves.toBe("voice joined");
     await expect(handleCommand(ctx("voice leave"), services())).resolves.toBe("voice left");
+    await expect(handleCommand(ctx("voice say hello there"), services())).resolves.toBe("voice said hello there");
+    await expect(handleCommand(ctx("voice stop-speaking"), services())).resolves.toBe("voice stopped");
   });
 
   it("keeps voice unavailable when the service is not wired", async () => {
     const withoutVoice = { ...services(), voice: null };
     await expect(handleCommand(ctx("voice status"), withoutVoice)).resolves.toBe("Voice service is unavailable.");
+  });
+
+  it("requires text for voice say", async () => {
+    await expect(handleCommand(ctx("voice say"), services())).resolves.toBe("Usage: `!ai voice say <text>`");
   });
 });

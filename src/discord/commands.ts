@@ -37,7 +37,7 @@ const HELP_TEXT = [
   "`!ai tool <name>` — show one tool's details",
   "`!ai memory recall <query>` — search stored memories",
   "`!ai memory remember <text>` — store a memory",
-  "`!ai voice status|policy|enable|disable|join|leave` — manage opt-in voice presence",
+  "`!ai voice status|policy|enable|disable|join|leave|say|stop-speaking` — manage opt-in voice presence",
   "`!ai export-training` — export training datasets (admin)",
   "`!ai stats` — runtime statistics",
   "`!ai health` — health summary",
@@ -140,7 +140,7 @@ export async function handleCommand(
 
       case "voice": {
         if (!services.voice) return "Voice service is unavailable.";
-        const [sub = "status"] = rest;
+        const [sub = "status", ...voiceRest] = rest;
         switch (sub.toLowerCase()) {
           case "status":
             return services.voice.status(ctx).message;
@@ -154,8 +154,16 @@ export async function handleCommand(
             return (await services.voice.joinCurrentChannel(ctx)).message;
           case "leave":
             return services.voice.leaveGuild(ctx).message;
+          case "say": {
+            const text = voiceRest.join(" ").trim();
+            if (!text) return "Usage: `!ai voice say <text>`";
+            return (await services.voice.say(ctx, text)).message;
+          }
+          case "stop-speaking":
+          case "stop-speech":
+            return (await services.voice.stopSpeaking(ctx)).message;
           default:
-            return "Usage: `!ai voice status|policy|enable|disable|join|leave`";
+            return "Usage: `!ai voice status|policy|enable|disable|join|leave|say|stop-speaking`";
         }
       }
 

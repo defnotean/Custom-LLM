@@ -15,6 +15,7 @@ import {
   type ResolvedVoicePolicy,
   VoiceSessionRegistry,
 } from "./VoiceSessionPolicy";
+import { type VoiceSpeechQueue } from "./VoiceSpeechQueue";
 
 export interface VoiceCommandResult {
   ok: boolean;
@@ -25,6 +26,7 @@ export interface VoiceCommandResult {
 export interface DiscordVoiceServiceOptions {
   settingsStore?: Pick<GuildRepository, "getSettings" | "updateSettings"> | null;
   registry?: VoiceSessionRegistry;
+  speechQueue?: VoiceSpeechQueue | null;
   logger?: Logger;
   readyTimeoutMs?: number;
 }
@@ -32,12 +34,14 @@ export interface DiscordVoiceServiceOptions {
 export class DiscordVoiceService {
   private readonly settingsStore: Pick<GuildRepository, "getSettings" | "updateSettings"> | null;
   private readonly registry: VoiceSessionRegistry;
+  private readonly speechQueue: VoiceSpeechQueue | null;
   private readonly logger?: Logger;
   private readonly readyTimeoutMs: number;
 
   constructor(options: DiscordVoiceServiceOptions = {}) {
     this.settingsStore = options.settingsStore ?? null;
     this.registry = options.registry ?? new VoiceSessionRegistry();
+    this.speechQueue = options.speechQueue ?? null;
     this.logger = options.logger;
     this.readyTimeoutMs = options.readyTimeoutMs ?? 10_000;
   }
@@ -168,6 +172,7 @@ export class DiscordVoiceService {
     if (!ctx.guildId) return { ok: false, message: "Voice commands only work in servers." };
     const connection = getVoiceConnection(ctx.guildId);
     connection?.destroy();
+    void this.speechQueue?.stopGuild(ctx.guildId);
     const stopped = this.registry.stop(ctx.guildId);
     return {
       ok: true,
@@ -175,16 +180,75 @@ export class DiscordVoiceService {
     };
   }
 
+  async say(ctx: BotMessageContext, text: string): Promise<VoiceCommandResult> {
+    if (!canManageVoice(ctx)) return deniedByPermission();
+    if (!ctx.guildId) return { ok: false, message: "Voice commands only work in servers." };
+    if (!this.speechQueue) {
+      return {
+        ok: false,
+        message: "TTS playback is not configured yet. Wire a VoiceSpeechQueue backend before using `!ai voice say`.",
+      };
+    }
+
+    const activeSession = this.registry.get(ctx.guildId);
+    if (!activeSession && !getVoiceConnection(ctx.guildId)) {
+      return { ok: false, message: "Irene is not in voice. Run `!ai voice join` first." };
+    }
+
+    const channel = getCallerVoiceChannel(ctx);
+    const channelId = activeSession?.channelId ?? channel?.id ?? ctx.channelId;
+    const settings = await this.readVoiceSettings(ctx.guildId);
+    const policy = resolveVoicePolicy({
+      guildId: ctx.guildId,
+      channelId,
+      settings,
+      requestedMode: "speak",
+    });
+    if (!policy.allowed) {
+      return { ok: false, policy, message: `Irene cannot speak in voice: ${policy.reason}.` };
+    }
+
+    const result = this.speechQueue.enqueue({
+      guildId: ctx.guildId,
+      channelId,
+      requestedByUserId: ctx.userId,
+      text,
+    });
+    if (!result.ok) return { ok: false, policy, message: result.message };
+    return {
+      ok: true,
+      policy,
+      message: `Queued voice speech #${result.job.id} at position ${result.position}.`,
+    };
+  }
+
+  async stopSpeaking(ctx: BotMessageContext): Promise<VoiceCommandResult> {
+    if (!canManageVoice(ctx)) return deniedByPermission();
+    if (!ctx.guildId) return { ok: false, message: "Voice commands only work in servers." };
+    if (!this.speechQueue) return { ok: false, message: "TTS playback is not configured." };
+    await this.speechQueue.stopGuild(ctx.guildId);
+    return { ok: true, message: "Stopped Irene's queued voice speech for this server." };
+  }
+
   status(ctx: BotMessageContext): VoiceCommandResult {
     if (!ctx.guildId) return { ok: false, message: "Voice status only exists in servers." };
     const session = this.registry.get(ctx.guildId);
     const connected = Boolean(getVoiceConnection(ctx.guildId));
-    if (!session && !connected) return { ok: true, message: "Irene is not in voice for this server." };
+    const speech = this.speechQueue?.status(ctx.guildId);
+    if (!session && !connected) {
+      return {
+        ok: true,
+        message: speech
+          ? `Irene is not in voice for this server. Speech queue: active=${speech.activeJobId ?? "none"} queued=${speech.queued}.`
+          : "Irene is not in voice for this server.",
+      };
+    }
     return {
       ok: true,
       message: [
         `Irene voice status: ${connected ? "connected" : "session-recorded"}.`,
         session ? `Channel: <#${session.channelId}>. Started: ${session.startedAt}.` : null,
+        speech ? `Speech: active=${speech.activeJobId ?? "none"} queued=${speech.queued}.` : null,
       ]
         .filter((line): line is string => Boolean(line))
         .join(" "),
