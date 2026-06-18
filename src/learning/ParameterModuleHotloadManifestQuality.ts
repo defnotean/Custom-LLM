@@ -28,6 +28,11 @@ export interface ParameterModuleHotloadQualityReport {
   checks: ParameterModuleHotloadQualityCheck[];
 }
 
+export interface ParameterModuleHotloadPayloadQualityOptions {
+  manifestPath?: string;
+  now?: () => string;
+}
+
 const artifactSchema = z.object({
   kind: z.string().min(1),
   path: z.string().min(1),
@@ -91,18 +96,26 @@ type HotloadRequest = HotloadManifest["requests"][number];
 export async function checkParameterModuleHotloadManifestQuality(
   manifestPath: string,
 ): Promise<ParameterModuleHotloadQualityReport> {
-  const checks: ParameterModuleHotloadQualityCheck[] = [];
   const manifest = await readParameterModuleHotloadManifest(manifestPath);
+  return checkParameterModuleHotloadManifestPayloadQuality(manifest, { manifestPath });
+}
+
+export async function checkParameterModuleHotloadManifestPayloadQuality(
+  value: unknown,
+  options: ParameterModuleHotloadPayloadQualityOptions = {},
+): Promise<ParameterModuleHotloadQualityReport> {
+  const checks: ParameterModuleHotloadQualityCheck[] = [];
+  const manifest = parseParameterModuleHotloadManifest(value);
 
   checks.push(...manifestStatusChecks(manifest));
   checks.push(...identityChecks(manifest));
   checks.push(...requestChecks(manifest));
-  checks.push(...(await artifactChecks(manifest, manifestPath)));
+  checks.push(...(await artifactChecks(manifest, options.manifestPath)));
 
   return {
     status: checks.some((check) => check.status === "fail") ? "fail" : "pass",
-    manifestPath,
-    generatedAt: new Date().toISOString(),
+    manifestPath: options.manifestPath ?? "(payload)",
+    generatedAt: options.now?.() ?? new Date().toISOString(),
     summary: {
       manifestStatus: manifest.status,
       loadRequests: manifest.requests.length,
@@ -118,7 +131,11 @@ export async function checkParameterModuleHotloadManifestQuality(
 export async function readParameterModuleHotloadManifest(
   manifestPath: string,
 ): Promise<ParameterModuleHotloadManifest> {
-  return hotloadManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8"))) as ParameterModuleHotloadManifest;
+  return parseParameterModuleHotloadManifest(JSON.parse(await readFile(manifestPath, "utf8")));
+}
+
+export function parseParameterModuleHotloadManifest(value: unknown): ParameterModuleHotloadManifest {
+  return hotloadManifestSchema.parse(value) as ParameterModuleHotloadManifest;
 }
 
 function manifestStatusChecks(manifest: HotloadManifest): ParameterModuleHotloadQualityCheck[] {
@@ -203,12 +220,20 @@ function requestChecks(manifest: HotloadManifest): ParameterModuleHotloadQuality
 
 async function artifactChecks(
   manifest: HotloadManifest,
-  manifestPath: string,
+  manifestPath?: string,
 ): Promise<ParameterModuleHotloadQualityCheck[]> {
   const checks: ParameterModuleHotloadQualityCheck[] = [];
   for (const request of manifest.requests) {
     for (const artifact of request.artifacts) {
       const path = resolveArtifactPath(artifact.path, manifestPath, request.stagingManifestPath);
+      if (!path) {
+        checks.push(
+          fail(`artifact-readable:${request.moduleId}:${artifact.kind}`, "Relative hotload artifact path has no base path", {
+            artifactPath: artifact.path,
+          }),
+        );
+        continue;
+      }
       let body: Buffer;
       try {
         body = await readFile(path);
@@ -241,10 +266,11 @@ async function artifactChecks(
   return checks;
 }
 
-function resolveArtifactPath(path: string, manifestPath: string, stagingManifestPath?: string): string {
+function resolveArtifactPath(path: string, manifestPath?: string, stagingManifestPath?: string): string | undefined {
   if (isAbsolute(path)) return path;
   if (stagingManifestPath) return join(dirname(stagingManifestPath), path);
-  return join(dirname(manifestPath), path);
+  if (manifestPath) return join(dirname(manifestPath), path);
+  return undefined;
 }
 
 function duplicates(values: string[]): string[] {

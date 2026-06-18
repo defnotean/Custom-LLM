@@ -58,6 +58,7 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-modules/<module-id>/promot
 npm run build:parameter-hotload
 npm run check:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json
 npm run apply:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json --dry-run
+npm run serve:parameter-hotload -- --host 127.0.0.1 --port 8088 --api-key local-dev
 npm run apply:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json --endpoint-url http://127.0.0.1:8088/parameter-hotload
 
 curl -X POST http://127.0.0.1:3000/learning/parameter-hotload/apply \
@@ -82,6 +83,8 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 `check:parameter-hotload` verifies that handoff before a model server consumes it: manifest status must match the request/skipped payload, blocked manifests fail loader readiness, summary counts and parameter totals must be internally consistent, load request ids must be unique, required config plus checkpoint/adapter artifacts must exist, eval reports must not be failed, and artifact byte counts/hashes must match disk.
 
 `apply:parameter-hotload` and `POST /learning/parameter-hotload/apply` run the same quality gate first. Dry runs return the exact `parameter-module-hotload-apply-v1` payload without calling a loader. Non-dry-run applies require `PARAMETER_HOTLOAD_ENDPOINT` or `--endpoint-url`; the service posts the checked manifest to that private model-server control endpoint and reports accepted/rejected module ids. If the manifest is blocked or hash-invalid, the loader is never called.
+
+`serve:parameter-hotload` starts the local compatible control endpoint used during development or serving-integration tests. It accepts `POST /parameter-hotload`, verifies the payload and artifact hashes again server-side, records loaded module state, exposes `GET /parameter-hotload/status`, and supports `POST /parameter-hotload/rollback`. This is the control-plane contract for hot-swapping; it tracks load state and rollback intent, but it does not yet attach LoRA adapters to a real vLLM/Ollama/LM Studio backend.
 
 ## Export Formats
 
