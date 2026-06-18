@@ -21,6 +21,8 @@ export interface LearningProvenance {
   conversationId?: string;
   memoryId?: string;
   toolLogId?: string;
+  trainingExampleId?: string;
+  interactionTraceId?: string;
   voiceSessionId?: string;
   sourceItemIds?: string[];
 }

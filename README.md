@@ -11,11 +11,11 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Tool system**: Zod-validated args, permission + cooldown + risk/confirmation gates enforced in code, execution logging — 16 starter tools across moderation/utility/memory/discord/example
 - **Tool routing**: top-10 candidate retrieval per message (never all tools in the prompt), with deterministic keyword routing or opt-in embedding retrieval
 - **Memory**: USER/GUILD/CHANNEL/GLOBAL scopes, policy-gated writes (no secrets, no one-offs), pgvector + Qdrant + in-process stores
-- **Live learning ledger**: successful memory writes are also captured as learned items with provenance, retention, training eligibility, and parameter-growth accounting
+- **Live learning ledger**: memory writes, successful tool workflows, and eval failures are captured as learned items with provenance, retention, training eligibility, and parameter-growth accounting
 - **Safety**: rate limiting, content screen (placeholder rules), mandatory confirmation for high-risk actions
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `/learning/status`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 161 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 165 passing tests
 
 ## Quickstart
 
@@ -95,6 +95,7 @@ message → context → safety precheck → memory retrieval (top 5)
         → execute → follow-up LLM turn → reply
         → conversation + training trace logged → policy-gated memory write
         → learned-item ledger record for memory/RAG access + future training review
+        → skill/eval-failure candidates from tool outcomes + parse/gate failures
 ```
 
 Key invariant: **the model's output is never executed directly** — every tool call passes code-level validation, permission, cooldown, and risk gates. Casual chat skips the tool/memory machinery for speed. Full detail: `docs/ARCHITECTURE.md`.
@@ -145,7 +146,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes, parameter-growth status accounting, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router eval gates, ops API, docker compose, 161 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, parameter-growth status accounting, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router eval gates, ops API, docker compose, 165 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 

@@ -60,7 +60,16 @@ function makeCtx(content: string): BotMessageContext {
   };
 }
 
-function makeController(llmResponses: string[], traces: InteractionTrace[]) {
+function makeController(
+  llmResponses: string[],
+  traces: InteractionTrace[],
+  options?: {
+    trainingResult?: { conversationId?: string; trainingExampleId?: string };
+    learning?: {
+      captureInteraction(trace: InteractionTrace, training?: { conversationId?: string; trainingExampleId?: string }): Promise<void>;
+    } | null;
+  },
+) {
   const registry = makeRegistry();
   const executor = new ToolExecutor({
     registry,
@@ -79,9 +88,10 @@ function makeController(llmResponses: string[], traces: InteractionTrace[]) {
     training: {
       logInteraction: async (trace) => {
         traces.push(trace);
-        return {};
+        return options?.trainingResult ?? {};
       },
     },
+    learning: options?.learning ?? null,
     logger: testLogger,
     botName: "TestBot",
     toolCallingEnabled: true,
@@ -170,6 +180,33 @@ describe("AgentController", () => {
     expect(reply.content).toMatch(/can't use/i);
     expect(traces[0]?.toolDenied).toBe("not_in_candidate_set");
     expect(traces[0]?.errors).toContain("tool_not_in_candidate_set: made_up_tool");
+  });
+
+  it("captures successful tool traces for live learning after training logging", async () => {
+    const traces: InteractionTrace[] = [];
+    const captures: Array<{ trace: InteractionTrace; training?: { conversationId?: string; trainingExampleId?: string } }> = [];
+    const { controller } = makeController(
+      [
+        '{"type":"tool_call","tool":"ping","arguments":{},"reason":"user asked"}',
+        '{"type":"message","content":"pong"}',
+      ],
+      traces,
+      {
+        trainingResult: { conversationId: "conversation-1", trainingExampleId: "training-1" },
+        learning: {
+          captureInteraction: async (trace, training) => {
+            captures.push({ trace, training });
+          },
+        },
+      },
+    );
+
+    await controller.handleDiscordMessage(makeCtx("ping please, are you alive?"));
+
+    expect(captures).toHaveLength(1);
+    expect(captures[0]?.trace.toolCall).toMatchObject({ name: "ping" });
+    expect(captures[0]?.trace.toolSuccess).toBe(true);
+    expect(captures[0]?.training).toEqual({ conversationId: "conversation-1", trainingExampleId: "training-1" });
   });
 
   it("degrades to plain message when the model ignores the JSON protocol", async () => {

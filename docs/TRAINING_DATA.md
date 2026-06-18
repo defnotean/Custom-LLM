@@ -15,6 +15,15 @@ Every interaction the bot handles is captured with full fidelity so it can becom
 
 Parse failures and tool denials are logged too. Failure data is signal for format-following negatives and refusal training.
 
+## Live Learning Candidates
+
+`InteractionLearningCapture` writes lightweight `LearnedItem` candidates after each handled message when live-learning persistence is configured:
+
+- Successful tool calls become `skill` candidates with `skill_registry` access, tool name, scrubbed arguments, and trace/training provenance.
+- Parse failures, safety blocks, tool denials, and tool execution failures become `eval_failure` candidates with `training_queue` access.
+- Candidate content and metadata are scrubbed for obvious tokens/API keys before storage.
+- Candidates are not automatically trained into weights or promoted into parameter modules. They require review, queueing, background training, eval gates, and parameter-module promotion.
+
 ## Export Formats
 
 Run:

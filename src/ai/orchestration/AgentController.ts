@@ -6,6 +6,7 @@ import type {
   InteractionTrace,
   MemoryHit,
   TrainingSink,
+  TrainingSinkResult,
 } from "../../types/ai";
 import type { BotMessageContext } from "../../types/discord";
 import { toErrorMessage } from "../../utils/errors";
@@ -48,6 +49,7 @@ export interface AgentControllerOptions {
   memoryAgent?: MemoryAgent | null;
   safetyAgent?: SafetyAgent | null;
   training?: TrainingSink | null;
+  learning?: InteractionLearningSink | null;
   logger: Logger;
   botName?: string;
   toolCallingEnabled?: boolean;
@@ -57,6 +59,10 @@ export interface AgentControllerOptions {
     memory?: ToolMemoryAccess | null;
     discordClient?: Client;
   };
+}
+
+export interface InteractionLearningSink {
+  captureInteraction(trace: InteractionTrace, training?: TrainingSinkResult): Promise<void>;
 }
 
 const CONFIRM_PATTERN = /^(yes|y|yep|yeah|confirm|do it|go ahead|sure|ok|okay)\b/i;
@@ -86,6 +92,7 @@ export class AgentController {
   private readonly memoryAgent: MemoryAgent | null;
   private readonly safetyAgent: SafetyAgent | null;
   private readonly training: TrainingSink | null;
+  private readonly learning: InteractionLearningSink | null;
   private readonly logger: Logger;
   private readonly botName: string;
   private readonly toolCallingEnabled: boolean;
@@ -102,6 +109,7 @@ export class AgentController {
     this.memoryAgent = options.memoryAgent ?? null;
     this.safetyAgent = options.safetyAgent ?? null;
     this.training = options.training ?? null;
+    this.learning = options.learning ?? null;
     this.logger = options.logger;
     this.botName = options.botName ?? DEFAULT_BOT_NAME;
     this.toolCallingEnabled = options.toolCallingEnabled ?? true;
@@ -436,13 +444,23 @@ export class AgentController {
   ): Promise<AgentReply> {
     trace.finalResponse = reply;
     trace.totalLatencyMs = Date.now() - startedAt;
+    let trainingResult: TrainingSinkResult = {};
 
     // Training/conversation capture — failures must never break the reply.
     if (this.training) {
       try {
-        await this.training.logInteraction(trace);
+        trainingResult = await this.training.logInteraction(trace);
       } catch (err) {
         this.logger.warn({ err: toErrorMessage(err) }, "training capture failed");
+      }
+    }
+
+    // Live-learning candidate capture — also best-effort.
+    if (this.learning) {
+      try {
+        await this.learning.captureInteraction(trace, trainingResult);
+      } catch (err) {
+        this.logger.warn({ err: toErrorMessage(err) }, "interaction learning capture failed");
       }
     }
 

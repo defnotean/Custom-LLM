@@ -22,6 +22,7 @@ Discord message
   → conversation + training log    (TrainingDataLogger → Conversation + TrainingExample)
   → optional memory write-back     (MemoryPolicy decides)
   → learned-item ledger record     (LiveLearningRepository, when DB is available)
+  → skill/eval-failure candidates  (InteractionLearningCapture)
 ```
 
 Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsTool: false`, the prompt contains no tool section and there is no second LLM turn — one model call, minimal context.
@@ -120,6 +121,6 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
 | Voice presence, STT, and TTS | **Planned** - use bot voice connections for compliant join/speak/listen behavior; requires opt-in retention policy and evals |
-| Live memory/skill learning | **Memory path implemented, skill path TODO** - successful memory writes are retrievable immediately and also persisted as learned items with provenance, retention, and training eligibility; skill/eval-failure capture TODO |
+| Live memory/skill learning | **Memory + interaction capture implemented** - successful memory writes are retrievable immediately and persisted as learned items; successful tool workflows become skill candidates; parse/tool/safety failures become eval-failure candidates; review/promotion UI TODO |
 | Lifelong parameter-growth loop | **Accounting + persistence implemented** - parameter modules can be staged, gate-promoted, counted, persisted, reported through `/learning/status`, and linked to source learned items; background trainer/hot-loader TODO |
 | Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |
