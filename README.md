@@ -7,15 +7,16 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 ## Features
 
 - **Discord bot** (discord.js v14): mention/DM/reply conversation, `!ai` command set, typing indicators, 2000-char splitting, graceful errors
-- **Local LLM first**: any OpenAI-compatible endpoint (Ollama `/v1`, vLLM, LM Studio) + native Ollama, with provider fallback routing
+- **Local LLM first + SubQ-ready**: any OpenAI-compatible endpoint (Ollama `/v1`, vLLM, LM Studio, SubQ private API) + native Ollama, with provider fallback and long-context SubQ routing
 - **Tool system**: Zod-validated args, permission + cooldown + risk/confirmation gates enforced in code, execution logging — 16 starter tools across moderation/utility/memory/discord/example
 - **Tool routing**: top-10 candidate retrieval per message (never all tools in the prompt), with deterministic keyword routing or opt-in embedding retrieval
 - **Memory**: USER/GUILD/CHANNEL/GLOBAL scopes, policy-gated writes (no secrets, no one-offs), pgvector + Qdrant + in-process stores
-- **Live learning ledger**: memory writes, successful tool workflows, and eval failures are captured as learned items; approved skills and active parameter modules are retrieved into prompts for immediate reuse; queued learning can be planned, exported, trainer-dispatched, staged, promoted, checked, and applied to a hotload control endpoint
+- **Live learning ledger**: memory writes, successful tool workflows, and eval failures are captured as learned items; approved skills and active parameter modules are retrieved into prompts for immediate reuse; queued learning can be planned, exported, trainer-dispatched to a private control endpoint, staged, promoted, checked, and applied to a hotload control endpoint
+- **Subquadratic sparse-attention path**: SubQ can be configured as a named long-context provider, and scratch training has an experimental local/log sparse-attention mode for SSA-style smoke tests
 - **Safety**: rate limiting, content screen (placeholder rules), mandatory confirmation for high-risk actions
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `/learning/status`, `/learning/items`, `/learning/parameter-modules`, `/learning/parameter-modules/stage-from-manifest`, `/learning/parameter-hotload/apply`, `/learning/parameter-snapshot`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 228 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 235 passing tests
 
 ## Quickstart
 
@@ -68,6 +69,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run build:parameter-growth-data` | Build gated parameter-growth JSONL handoff data from the live learned-item store |
 | `npm run check:parameter-growth-data` | Verify parameter-growth data manifests, hashes, record schema, and obvious secret leakage |
 | `npm run dispatch:parameter-training` | Re-check and dry-run or POST checked parameter-growth data to a private trainer endpoint |
+| `npm run serve:parameter-trainer` | Run the local trainer control endpoint with auth, status, quality re-checks, and state-only backend |
 | `npm run check:parameter-module-staging` | Verify trained parameter-module staging manifests, artifact hashes, eval passes, source ids, and rollback metadata |
 | `npm run build:parameter-hotload` | Emit a model-server hotload manifest for active promoted modules with staging artifacts |
 | `npm run check:parameter-hotload` | Verify hotload manifest status, request accounting, required artifacts, and artifact hashes before loader consumption |
@@ -110,7 +112,7 @@ message → context → safety precheck → memory retrieval (top 5)
         → skill/eval-failure candidates from tool outcomes + parse/gate failures
         → parameter-module activation trace for promoted growth modules
         → scheduled parameter-growth batch plan for approved queued learning
-        → gated parameter-growth data + checked trainer dispatch contract
+        → gated parameter-growth data + checked/private trainer control dispatch
         → module staging evidence before promotion
         → checked/applied hotload handoff for active model-server artifacts
 ```
@@ -163,7 +165,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/skill eval gates, ops API, docker compose, 228 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/skill eval gates, ops API, docker compose, 235 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 

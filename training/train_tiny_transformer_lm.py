@@ -70,6 +70,9 @@ def main() -> None:
         n_head=args.n_head,
         n_layer=args.n_layer,
         dropout=args.dropout,
+        attention_mode=args.attention_mode,
+        sparse_local_window=args.sparse_local_window,
+        sparse_log_base=args.sparse_log_base,
     ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
@@ -161,6 +164,9 @@ def main() -> None:
             "n_head": args.n_head,
             "n_layer": args.n_layer,
             "dropout": args.dropout,
+            "attention_mode": args.attention_mode,
+            "sparse_local_window": args.sparse_local_window,
+            "sparse_log_base": args.sparse_log_base,
             "batch_size": args.batch_size,
             "steps": args.steps,
             "lr": args.lr,
@@ -195,6 +201,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-head", type=int, default=4)
     parser.add_argument("--n-layer", type=int, default=2)
     parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--attention-mode", default="dense", choices=["dense", "local-log-sparse"])
+    parser.add_argument("--sparse-local-window", type=int, default=32)
+    parser.add_argument("--sparse-log-base", type=int, default=2)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
     parser.add_argument("--eval-every", type=int, default=100)
@@ -396,13 +405,42 @@ def encode_generation_prompt(tokenizer: SimpleTokenizer, text: str) -> list[int]
     return [tokenizer.bos, *tokenizer.encode_tokens(text)]
 
 
+def sparse_attention_indices(step: int, local_window: int, log_base: int, device: torch.device) -> torch.Tensor:
+    local_start = max(0, step - local_window + 1)
+    indices = set(range(local_start, step + 1))
+    distance = local_window
+    while distance <= step:
+        indices.add(step - distance)
+        distance *= log_base
+    indices.add(0)
+    indices.add(step)
+    return torch.tensor(sorted(indices), dtype=torch.long, device=device)
+
+
 class CausalSelfAttention(nn.Module):
-    def __init__(self, n_embd: int, n_head: int, dropout: float) -> None:
+    def __init__(
+        self,
+        n_embd: int,
+        n_head: int,
+        dropout: float,
+        attention_mode: str,
+        sparse_local_window: int,
+        sparse_log_base: int,
+    ) -> None:
         super().__init__()
         if n_embd % n_head != 0:
             raise ValueError("n_embd must be divisible by n_head")
+        if attention_mode not in {"dense", "local-log-sparse"}:
+            raise ValueError(f"unsupported attention_mode={attention_mode}")
+        if sparse_local_window < 1:
+            raise ValueError("sparse_local_window must be >= 1")
+        if sparse_log_base < 2:
+            raise ValueError("sparse_log_base must be >= 2")
         self.n_head = n_head
         self.head_dim = n_embd // n_head
+        self.attention_mode = attention_mode
+        self.sparse_local_window = sparse_local_window
+        self.sparse_log_base = sparse_log_base
         self.qkv = nn.Linear(n_embd, 3 * n_embd)
         self.proj = nn.Linear(n_embd, n_embd)
         self.dropout = nn.Dropout(dropout)
@@ -414,20 +452,64 @@ class CausalSelfAttention(nn.Module):
         q = q.view(batch, time_steps, self.n_head, self.head_dim).transpose(1, 2)
         k = k.view(batch, time_steps, self.n_head, self.head_dim).transpose(1, 2)
         v = v.view(batch, time_steps, self.n_head, self.head_dim).transpose(1, 2)
-        att = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        mask = torch.triu(torch.ones(time_steps, time_steps, device=x.device, dtype=torch.bool), diagonal=1)
-        att = att.masked_fill(mask, float("-inf"))
-        att = self.dropout(F.softmax(att, dim=-1))
-        y = att @ v
+        if self.attention_mode == "dense":
+            y = self.dense_attention(q, k, v, time_steps)
+        else:
+            y = self.local_log_sparse_attention(q, k, v, time_steps)
         y = y.transpose(1, 2).contiguous().view(batch, time_steps, channels)
         return self.proj(y)
 
+    def dense_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, time_steps: int) -> torch.Tensor:
+        att = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        mask = torch.triu(torch.ones(time_steps, time_steps, device=q.device, dtype=torch.bool), diagonal=1)
+        att = att.masked_fill(mask, float("-inf"))
+        att = self.dropout(F.softmax(att, dim=-1))
+        return att @ v
+
+    def local_log_sparse_attention(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        time_steps: int,
+    ) -> torch.Tensor:
+        outputs: list[torch.Tensor] = []
+        scale = 1.0 / math.sqrt(self.head_dim)
+        for step in range(time_steps):
+            indices = sparse_attention_indices(
+                step,
+                local_window=self.sparse_local_window,
+                log_base=self.sparse_log_base,
+                device=q.device,
+            )
+            selected_k = k.index_select(dim=2, index=indices)
+            selected_v = v.index_select(dim=2, index=indices)
+            scores = (q[:, :, step : step + 1, :] @ selected_k.transpose(-2, -1)) * scale
+            weights = self.dropout(F.softmax(scores, dim=-1))
+            outputs.append((weights @ selected_v).squeeze(2))
+        return torch.stack(outputs, dim=2)
+
 
 class Block(nn.Module):
-    def __init__(self, n_embd: int, n_head: int, dropout: float) -> None:
+    def __init__(
+        self,
+        n_embd: int,
+        n_head: int,
+        dropout: float,
+        attention_mode: str,
+        sparse_local_window: int,
+        sparse_log_base: int,
+    ) -> None:
         super().__init__()
         self.ln1 = nn.LayerNorm(n_embd)
-        self.attn = CausalSelfAttention(n_embd, n_head, dropout)
+        self.attn = CausalSelfAttention(
+            n_embd,
+            n_head,
+            dropout,
+            attention_mode,
+            sparse_local_window,
+            sparse_log_base,
+        )
         self.ln2 = nn.LayerNorm(n_embd)
         self.mlp = nn.Sequential(
             nn.Linear(n_embd, 4 * n_embd),
@@ -442,7 +524,18 @@ class Block(nn.Module):
 
 
 class TinyTransformerLM(nn.Module):
-    def __init__(self, vocab_size: int, block_size: int, n_embd: int, n_head: int, n_layer: int, dropout: float) -> None:
+    def __init__(
+        self,
+        vocab_size: int,
+        block_size: int,
+        n_embd: int,
+        n_head: int,
+        n_layer: int,
+        dropout: float,
+        attention_mode: str = "dense",
+        sparse_local_window: int = 32,
+        sparse_log_base: int = 2,
+    ) -> None:
         super().__init__()
         self.config = {
             "vocab_size": vocab_size,
@@ -451,11 +544,19 @@ class TinyTransformerLM(nn.Module):
             "n_head": n_head,
             "n_layer": n_layer,
             "dropout": dropout,
+            "attention_mode": attention_mode,
+            "sparse_local_window": sparse_local_window,
+            "sparse_log_base": sparse_log_base,
         }
         self.block_size = block_size
         self.token_embedding = nn.Embedding(vocab_size, n_embd)
         self.position_embedding = nn.Embedding(block_size, n_embd)
-        self.blocks = nn.Sequential(*[Block(n_embd, n_head, dropout) for _ in range(n_layer)])
+        self.blocks = nn.Sequential(
+            *[
+                Block(n_embd, n_head, dropout, attention_mode, sparse_local_window, sparse_log_base)
+                for _ in range(n_layer)
+            ]
+        )
         self.ln_f = nn.LayerNorm(n_embd)
         self.lm_head = nn.Linear(n_embd, vocab_size)
 

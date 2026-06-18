@@ -23,6 +23,7 @@
     "build:parameter-growth-data": "tsx scripts/build-parameter-growth-dataset.ts",
     "check:parameter-growth-data": "tsx scripts/check-parameter-growth-data.ts",
     "dispatch:parameter-training": "tsx scripts/dispatch-parameter-training.ts",
+    "serve:parameter-trainer": "tsx scripts/serve-parameter-trainer-control.ts",
     "check:parameter-module-staging": "tsx scripts/check-parameter-module-staging.ts",
     "build:parameter-hotload": "tsx scripts/build-parameter-hotload-manifest.ts",
     "check:parameter-hotload": "tsx scripts/check-parameter-hotload-manifest.ts",

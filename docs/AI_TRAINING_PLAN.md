@@ -2,11 +2,12 @@
 
 The product-level scope, Irene persona requirements, MoE-style specialist roadmap, and milestone criteria live in `docs/PROJECT_SCOPE_AND_ROADMAP.md`. This file is the executable training log and command reference.
 
-This repo now has three training tracks:
+This repo now has four training tracks:
 
 1. **Production model path:** fine-tune a capable open-weight instruct model with consented bot logs, reviewed open datasets, synthetic tool-format data, and held-out evals.
 2. **Modern fast path:** use current parameter-efficient training and serving methods (LoRA/QLoRA, DPO/GRPO when justified, FlashAttention/Liger kernels, Axolotl/Unsloth, vLLM) so the system becomes fast and knowledgeable without pretending a workstation can pretrain a frontier model.
-3. **Scratch iteration path:** train tiny local models from random weights as smoke tests for data, splits, metrics, checkpoints, and repeatability. These are not the production bot model; they prove the loop works before GPU spending.
+3. **Subquadratic sparse-attention path:** target SSA-style long-context models for Irene's growing memory/repository-scale reasoning. Hosted SubQ-compatible inference can be used through the OpenAI-compatible provider when available, and local scratch runs can use the experimental `local-log-sparse` attention mode to validate data/eval plumbing.
+4. **Scratch iteration path:** train tiny local models from random weights as smoke tests for data, splits, metrics, checkpoints, sparse-attention settings, and repeatability. These are not the production bot model; they prove the loop works before GPU spending.
 
 ## Dataset Sources
 
@@ -64,6 +65,17 @@ npm run eval:gate -- --candidate training/evals/tiny-transformer-protocol-iter16
 npm run report:training-runs -- --candidate-metrics training/runs/tiny-transformer-protocol-iter16/metrics.json --tool-report training/evals/tiny-transformer-protocol-iter16.clean.det.tool.report.json --tool-baseline-report training/evals/tiny-transformer-protocol-iter15.clean2.det.tool.report.json --out training/reports/tiny-transformer-protocol-iter16.report.json
 npm run check:training-report -- --report training/reports/tiny-transformer-protocol-iter16.report.json --mode review --no-require-knowledge
 ```
+
+## Subquadratic Sparse-Attention Smoke
+
+The production long-context target is subquadratic sparse attention, not dense attention stretched to impractical context sizes. The tiny trainer supports `--attention-mode local-log-sparse`, which attends to a fixed local window plus logarithmically spaced historical anchors. This is a smoke implementation for architecture/eval plumbing, not a production-optimized SSA kernel.
+
+```bash
+npm run train:tiny-transformer -- --train training/data/protocol/sft.train.jsonl --val training/data/protocol/sft.validation.jsonl --steps 20 --eval-every 10 --block-size 128 --batch-size 8 --n-embd 96 --n-head 4 --n-layer 2 --vocab-size 1024 --tokenizer-mode byte-fallback --loss-scope assistant --attention-mode local-log-sparse --sparse-local-window 32 --sparse-log-base 2 --out-dir training/runs/tiny-transformer-subquadratic-smoke
+npm run check:training -- --metrics training/runs/tiny-transformer-subquadratic-smoke/metrics.json
+```
+
+Promotion criteria for this track are stricter than "it trains": the checkpoint must reload through the direct evaluators, preserve tool protocol behavior, and eventually beat dense attention on long-context retrieval/cost before any SSA model replaces the normal serving path.
 
 Current measured Transformer runs:
 

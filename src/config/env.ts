@@ -33,6 +33,11 @@ const envSchema = z.object({
   LLM_MODEL: z.string().default("qwen2.5:7b-instruct"),
   OLLAMA_BASE_URL: z.string().default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().default("qwen2.5:7b-instruct"),
+  SUBQ_ENABLED: booleanString.default("false"),
+  SUBQ_BASE_URL: z.string().default(""),
+  SUBQ_API_KEY: z.string().default(""),
+  SUBQ_MODEL: z.string().default(""),
+  SUBQ_TIMEOUT_MS: z.coerce.number().int().min(1).max(3_600_000).default(600_000),
 
   // Runtime parameter-module hotload control endpoint
   PARAMETER_HOTLOAD_ENDPOINT: z.string().default(""),

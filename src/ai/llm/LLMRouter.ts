@@ -38,7 +38,7 @@ export class LLMRouter implements LLMProvider {
 
   async generateChatCompletion(request: LLMChatRequest): Promise<LLMChatResponse> {
     const errors: string[] = [];
-    for (const provider of this.providers) {
+    for (const provider of this.providersForRequest(request)) {
       try {
         return await provider.generateChatCompletion(request);
       } catch (err) {
@@ -49,6 +49,19 @@ export class LLMRouter implements LLMProvider {
       }
     }
     throw new LLMProviderError(`All LLM providers failed:\n${errors.join("\n")}`);
+  }
+
+  private providersForRequest(request: LLMChatRequest): LLMProvider[] {
+    const preferredProvider =
+      typeof request.metadata?.preferredProvider === "string"
+        ? request.metadata.preferredProvider
+        : request.metadata?.longContext === true
+          ? "subq"
+          : undefined;
+    if (!preferredProvider) return this.providers;
+    const preferred = this.providers.find((provider) => provider.info.name === preferredProvider);
+    if (!preferred) return this.providers;
+    return [preferred, ...this.providers.filter((provider) => provider !== preferred)];
   }
 }
 
@@ -69,6 +82,23 @@ export function buildLLMRouterFromEnv(env: Env, logger?: Logger): LLMRouter {
         logger,
       }),
     );
+  }
+
+  if (env.SUBQ_ENABLED) {
+    if (!env.SUBQ_BASE_URL || !env.SUBQ_MODEL) {
+      logger?.warn("SUBQ_ENABLED=true but SUBQ_BASE_URL or SUBQ_MODEL is missing; SubQ provider disabled");
+    } else {
+      providers.push(
+        new OpenAICompatibleProvider({
+          name: "subq",
+          baseUrl: env.SUBQ_BASE_URL,
+          apiKey: env.SUBQ_API_KEY || env.LLM_API_KEY,
+          model: env.SUBQ_MODEL,
+          timeoutMs: env.SUBQ_TIMEOUT_MS,
+          logger,
+        }),
+      );
+    }
   }
 
   return new LLMRouter(providers, logger);

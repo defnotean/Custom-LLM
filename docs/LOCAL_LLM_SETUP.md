@@ -46,6 +46,27 @@ LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
    LLM_MODEL=<model id shown in LM Studio>
    ```
 
+## Option D — SubQ / Subquadratic Sparse Attention (long context)
+
+Use SubQ when Irene needs multi-million-token context for full repositories, long-running memory/state reviews, or large artifact reasoning. SubQ's public materials describe an OpenAI-compatible API and a subquadratic sparse-attention architecture, so it plugs into the same provider path as vLLM or LM Studio once you have access.
+
+Keep a local/open-weight model as the normal primary model. Enable SubQ as the named long-context provider so code paths can explicitly request it with `metadata.longContext=true` or `metadata.preferredProvider="subq"`:
+
+```ini
+LLM_PROVIDER=openai-compatible
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=local
+LLM_MODEL=qwen2.5:7b-instruct
+
+SUBQ_ENABLED=true
+SUBQ_BASE_URL=<your SubQ OpenAI-compatible /v1 base URL>
+SUBQ_API_KEY=<your SubQ API key>
+SUBQ_MODEL=<your SubQ model id>
+SUBQ_TIMEOUT_MS=600000
+```
+
+Do not hardcode guessed SubQ URLs or model ids. Use the values assigned to your account or private preview. Promotion still requires the same tool, behavior, memory, and parameter-growth eval gates; a longer context window does not by itself prove better tool-call reliability.
+
 ## Testing the endpoint
 
 ```bash

@@ -3,6 +3,8 @@ import { OpenAICompatibleProvider } from "../src/ai/llm/OpenAICompatibleProvider
 import { OllamaProvider } from "../src/ai/llm/OllamaProvider";
 import { LLMRouter } from "../src/ai/llm/LLMRouter";
 import { MockLLMProvider, testLogger } from "./helpers";
+import type { LLMChatRequest, LLMChatResponse } from "../src/types/ai";
+import type { LLMProvider } from "../src/ai/llm/LLMProvider";
 
 function fakeFetch(handler: (url: string, init?: RequestInit) => { status: number; body: unknown }): typeof fetch {
   return (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
@@ -127,4 +129,35 @@ describe("LLMRouter", () => {
       router.generateChatCompletion({ messages: [{ role: "user", content: "hi" }] }),
     ).rejects.toThrow(/All LLM providers failed/);
   });
+
+  it("prefers the SubQ provider for long-context requests", async () => {
+    const local = new NamedMockProvider("openai-compatible", "local-model", "local response");
+    const subq = new NamedMockProvider("subq", "subq-model", "subq response");
+    const router = new LLMRouter([local, subq], testLogger);
+
+    const res = await router.generateChatCompletion({
+      messages: [{ role: "user", content: "reason over the whole repo" }],
+      metadata: { longContext: true },
+    });
+
+    expect(res.content).toBe("subq response");
+    expect(local.requests).toHaveLength(0);
+    expect(subq.requests).toHaveLength(1);
+  });
 });
+
+class NamedMockProvider implements LLMProvider {
+  readonly info;
+  readonly requests: LLMChatRequest[] = [];
+  private readonly response: string;
+
+  constructor(name: string, model: string, response: string) {
+    this.info = { name, model, baseUrl: `${name}://` };
+    this.response = response;
+  }
+
+  async generateChatCompletion(request: LLMChatRequest): Promise<LLMChatResponse> {
+    this.requests.push(request);
+    return { content: this.response, raw: { mock: true }, latencyMs: 1, model: this.info.model, finishReason: "stop" };
+  }
+}

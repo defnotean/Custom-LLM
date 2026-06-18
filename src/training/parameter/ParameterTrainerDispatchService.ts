@@ -64,7 +64,7 @@ export interface ParameterTrainerDispatchOptions {
   backend?: ParameterTrainerBackend;
 }
 
-const datasetManifestSchema = z.object({
+export const parameterTrainerDatasetManifestSchema = z.object({
   id: z.string().min(1),
   planId: z.string().min(1),
   generatedAt: z.string().min(1),
@@ -90,7 +90,23 @@ const datasetManifestSchema = z.object({
   ),
 });
 
-export type ParameterTrainerDatasetManifest = z.infer<typeof datasetManifestSchema>;
+export type ParameterTrainerDatasetManifest = z.infer<typeof parameterTrainerDatasetManifestSchema>;
+
+export const parameterTrainerDispatchRequestSchema = z
+  .object({
+    runtimeContract: z.literal("parameter-training-dispatch-v1"),
+    requestId: z.string().min(1),
+    dryRun: z.boolean(),
+    trainerProfile: z.string().min(1),
+    datasetManifestPath: z.string().min(1),
+    datasetManifest: parameterTrainerDatasetManifestSchema,
+    expectedOutput: z.object({
+      runDir: z.string().min(1),
+      stagingManifestPath: z.string().min(1),
+      nextGates: z.array(z.string().min(1)).min(1),
+    }),
+  })
+  .strict();
 
 export class ParameterTrainerDispatchService {
   private readonly defaultTrainerProfile: string;
@@ -281,7 +297,7 @@ export class HttpParameterTrainerBackend implements ParameterTrainerBackend {
 export async function readParameterTrainerDatasetManifest(
   manifestPath: string,
 ): Promise<ParameterTrainerDatasetManifest> {
-  return datasetManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
+  return parameterTrainerDatasetManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
 }
 
 function parseBody(body: string): unknown {

@@ -117,6 +117,9 @@ def load_checkpoint(path: Path, device: torch.device) -> tuple[TinyTransformerLM
         n_head=int(config["n_head"]),
         n_layer=int(config["n_layer"]),
         dropout=float(config["dropout"]),
+        attention_mode=str(config.get("attention_mode", "dense")),
+        sparse_local_window=int(config.get("sparse_local_window", 32)),
+        sparse_log_base=int(config.get("sparse_log_base", 2)),
     ).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()

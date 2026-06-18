@@ -29,6 +29,7 @@ export interface OpenAICompatibleProviderOptions {
   baseUrl: string;
   apiKey?: string;
   model: string;
+  name?: string;
   timeoutMs?: number;
   logger?: Logger;
   /** Injectable for tests. */
@@ -51,7 +52,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     this.timeoutMs = options.timeoutMs ?? 120_000;
     this.logger = options.logger;
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.info = { name: "openai-compatible", model: this.model, baseUrl: this.baseUrl };
+    this.info = { name: options.name ?? "openai-compatible", model: this.model, baseUrl: this.baseUrl };
   }
 
   async generateChatCompletion(request: LLMChatRequest): Promise<LLMChatResponse> {
