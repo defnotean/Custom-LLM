@@ -6,6 +6,8 @@ interface Args {
   requirePromotion: boolean;
   requireTool: boolean;
   requireKnowledge: boolean;
+  requireBehavior: boolean;
+  requireRouter: boolean;
 }
 
 async function main(): Promise<void> {
@@ -16,6 +18,8 @@ async function main(): Promise<void> {
     requirePromotion: args.requirePromotion,
     requireTool: args.requireTool,
     requireKnowledge: args.requireKnowledge,
+    requireBehavior: args.requireBehavior,
+    requireRouter: args.requireRouter,
   });
   // eslint-disable-next-line no-console
   console.log(`${JSON.stringify(report, null, 2)}\n`);
@@ -28,6 +32,8 @@ function parseArgs(argv: string[]): Args {
   let requirePromotion = true;
   let requireTool = true;
   let requireKnowledge = true;
+  let requireBehavior = false;
+  let requireRouter = false;
 
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
@@ -36,10 +42,12 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--no-require-promotion") requirePromotion = false;
     else if (arg === "--no-require-tool") requireTool = false;
     else if (arg === "--no-require-knowledge") requireKnowledge = false;
+    else if (arg === "--require-behavior") requireBehavior = true;
+    else if (arg === "--require-router") requireRouter = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
-  return { report, mode, requirePromotion, requireTool, requireKnowledge };
+  return { report, mode, requirePromotion, requireTool, requireKnowledge, requireBehavior, requireRouter };
 }
 
 function parseMode(value: string): TrainingIterationReportMode {

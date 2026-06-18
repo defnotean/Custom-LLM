@@ -19,6 +19,12 @@ interface Args {
   knowledgeReport?: string;
   knowledgeBaselineReport?: string;
   requireKnowledgePromotion: boolean;
+  behaviorReport?: string;
+  behaviorBaselineReport?: string;
+  requireBehaviorPromotion: boolean;
+  routerReport?: string;
+  routerBaselineReport?: string;
+  requireRouterPromotion: boolean;
   out?: string;
 }
 
@@ -35,6 +41,10 @@ async function main(): Promise<void> {
     ...(args.toolBaselineReport ? { toolBaselineReportPath: args.toolBaselineReport } : {}),
     ...(args.knowledgeReport ? { knowledgeReportPath: args.knowledgeReport } : {}),
     ...(args.knowledgeBaselineReport ? { knowledgeBaselineReportPath: args.knowledgeBaselineReport } : {}),
+    ...(args.behaviorReport ? { behaviorReportPath: args.behaviorReport } : {}),
+    ...(args.behaviorBaselineReport ? { behaviorBaselineReportPath: args.behaviorBaselineReport } : {}),
+    ...(args.routerReport ? { routerReportPath: args.routerReport } : {}),
+    ...(args.routerBaselineReport ? { routerBaselineReportPath: args.routerBaselineReport } : {}),
   };
 
   const report = await buildTrainingRunReport(reportOptions);
@@ -72,6 +82,28 @@ async function main(): Promise<void> {
       throw new Error(`Training run knowledge evidence warnings: ${report.knowledge.warnings.join("; ")}`);
     }
   }
+  if (args.requireBehaviorPromotion) {
+    if (report.behavior?.gate.status !== "pass") {
+      const reasons =
+        report.behavior?.gate.failures.map((failure) => `${failure.metric}: ${failure.message}`).join("; ") ||
+        "No behavior promotion report was produced.";
+      throw new Error(`Training run behavior promotion failed: ${reasons}`);
+    }
+    if (report.behavior.warnings.length > 0) {
+      throw new Error(`Training run behavior evidence warnings: ${report.behavior.warnings.join("; ")}`);
+    }
+  }
+  if (args.requireRouterPromotion) {
+    if (report.router?.gate.status !== "pass") {
+      const reasons =
+        report.router?.gate.failures.map((failure) => `${failure.metric}: ${failure.message}`).join("; ") ||
+        "No router promotion report was produced.";
+      throw new Error(`Training run router promotion failed: ${reasons}`);
+    }
+    if (report.router.warnings.length > 0) {
+      throw new Error(`Training run router evidence warnings: ${report.router.warnings.join("; ")}`);
+    }
+  }
 }
 
 function parseArgs(argv: string[]): Args {
@@ -88,6 +120,12 @@ function parseArgs(argv: string[]): Args {
   let knowledgeReport: string | undefined;
   let knowledgeBaselineReport: string | undefined;
   let requireKnowledgePromotion = false;
+  let behaviorReport: string | undefined;
+  let behaviorBaselineReport: string | undefined;
+  let requireBehaviorPromotion = false;
+  let routerReport: string | undefined;
+  let routerBaselineReport: string | undefined;
+  let requireRouterPromotion = false;
   let out: string | undefined;
 
   for (let index = 0; index < argv.length; index++) {
@@ -105,6 +143,12 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--knowledge-report") knowledgeReport = requireValue(argv[++index], arg);
     else if (arg === "--knowledge-baseline-report") knowledgeBaselineReport = requireValue(argv[++index], arg);
     else if (arg === "--require-knowledge-promotion") requireKnowledgePromotion = true;
+    else if (arg === "--behavior-report") behaviorReport = requireValue(argv[++index], arg);
+    else if (arg === "--behavior-baseline-report") behaviorBaselineReport = requireValue(argv[++index], arg);
+    else if (arg === "--require-behavior-promotion") requireBehaviorPromotion = true;
+    else if (arg === "--router-report") routerReport = requireValue(argv[++index], arg);
+    else if (arg === "--router-baseline-report") routerBaselineReport = requireValue(argv[++index], arg);
+    else if (arg === "--require-router-promotion") requireRouterPromotion = true;
     else if (arg === "--out") out = requireValue(argv[++index], arg);
     else throw new Error(`Unknown argument: ${arg}`);
   }
@@ -130,6 +174,12 @@ function parseArgs(argv: string[]): Args {
     ...(knowledgeReport ? { knowledgeReport } : {}),
     ...(knowledgeBaselineReport ? { knowledgeBaselineReport } : {}),
     requireKnowledgePromotion,
+    ...(behaviorReport ? { behaviorReport } : {}),
+    ...(behaviorBaselineReport ? { behaviorBaselineReport } : {}),
+    requireBehaviorPromotion,
+    ...(routerReport ? { routerReport } : {}),
+    ...(routerBaselineReport ? { routerBaselineReport } : {}),
+    requireRouterPromotion,
     ...(out ? { out } : {}),
   };
 }

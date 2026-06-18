@@ -3,6 +3,8 @@ import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import type { EvalReport } from "../eval/ToolEvalSuite";
 import type { KnowledgeEvalReport } from "../eval/KnowledgeEvalSuite";
+import type { BehaviorEvalReport } from "../eval/BehaviorEvalSuite";
+import type { SpecialistRoutingReport } from "../eval/SpecialistRoutingEvalSuite";
 import {
   applyPromotionGate,
   type PromotionGateResult,
@@ -13,6 +15,16 @@ import {
   type KnowledgePromotionGateResult,
   type KnowledgePromotionThresholds,
 } from "../eval/KnowledgePromotionGate";
+import {
+  applyBehaviorPromotionGate,
+  type BehaviorPromotionGateResult,
+  type BehaviorPromotionThresholds,
+} from "../eval/BehaviorPromotionGate";
+import {
+  applySpecialistRoutingPromotionGate,
+  type SpecialistRoutingPromotionResult,
+  type SpecialistRoutingPromotionThresholds,
+} from "../eval/SpecialistRoutingPromotionGate";
 import { trainingMetricsSchema } from "./TrainingArtifactQuality";
 
 const trainingRunMetadataSchema = z
@@ -123,6 +135,12 @@ export interface TrainingRunReportOptions {
   knowledgeReportPath?: string;
   knowledgeBaselineReportPath?: string;
   knowledgeThresholds?: Partial<KnowledgePromotionThresholds>;
+  behaviorReportPath?: string;
+  behaviorBaselineReportPath?: string;
+  behaviorThresholds?: Partial<BehaviorPromotionThresholds>;
+  routerReportPath?: string;
+  routerBaselineReportPath?: string;
+  routerThresholds?: Partial<SpecialistRoutingPromotionThresholds>;
 }
 
 export interface TrainingRunToolEvidence {
@@ -145,11 +163,33 @@ export interface TrainingRunKnowledgeEvidence {
   gate: KnowledgePromotionGateResult;
 }
 
+export interface TrainingRunBehaviorEvidence {
+  reportPath: string;
+  baselineReportPath?: string;
+  predictionModels: string[];
+  candidateRunName?: string;
+  candidateModelMatched?: boolean;
+  warnings: string[];
+  gate: BehaviorPromotionGateResult;
+}
+
+export interface TrainingRunRouterEvidence {
+  reportPath: string;
+  baselineReportPath?: string;
+  predictionModels: string[];
+  candidateRunName?: string;
+  candidateModelMatched?: boolean;
+  warnings: string[];
+  gate: SpecialistRoutingPromotionResult;
+}
+
 export interface TrainingRunReport {
   leaderboard: TrainingRunLeaderboard;
   promotion?: TrainingRunPromotionReport;
   tool?: TrainingRunToolEvidence;
   knowledge?: TrainingRunKnowledgeEvidence;
+  behavior?: TrainingRunBehaviorEvidence;
+  router?: TrainingRunRouterEvidence;
 }
 
 type TrainingMetrics = z.infer<typeof trainingMetricsSchema>;
@@ -187,12 +227,30 @@ export async function buildTrainingRunReport(options?: TrainingRunReportOptions)
         thresholds: options.knowledgeThresholds,
       })
     : undefined;
+  const behavior = options?.behaviorReportPath
+    ? await readTrainingRunBehaviorEvidence({
+        reportPath: options.behaviorReportPath,
+        ...(options.behaviorBaselineReportPath ? { baselineReportPath: options.behaviorBaselineReportPath } : {}),
+        ...(promotion?.candidate ? { candidate: promotion.candidate } : {}),
+        thresholds: options.behaviorThresholds,
+      })
+    : undefined;
+  const router = options?.routerReportPath
+    ? await readTrainingRunRouterEvidence({
+        reportPath: options.routerReportPath,
+        ...(options.routerBaselineReportPath ? { baselineReportPath: options.routerBaselineReportPath } : {}),
+        ...(promotion?.candidate ? { candidate: promotion.candidate } : {}),
+        thresholds: options.routerThresholds,
+      })
+    : undefined;
 
   return {
     leaderboard,
     ...(promotion ? { promotion } : {}),
     ...(tool ? { tool } : {}),
     ...(knowledge ? { knowledge } : {}),
+    ...(behavior ? { behavior } : {}),
+    ...(router ? { router } : {}),
   };
 }
 
@@ -289,12 +347,88 @@ async function readTrainingRunKnowledgeEvidence(options: {
   };
 }
 
+async function readTrainingRunBehaviorEvidence(options: {
+  reportPath: string;
+  baselineReportPath?: string;
+  candidate?: TrainingRunSummary;
+  thresholds?: Partial<BehaviorPromotionThresholds>;
+}): Promise<TrainingRunBehaviorEvidence> {
+  const candidate = await readBehaviorEvalReport(options.reportPath);
+  const baseline = options.baselineReportPath ? await readBehaviorEvalReport(options.baselineReportPath) : undefined;
+  const predictionModels = await readPredictionModels(candidate.predictionsPath);
+  const candidateModelMatched = options.candidate
+    ? predictionModels.length > 0 && predictionModels.some((model) => modelMatchesRunName(model, options.candidate?.runName ?? ""))
+    : undefined;
+  const warnings = predictionEvidenceWarnings({
+    kind: "behavior",
+    predictionModels,
+    candidate: options.candidate,
+    candidateModelMatched,
+  });
+  const gate = applyBehaviorPromotionGate({
+    candidate,
+    ...(baseline ? { baseline } : {}),
+    ...(options.thresholds ? { thresholds: options.thresholds } : {}),
+  });
+  return {
+    reportPath: options.reportPath,
+    ...(options.baselineReportPath ? { baselineReportPath: options.baselineReportPath } : {}),
+    predictionModels,
+    ...(options.candidate ? { candidateRunName: options.candidate.runName } : {}),
+    ...(candidateModelMatched !== undefined ? { candidateModelMatched } : {}),
+    warnings,
+    gate,
+  };
+}
+
+async function readTrainingRunRouterEvidence(options: {
+  reportPath: string;
+  baselineReportPath?: string;
+  candidate?: TrainingRunSummary;
+  thresholds?: Partial<SpecialistRoutingPromotionThresholds>;
+}): Promise<TrainingRunRouterEvidence> {
+  const candidate = await readRouterEvalReport(options.reportPath);
+  const baseline = options.baselineReportPath ? await readRouterEvalReport(options.baselineReportPath) : undefined;
+  const predictionModels = await readPredictionModels(candidate.predictionsPath);
+  const candidateModelMatched = options.candidate
+    ? predictionModels.length > 0 && predictionModels.some((model) => modelMatchesRunName(model, options.candidate?.runName ?? ""))
+    : undefined;
+  const warnings = predictionEvidenceWarnings({
+    kind: "router",
+    predictionModels,
+    candidate: options.candidate,
+    candidateModelMatched,
+  });
+  const gate = applySpecialistRoutingPromotionGate({
+    candidate,
+    ...(baseline ? { baseline } : {}),
+    ...(options.thresholds ? { thresholds: options.thresholds } : {}),
+  });
+  return {
+    reportPath: options.reportPath,
+    ...(options.baselineReportPath ? { baselineReportPath: options.baselineReportPath } : {}),
+    predictionModels,
+    ...(options.candidate ? { candidateRunName: options.candidate.runName } : {}),
+    ...(candidateModelMatched !== undefined ? { candidateModelMatched } : {}),
+    warnings,
+    gate,
+  };
+}
+
 async function readToolEvalReport(path: string): Promise<EvalReport> {
   return JSON.parse(await readFile(path, "utf8")) as EvalReport;
 }
 
 async function readKnowledgeEvalReport(path: string): Promise<KnowledgeEvalReport> {
   return JSON.parse(await readFile(path, "utf8")) as KnowledgeEvalReport;
+}
+
+async function readBehaviorEvalReport(path: string): Promise<BehaviorEvalReport> {
+  return JSON.parse(await readFile(path, "utf8")) as BehaviorEvalReport;
+}
+
+async function readRouterEvalReport(path: string): Promise<SpecialistRoutingReport> {
+  return JSON.parse(await readFile(path, "utf8")) as SpecialistRoutingReport;
 }
 
 async function readPredictionModels(path: string): Promise<string[]> {
@@ -309,7 +443,7 @@ async function readPredictionModels(path: string): Promise<string[]> {
 }
 
 function predictionEvidenceWarnings(input: {
-  kind: "knowledge" | "tool";
+  kind: "knowledge" | "tool" | "behavior" | "router";
   predictionModels: string[];
   candidate?: TrainingRunSummary;
   candidateModelMatched?: boolean;

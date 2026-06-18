@@ -30,6 +30,30 @@ describe("TrainingIterationReportQuality", () => {
     );
   });
 
+  it("requires behavior and router evidence when requested", async () => {
+    const reportPath = await writeReport(
+      makeReport({
+        behavior: makeEvidence("behavior"),
+        router: makeEvidence("router"),
+      }),
+    );
+
+    const report = await checkTrainingIterationReport({
+      reportPath,
+      requireBehavior: true,
+      requireRouter: true,
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.summary).toMatchObject({
+      behaviorGateStatus: "fail",
+      routerGateStatus: "fail",
+    });
+    expect(report.checks.map((check) => check.id)).toEqual(
+      expect.arrayContaining(["behavior-gate", "router-gate", "behavior-candidate-match", "router-candidate-match"]),
+    );
+  });
+
   it("rejects the same report in promotion mode", async () => {
     const reportPath = await writeReport(makeReport());
 
@@ -92,7 +116,7 @@ function makeReport(overrides?: Partial<Record<string, unknown>>): Record<string
 }
 
 function makeEvidence(
-  kind: "tool" | "knowledge",
+  kind: "tool" | "knowledge" | "behavior" | "router",
   overrides?: Partial<Record<string, unknown>>,
 ): Record<string, unknown> {
   return {

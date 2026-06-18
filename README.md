@@ -14,7 +14,7 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Safety**: rate limiting, content screen (placeholder rules), mandatory confirmation for high-risk actions
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 145 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 147 passing tests
 
 ## Quickstart
 
@@ -77,7 +77,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run check:contamination` | Audit train JSONL against held-out eval suites for exact leakage and high n-gram overlap |
 | `npm run train:tiny-transformer` / `npm run train:tiny-char` | Run local from-scratch training smoke baselines, including assistant-loss masking experiments |
 | `npm run check:training` | Validate dataset splits, hashes, model artifacts, and training loss movement |
-| `npm run report:training-runs` | Rank local training runs and optionally gate a candidate against the best comparable baseline, with attached protocol and knowledge evidence |
+| `npm run report:training-runs` | Rank local training runs and optionally gate a candidate against the best comparable baseline, with attached protocol, knowledge, behavior, and router evidence |
 | `npm run check:training-report` | Verify an iteration report is complete for review or strict promotion |
 | `npm run check:production-readiness` | Preflight production SFT/DPO datasets, eval reports, and QLoRA configs before GPU training |
 | `npm run check:training-configs` | Validate Axolotl/Unsloth production QLoRA config scaffolds and their dataset paths |
@@ -142,7 +142,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router eval gates, ops API, docker compose, 145 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router eval gates, ops API, docker compose, 147 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 

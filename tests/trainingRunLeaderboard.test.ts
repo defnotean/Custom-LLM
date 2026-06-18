@@ -267,6 +267,61 @@ describe("TrainingRunLeaderboard", () => {
     });
   });
 
+  it("attaches behavior and router eval evidence to the training run report", async () => {
+    const root = await makeRoot();
+    const candidateMetricsPath = await writeRun(root, {
+      name: "candidate",
+      history: [
+        { step: 1, train_loss: 5, val_loss: 5 },
+        { step: 100, train_loss: 2, val_loss: 2 },
+      ],
+    });
+    const behaviorReportPath = join(root, "candidate-behavior.report.json");
+    const routerReportPath = join(root, "candidate-router.report.json");
+    await writeBehaviorReport(behaviorReportPath, { model: "tiny_pytorch_transformer_lm:candidate" });
+    await writeRouterReport(routerReportPath, { model: "tiny_pytorch_transformer_lm:candidate" });
+
+    const report = await buildTrainingRunReport({
+      runRoot: root,
+      candidateMetricsPath,
+      behaviorReportPath,
+      routerReportPath,
+    });
+
+    expect(report.behavior).toMatchObject({
+      reportPath: behaviorReportPath,
+      predictionModels: ["tiny_pytorch_transformer_lm:candidate"],
+      candidateRunName: "candidate",
+      candidateModelMatched: true,
+      warnings: [],
+      gate: {
+        status: "pass",
+        candidate: {
+          total: 11,
+          validJsonRate: 1,
+          personaConsistencyRate: 1,
+          toolAbstainAccuracy: 1,
+        },
+      },
+    });
+    expect(report.router).toMatchObject({
+      reportPath: routerReportPath,
+      predictionModels: ["tiny_pytorch_transformer_lm:candidate"],
+      candidateRunName: "candidate",
+      candidateModelMatched: true,
+      warnings: [],
+      gate: {
+        status: "pass",
+        candidate: {
+          total: 18,
+          routeAccuracy: 1,
+          expertAccuracy: 1,
+          toolVsNonToolAccuracy: 1,
+        },
+      },
+    });
+  });
+
   it("warns when attached knowledge predictions do not match the candidate run", async () => {
     const root = await makeRoot();
     const candidateMetricsPath = await writeRun(root, {
@@ -494,6 +549,86 @@ async function writeToolReport(path: string, options?: { model?: string }): Prom
           tool_call: { total: 1, correctType: 1, correctTool: 1, validArgs: 1 },
           no_tool: { total: 1, correctType: 1, correctTool: 0, validArgs: 0 },
         },
+        failures: [],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+}
+
+async function writeBehaviorReport(path: string, options?: { model?: string }): Promise<void> {
+  const predictionsPath = join(dirname(path), "candidate-behavior.predictions.jsonl");
+  await writeFile(
+    predictionsPath,
+    Array.from({ length: 11 }, (_, index) => ({
+      id: `behavior-${index + 1}`,
+      output: "{\"type\":\"message\",\"content\":\"ok\"}",
+      model: options?.model ?? "tiny_pytorch_transformer_lm:candidate",
+      latencyMs: 20,
+    }))
+      .map((item) => JSON.stringify(item))
+      .join("\n") + "\n",
+    "utf8",
+  );
+  await writeFile(
+    path,
+    JSON.stringify(
+      {
+        suitePath: "training/evals/behavior.eval.jsonl",
+        predictionsPath,
+        total: 11,
+        parseOk: 11,
+        validJsonRate: 1,
+        actionTypeAccuracy: 1,
+        requirementPassRate: 1,
+        personaConsistencyRate: 1,
+        socialCueAccuracy: 1,
+        casualToneAccuracy: 1,
+        toolAbstainAccuracy: 1,
+        boundaryAccuracy: 1,
+        missingPredictions: 0,
+        latencyMs: { count: 11, average: 20, p95: 20, max: 20 },
+        byKind: {},
+        failures: [],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+}
+
+async function writeRouterReport(path: string, options?: { model?: string }): Promise<void> {
+  const predictionsPath = join(dirname(path), "candidate-router.predictions.jsonl");
+  await writeFile(
+    predictionsPath,
+    Array.from({ length: 18 }, (_, index) => ({
+      id: `router-${index + 1}`,
+      route: "casual",
+      output: "{\"route\":\"casual\",\"expert\":\"conversation\",\"confidence\":1}",
+      model: options?.model ?? "tiny_pytorch_transformer_lm:candidate",
+      latencyMs: 8,
+    }))
+      .map((item) => JSON.stringify(item))
+      .join("\n") + "\n",
+    "utf8",
+  );
+  await writeFile(
+    path,
+    JSON.stringify(
+      {
+        suitePath: "training/evals/specialist-routing.eval.jsonl",
+        predictionsPath,
+        total: 18,
+        routeAccuracy: 1,
+        expertAccuracy: 1,
+        toolVsNonToolAccuracy: 1,
+        missingPredictions: 0,
+        invalidPredictions: 0,
+        latencyMs: { count: 18, average: 8, p95: 8, max: 8 },
+        byRoute: {},
         failures: [],
       },
       null,

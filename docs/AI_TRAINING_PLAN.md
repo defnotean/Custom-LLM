@@ -143,7 +143,7 @@ Run comparison:
 ```bash
 npm run report:training-runs
 npm run report:training-runs -- --candidate-metrics training/runs/tiny-transformer-iter4-byte/metrics.json --baseline-metrics training/runs/tiny-transformer-iter2/metrics.json --require-promotion
-npm run report:training-runs -- --candidate-metrics training/runs/tiny-transformer-iter4-byte/metrics.json --tool-report training/evals/<candidate-tool-report>.json --knowledge-report training/evals/tiny-transformer-iter4-byte.report.json --out training/reports/tiny-transformer-iter4-byte.report.json
+npm run report:training-runs -- --candidate-metrics training/runs/<candidate>/metrics.json --tool-report training/evals/<candidate-tool-report>.json --knowledge-report training/evals/<candidate-knowledge-report>.json --behavior-report training/evals/<candidate-behavior-report>.json --router-report training/evals/<candidate-router-report>.json --out training/reports/<candidate>.report.json
 npm run check:training-report -- --report training/reports/tiny-transformer-iter4-byte.report.json --mode review
 ```
 
@@ -152,6 +152,8 @@ The leaderboard ranks all local `training/runs/**/metrics.json` files by best va
 Pass `--tool-report <path>` to attach protocol/tool behavior to the same report. The attached section runs the existing protocol promotion gate and records JSON validity, action-type accuracy, tool-name accuracy, argument validity, no-tool accuracy, hallucinated-tool rate, latency p95, prediction model names, candidate-run match status, warnings, and failures. Use `--require-tool-promotion` for production-capable candidates.
 
 Pass `--knowledge-report <path>` to attach held-out knowledge behavior to the same machine-readable report. The attached section runs the existing knowledge promotion gate and records answer rate, token-F1, Rouge-L, low-score rate, latency p95, prediction model names, candidate-run match status, warnings, and failures. Use `--require-knowledge-promotion` only for production-capable candidates; tiny scratch checkpoints are expected to fail strict knowledge gates, but their evidence still belongs in the iteration report.
+
+Pass `--behavior-report <path>` and `--router-report <path>` to attach persona/social and specialist-router evidence to the same report. Their sections run `eval:behavior:gate` and `eval:router:gate` equivalents, record candidate prediction model matching, and can be enforced with `--require-behavior-promotion` and `--require-router-promotion`.
 
 Artifacts:
 
@@ -168,8 +170,8 @@ Artifacts:
 - `training/evals/specialist-routing.eval.jsonl` is the held-out route/expert suite. It currently has 18 balanced cases covering tool protocol, knowledge, persona, casual, social-cue, and boundary routing.
 - `training/runs/tiny-char-lm/metrics.json` records model config, parameter count, train/validation loss history, data hashes, and a sample.
 - `npm run check:training` verifies dataset split arithmetic, JSONL schema, train/validation overlap, duplicate IDs, output hashes, checkpoint/vocab presence, validation-loss improvement, and optional run-to-run improvement.
-- `npm run report:training-runs` ranks local runs, enforces the run-to-run promotion rule for the next candidate, and can attach protocol and knowledge gate evidence with `--tool-report` and `--knowledge-report`.
-- `npm run check:training-report` verifies a saved iteration report has leaderboard, promotion, protocol, and knowledge evidence with matching prediction model metadata. `--mode review` allows behavior gates to fail but requires complete evidence; `--mode promotion` requires promotion, protocol, and knowledge gates to pass.
+- `npm run report:training-runs` ranks local runs, enforces the run-to-run promotion rule for the next candidate, and can attach protocol, knowledge, behavior, and router gate evidence with `--tool-report`, `--knowledge-report`, `--behavior-report`, and `--router-report`.
+- `npm run check:training-report` verifies a saved iteration report has leaderboard, promotion, protocol, knowledge, behavior, and router evidence with matching prediction model metadata. `--mode review` allows gates to fail as review evidence; `--mode promotion` requires required gates to pass.
 - `training/train_tiny_transformer_lm.py --tokenizer-mode byte-fallback` uses UTF-8 byte fallback for rare tokens and suppresses `<unk>` during sampling, matching the practical direction of modern open-vocabulary tokenizers without adding a heavyweight tokenizer dependency to the scratch smoke loop.
 - `training/train_tiny_transformer_lm.py --loss-scope assistant` keeps the same ChatML token stream but masks loss to assistant content plus the assistant record terminator, mirroring supervised fine-tuning practice more closely than all-token language-model loss while still teaching generation to stop.
 - `training/train_tiny_transformer_lm.py` writes both `tiny_transformer_lm.pt` and `tiny_transformer_lm.best.pt`; the best checkpoint is updated whenever validation loss improves.
@@ -482,8 +484,8 @@ Every model iteration must:
 - Save a best-validation checkpoint and use it for scratch knowledge evals when available.
 - Produce a sample for human inspection.
 - Pass `npm run check:training` for artifact integrity.
-- Pass `npm run report:training-runs -- --candidate-metrics <run>/metrics.json --tool-report <candidate-tool-report>.json --knowledge-report <candidate-knowledge-report>.json --out <iteration-report>.json --require-promotion` before treating a comparable local scratch run as the new baseline. Attached protocol and knowledge prediction `model` metadata must match the candidate run name; mismatches are reported as `tool_prediction_model_mismatch` or `knowledge_prediction_model_mismatch`. If the tokenizer, vocabulary family, or loss scope changes, pass an explicit `--baseline-metrics` only when the cross-family comparison is intentional and documented.
-- Pass `npm run check:training-report -- --report <iteration-report>.json --mode review` before archiving an iteration as complete. Use `--mode promotion` only for candidates intended to replace the current model.
+- Pass `npm run report:training-runs -- --candidate-metrics <run>/metrics.json --tool-report <candidate-tool-report>.json --knowledge-report <candidate-knowledge-report>.json --behavior-report <candidate-behavior-report>.json --router-report <candidate-router-report>.json --out <iteration-report>.json --require-promotion` before treating a comparable local scratch run as the new baseline. Attached prediction `model` metadata must match the candidate run name; mismatches are reported as `<kind>_prediction_model_mismatch`. If the tokenizer, vocabulary family, or loss scope changes, pass an explicit `--baseline-metrics` only when the cross-family comparison is intentional and documented.
+- Pass `npm run check:training-report -- --report <iteration-report>.json --mode review --require-behavior --require-router` before archiving a full specialist iteration as complete. Use `--mode promotion` only for candidates intended to replace the current model.
 - Pass `npm run check:training-configs` and `npm run check:production-readiness` before any production QLoRA run.
 - Pass `npm run analyze:sft-sequences` after each mixture rebuild and review over-length records or `maxTokenBudgetUsage` above the readiness headroom before increasing sequence length.
 - Run the protocol eval suite before promotion; a lower training loss does not ship if tool-call or no-tool metrics regress.

@@ -9,6 +9,8 @@ export interface TrainingIterationReportQualityOptions {
   requirePromotion?: boolean;
   requireTool?: boolean;
   requireKnowledge?: boolean;
+  requireBehavior?: boolean;
+  requireRouter?: boolean;
 }
 
 export interface TrainingIterationReportCheck {
@@ -27,6 +29,8 @@ export interface TrainingIterationReportQualityReport {
     promotionStatus?: string;
     toolGateStatus?: string;
     knowledgeGateStatus?: string;
+    behaviorGateStatus?: string;
+    routerGateStatus?: string;
   };
   checks: TrainingIterationReportCheck[];
 }
@@ -40,6 +44,8 @@ export async function checkTrainingIterationReport(
   const requirePromotion = options.requirePromotion ?? true;
   const requireTool = options.requireTool ?? true;
   const requireKnowledge = options.requireKnowledge ?? true;
+  const requireBehavior = options.requireBehavior ?? false;
+  const requireRouter = options.requireRouter ?? false;
   const report = asRecord(JSON.parse(await readFile(options.reportPath, "utf8")));
   const checks: TrainingIterationReportCheck[] = [];
 
@@ -79,6 +85,20 @@ export async function checkTrainingIterationReport(
     required: requireKnowledge,
     evidence: recordProp(report, "knowledge"),
   });
+  checkEvidence({
+    checks,
+    mode,
+    kind: "behavior",
+    required: requireBehavior,
+    evidence: recordProp(report, "behavior"),
+  });
+  checkEvidence({
+    checks,
+    mode,
+    kind: "router",
+    required: requireRouter,
+    evidence: recordProp(report, "router"),
+  });
 
   return {
     status: checks.some((check) => check.status === "fail") ? "not_ready" : "ready",
@@ -89,6 +109,8 @@ export async function checkTrainingIterationReport(
       ...(promotionStatus ? { promotionStatus } : {}),
       ...evidenceStatus("tool", recordProp(report, "tool")),
       ...evidenceStatus("knowledge", recordProp(report, "knowledge")),
+      ...evidenceStatus("behavior", recordProp(report, "behavior")),
+      ...evidenceStatus("router", recordProp(report, "router")),
     },
     checks,
   };
@@ -153,11 +175,11 @@ function checkPromotion(input: {
 function checkEvidence(input: {
   checks: TrainingIterationReportCheck[];
   mode: TrainingIterationReportMode;
-  kind: "tool" | "knowledge";
+  kind: EvidenceKind;
   required: boolean;
   evidence?: JsonRecord;
 }): void {
-  const label = input.kind === "tool" ? "Protocol" : "Knowledge";
+  const label = evidenceLabel(input.kind);
   if (!input.required) {
     addCheck(input.checks, `${input.kind}-required`, "pass", `${label} evidence is optional for this check`);
     return;
@@ -222,11 +244,23 @@ function checkEvidence(input: {
   }
 }
 
-function evidenceStatus(kind: "tool" | "knowledge", evidence?: JsonRecord): Record<string, string> {
+type EvidenceKind = "tool" | "knowledge" | "behavior" | "router";
+
+function evidenceStatus(kind: EvidenceKind, evidence?: JsonRecord): Record<string, string> {
   const gate = evidence ? recordProp(evidence, "gate") : undefined;
   const status = gate ? stringProp(gate, "status") : undefined;
   if (!status) return {};
-  return kind === "tool" ? { toolGateStatus: status } : { knowledgeGateStatus: status };
+  if (kind === "tool") return { toolGateStatus: status };
+  if (kind === "knowledge") return { knowledgeGateStatus: status };
+  if (kind === "behavior") return { behaviorGateStatus: status };
+  return { routerGateStatus: status };
+}
+
+function evidenceLabel(kind: EvidenceKind): string {
+  if (kind === "tool") return "Protocol";
+  if (kind === "knowledge") return "Knowledge";
+  if (kind === "behavior") return "Behavior";
+  return "Router";
 }
 
 function addCheck(
