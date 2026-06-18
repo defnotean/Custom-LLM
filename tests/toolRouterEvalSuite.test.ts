@@ -24,9 +24,9 @@ describe("ToolRouterEvalSuite", () => {
     dir = await mkdtemp(join(tmpdir(), "tool-router-eval-"));
     const suitePath = join(dir, "tool-router.eval.jsonl");
     const summary = await writeToolRouterEvalSuite(suitePath);
-    expect(summary.cases).toBeGreaterThanOrEqual(20);
+    expect(summary.cases).toBeGreaterThanOrEqual(25);
     expect(summary.toolCases).toBeGreaterThan(10);
-    expect(summary.noToolCases).toBeGreaterThan(0);
+    expect(summary.noToolCases).toBeGreaterThanOrEqual(7);
     expect(summary.sha256).toMatch(/^[a-f0-9]{64}$/);
 
     const cases = (await readFile(suitePath, "utf8"))
@@ -42,6 +42,12 @@ describe("ToolRouterEvalSuite", () => {
       forbiddenTools: ["timeout_user"],
       memberPermissions: [],
     });
+    expect(cases.find((item) => item.id === "tool-router:no-tool:tool-name-discussion")).toMatchObject({
+      expectedLikelyNeedsTool: false,
+      expectedTools: [],
+      forbiddenTools: ["timeout_user"],
+      memberPermissions: ["MODERATE_MEMBERS"],
+    });
   });
 
   it("evaluates keyword retrieval against the live registry", async () => {
@@ -50,7 +56,7 @@ describe("ToolRouterEvalSuite", () => {
     await writeToolRouterEvalSuite(suitePath);
 
     const report = await evaluateToolRouter(suitePath, buildToolRegistry(), "keyword");
-    expect(report.total).toBeGreaterThanOrEqual(20);
+    expect(report.total).toBeGreaterThanOrEqual(25);
     expect(report.expectedToolRecall).toBe(1);
     expect(report.caseRecallAccuracy).toBe(1);
     expect(report.noToolAccuracy).toBe(1);

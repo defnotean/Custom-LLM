@@ -540,7 +540,7 @@ function evalHarnessChecks(
           invalidPredictions: routerReport.invalidPredictions,
           failures: routerReport.failures.length,
         }),
-    toolRouterReport.total >= 20 &&
+    toolRouterReport.total >= 25 &&
     toolRouterReport.expectedToolRecall === 1 &&
     toolRouterReport.caseRecallAccuracy === 1 &&
     (toolRouterReport.top1Accuracy ?? 0) >= 0.85 &&

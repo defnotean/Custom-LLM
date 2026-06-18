@@ -161,7 +161,7 @@ describe("ProductionTrainingReadiness", () => {
       failures: [],
     });
     await writeJson(toolRouterEvalReportPath, {
-      total: 20,
+      total: 25,
       expectedToolRecall: 1,
       caseRecallAccuracy: 1,
       top1Accuracy: 1,

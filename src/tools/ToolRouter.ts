@@ -41,6 +41,7 @@ interface KeywordRoutingContext {
   tokenSet: Set<string>;
   lowered: string;
   hasActionHint: boolean;
+  hasToolAbstainHint: boolean;
 }
 
 interface ScoredTool {
@@ -126,6 +127,22 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   example: ["echo", "add", "test"],
 };
 
+const TOOL_ABSTAIN_PATTERNS = [
+  /\b(?:do\s+not|don't|dont|never)\s+(?:call|use|run|execute|invoke|trigger)\s+(?:any\s+)?(?:tool|tools|tool_call|toolcall|function|functions)\b/,
+  /\bwithout\s+(?:calling|using|running|executing|invoking|triggering)\s+(?:any\s+)?(?:tool|tools|tool_call|toolcall|function|functions)\b/,
+  /\bno\s+(?:tool|tools|tool_call|toolcall|function|functions)\b/,
+  /\bnot\s+actually\s+(?:call|use|run|execute|invoke|trigger)\b/,
+  /\b(?:pasted|fake|example|quoted)\s+(?:tool|tool_call|toolcall|tool result|tool output|function)\b/,
+  /\b(?:tool_result|tool_output)\b/,
+  /\b(?:remembered note|memory says|note says|quoted text says)\b.*\b(?:call|run|execute|invoke)\b.*\b[a-z][a-z0-9]+(?:_[a-z0-9]+)+\b/,
+];
+
+const TOOL_META_TERM_PATTERN = /\b(?:tool|tools|tool_call|toolcall|function|functions|tool result|tool output)\b/;
+const TOOL_IDENTIFIER_PATTERN = /\b[a-z][a-z0-9]+(?:_[a-z0-9]+)+\b/;
+const TOOL_DISCUSSION_CUE_PATTERN =
+  /\b(?:explain|describe|discuss|quote|repeat|joke|story|analyze|safe|trust|what should|what would|should you|show)\b/;
+const TOOL_DISCUSSION_SCOPE_PATTERN = /\b(?:about|what|how|why|word|words|identifier|json|format|output|result)\b/;
+
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
@@ -139,6 +156,15 @@ export class KeywordToolRetrievalStrategy implements ToolRetrievalStrategy {
   async retrieve(input: ToolRoutingInput): Promise<ToolRoutingResult> {
     const maxTools = input.maxTools ?? 10;
     const context = buildKeywordRoutingContext(input);
+    if (context.hasToolAbstainHint) {
+      return {
+        likelyNeedsTool: false,
+        candidateTools: [],
+        reasoning: "explicit tool-abstain wording detected; treating as plain conversation",
+        confidence: 0,
+      };
+    }
+
     const scored: ScoredTool[] = [];
 
     for (const tool of filterPermittedTools(this.registry.listTools(), input.memberPermissions)) {
@@ -221,11 +247,20 @@ export class EmbeddingToolRetrievalStrategy implements ToolRetrievalStrategy {
     }
 
     try {
+      const context = buildKeywordRoutingContext(input);
+      if (context.hasToolAbstainHint) {
+        return {
+          likelyNeedsTool: false,
+          candidateTools: [],
+          reasoning: "explicit tool-abstain wording detected; treating as plain conversation",
+          confidence: 0,
+        };
+      }
+
       const queryText = `${input.message}\n${input.recentSummary ?? ""}`.trim();
       const [queryEmbedding] = await this.embeddings.embed([queryText]);
       if (!queryEmbedding) return this.fallback.retrieve(input);
 
-      const context = buildKeywordRoutingContext(input);
       const permitted = new Set(
         filterPermittedTools(this.registry.listTools(), input.memberPermissions).map((tool) => tool.name),
       );
@@ -255,11 +290,18 @@ export class EmbeddingToolRetrievalStrategy implements ToolRetrievalStrategy {
       const topSimilarity = top[0]?.similarity ?? 0;
       const topKeywordScore = top[0] ? scoreToolKeywords(top[0].tool, context).score : 0;
       const keywordLikely = topKeywordScore >= 3 || (context.hasActionHint && topKeywordScore > 0);
-      const likelyNeedsTool = topSimilarity >= this.minSimilarity || keywordLikely;
+      const semanticLikely =
+        topSimilarity >= this.minSimilarity * 1.25 ||
+        (topSimilarity >= this.minSimilarity && (context.hasActionHint || topKeywordScore > 0));
+      const likelyNeedsTool = keywordLikely || semanticLikely;
       const confidence = Math.max(
         0,
         Math.min(1, Math.max(topSimilarity / (this.minSimilarity * 2), topKeywordScore / 10)),
       );
+      const candidateSummary = top
+        .slice(0, 3)
+        .map((item) => `${item.tool.name}(${item.score.toFixed(2)}: ${item.why.join(", ")})`)
+        .join("; ");
 
       return {
         likelyNeedsTool,
@@ -267,10 +309,9 @@ export class EmbeddingToolRetrievalStrategy implements ToolRetrievalStrategy {
         reasoning:
           top.length === 0
             ? "embedding router found no permitted tools; treating as plain conversation"
-            : `embedding candidates via ${this.embeddings.name}: ${top
-                .slice(0, 3)
-                .map((item) => `${item.tool.name}(${item.score.toFixed(2)}: ${item.why.join(", ")})`)
-                .join("; ")}${context.hasActionHint ? "; action-verb detected" : ""}`,
+            : likelyNeedsTool
+              ? `embedding candidates via ${this.embeddings.name}: ${candidateSummary}${context.hasActionHint ? "; action-verb detected" : ""}`
+              : `embedding candidates via ${this.embeddings.name} below routing threshold: ${candidateSummary}; treating as plain conversation`,
         confidence,
       };
     } catch (err) {
@@ -329,12 +370,24 @@ function buildKeywordRoutingContext(input: ToolRoutingInput): KeywordRoutingCont
   const text = `${input.message} ${input.recentSummary ?? ""}`;
   const tokens = tokenize(text);
   const tokenSet = new Set(tokens);
+  const lowered = input.message.toLowerCase();
   return {
     tokens,
     tokenSet,
-    lowered: input.message.toLowerCase(),
+    lowered,
     hasActionHint: ACTION_HINTS.some((hint) => tokenSet.has(hint)),
+    hasToolAbstainHint: hasToolAbstainHint(lowered),
   };
+}
+
+function hasToolAbstainHint(loweredMessage: string): boolean {
+  if (TOOL_ABSTAIN_PATTERNS.some((pattern) => pattern.test(loweredMessage))) return true;
+  const mentionsToolSurface = TOOL_META_TERM_PATTERN.test(loweredMessage) || TOOL_IDENTIFIER_PATTERN.test(loweredMessage);
+  return (
+    mentionsToolSurface &&
+    TOOL_DISCUSSION_CUE_PATTERN.test(loweredMessage) &&
+    TOOL_DISCUSSION_SCOPE_PATTERN.test(loweredMessage)
+  );
 }
 
 function filterPermittedTools(

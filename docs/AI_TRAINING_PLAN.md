@@ -375,7 +375,7 @@ npm run eval:tool-router:gate -- --candidate training/evals/tool-router-keyword.
 npm run eval:tool-router -- --strategy hashing-embedding --out training/evals/tool-router-hashing-embedding.report.json
 ```
 
-Current keyword report: 20 cases, expected tool recall 1.000, case recall accuracy 1.000, top-1 accuracy 1.000, likely-needs-tool accuracy 1.000, no-tool accuracy 1.000, forbidden candidate rate 0.000, and p95 latency 1 ms. The local hashing-embedding comparison recalls expected tools but false-positives one casual no-tool prompt, so it remains a development fallback until a real embedding model beats or matches the keyword gate.
+Current keyword report: 25 cases, expected tool recall 1.000, case recall accuracy 1.000, top-1 accuracy 1.000, likely-needs-tool accuracy 1.000, no-tool accuracy 1.000, forbidden candidate rate 0.000, and p95 latency 1 ms. The expanded suite adds adversarial no-tool retrieval cases for tool-name discussion, `tool_call` JSON explanation, quoted tool names, pasted tool output, and memory-override text. The local hashing-embedding comparison now matches those metrics on this suite, but it remains a lexical development fallback until a real embedding model beats or matches the keyword gate on broader paraphrases.
 
 ## Knowledge Eval Harness
 

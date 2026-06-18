@@ -1,7 +1,7 @@
 {
   "status": "pass",
   "thresholds": {
-    "minTotalCases": 20,
+    "minTotalCases": 25,
     "minExpectedToolRecall": 1,
     "minCaseRecallAccuracy": 1,
     "minTop1Accuracy": 0.85,
@@ -14,7 +14,7 @@
   "candidate": {
     "suitePath": "training/evals/tool-router.eval.jsonl",
     "strategy": "keyword",
-    "total": 20,
+    "total": 25,
     "expectedToolRecall": 1,
     "caseRecallAccuracy": 1,
     "top1Accuracy": 1,
