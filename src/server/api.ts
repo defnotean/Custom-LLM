@@ -18,6 +18,7 @@ export interface ApiDeps {
   registry: ToolRegistry;
   memory: MemoryRouteDeps["search"];
   exporter: TrainingRouteDeps["exportAll"];
+  recordFeedbackPreference?: TrainingRouteDeps["recordFeedbackPreference"];
   getHealth: () => Promise<HealthPayload>;
   getStats: () => Promise<StatsPayload>;
   logger: Logger;
@@ -34,7 +35,10 @@ export function buildApiServer(deps: ApiDeps): FastifyInstance {
   registerHealthRoutes(app, { getHealth: deps.getHealth, getStats: deps.getStats });
   registerToolRoutes(app, deps.registry);
   registerMemoryRoutes(app, { search: deps.memory });
-  registerTrainingRoutes(app, { exportAll: deps.exporter });
+  registerTrainingRoutes(app, {
+    exportAll: deps.exporter,
+    recordFeedbackPreference: deps.recordFeedbackPreference,
+  });
 
   return app;
 }

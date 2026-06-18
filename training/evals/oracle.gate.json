@@ -1,0 +1,34 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "minTotalCases": 10,
+    "minValidJsonRate": 0.98,
+    "minActionTypeAccuracy": 0.9,
+    "minToolNameAccuracy": 0.9,
+    "minToolArgumentValidity": 0.85,
+    "minNoToolAccuracy": 0.9,
+    "maxHallucinatedToolRate": 0.02,
+    "maxMissingPredictions": 0,
+    "maxAccuracyRegression": 0.02,
+    "maxHallucinationIncrease": 0,
+    "maxMissingPredictionIncrease": 0
+  },
+  "candidate": {
+    "suitePath": "training/evals/tool-routing.eval.jsonl",
+    "predictionsPath": "training/evals/oracle.predictions.jsonl",
+    "total": 34,
+    "validJsonRate": 1,
+    "actionTypeAccuracy": 1,
+    "toolNameAccuracy": 1,
+    "toolArgumentValidity": 1,
+    "noToolAccuracy": 1,
+    "hallucinatedToolRate": 0,
+    "missingPredictions": 0,
+    "failures": 0,
+    "latencyP95Ms": null
+  },
+  "failures": [],
+  "warnings": [
+    "candidate report has no latency samples; latency promotion checks were skipped"
+  ]
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { HashingEmbeddingProvider, type EmbeddingProvider } from "../src/memory/EmbeddingProvider";
 import { buildToolRegistry } from "../src/tools";
-import { ToolRouter } from "../src/tools/ToolRouter";
+import { EmbeddingToolRetrievalStrategy, ToolRouter } from "../src/tools/ToolRouter";
 
 describe("ToolRouter (keyword strategy)", () => {
   const registry = buildToolRegistry();
@@ -54,5 +55,54 @@ describe("ToolRouter (keyword strategy)", () => {
     });
     expect(result.likelyNeedsTool).toBe(true);
     expect(result.candidateTools.map((t) => t.name)).toContain("remember_fact");
+  });
+});
+
+describe("ToolRouter (embedding strategy)", () => {
+  const registry = buildToolRegistry();
+
+  it("uses embedding-ranked tool documents without bypassing permission filters", async () => {
+    const strategy = new EmbeddingToolRetrievalStrategy(registry, new HashingEmbeddingProvider(512));
+    const router = new ToolRouter(registry, { strategy });
+
+    const allowed = await router.route({
+      message: "remember that my timezone is CET",
+      guildId: "g1",
+      memberPermissions: [],
+      maxTools: 5,
+    });
+    expect(allowed.likelyNeedsTool).toBe(true);
+    expect(allowed.reasoning).toContain("embedding candidates");
+    expect(allowed.candidateTools.map((tool) => tool.name)).toContain("remember_fact");
+
+    const denied = await router.route({
+      message: "timeout that spammer for 10 minutes",
+      guildId: "g1",
+      memberPermissions: [],
+      maxTools: 10,
+    });
+    expect(denied.candidateTools.map((tool) => tool.name)).not.toContain("timeout_user");
+  });
+
+  it("falls back to keyword routing if embeddings fail", async () => {
+    const failingEmbeddings: EmbeddingProvider = {
+      name: "failing-test-embeddings",
+      dims: 2,
+      embed: async () => {
+        throw new Error("embedding service down");
+      },
+    };
+    const strategy = new EmbeddingToolRetrievalStrategy(registry, failingEmbeddings);
+    const router = new ToolRouter(registry, { strategy });
+
+    const result = await router.route({
+      message: "please timeout that user for 10 minutes, they keep spamming",
+      guildId: "g1",
+      memberPermissions: ["MODERATE_MEMBERS"],
+    });
+
+    expect(result.likelyNeedsTool).toBe(true);
+    expect(result.reasoning).toContain("top candidates");
+    expect(result.candidateTools.map((tool) => tool.name)).toContain("timeout_user");
   });
 });

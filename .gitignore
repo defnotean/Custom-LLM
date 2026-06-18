@@ -10,6 +10,14 @@ coverage/
 
 # Generated data
 exports/
+data/
+training/data/
+training/runs/
+training/evals/*.predictions.jsonl
+training/evals/*.report.json
+.venv/
+__pycache__/
+*.pyc
 *.log
 *.tsbuildinfo
 

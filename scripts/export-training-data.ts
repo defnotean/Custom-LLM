@@ -1,11 +1,12 @@
 import { logger } from "../src/config/logger";
 import { initDatabase, closeDatabase } from "../src/database/prisma";
 import { TrainingExampleRepository } from "../src/database/repositories/TrainingExampleRepository";
+import { UserFeedbackRepository } from "../src/database/repositories/UserFeedbackRepository";
 import { DatasetExporter } from "../src/training/DatasetExporter";
 
 /**
  * Export stored training examples to JSONL:  npm run export:training
- * Writes exports/training/{chatml,alpaca,tool-calling,dpo-placeholder}.jsonl
+ * Writes exports/training/{chatml,alpaca,tool-calling,dpo-placeholder,preference-feedback}.jsonl
  */
 async function main(): Promise<void> {
   const prisma = await initDatabase(logger);
@@ -17,6 +18,7 @@ async function main(): Promise<void> {
 
   const exporter = new DatasetExporter({
     source: new TrainingExampleRepository(prisma),
+    feedbackSource: new UserFeedbackRepository(prisma),
     logger,
   });
   const summary = await exporter.exportAll("exports/training");

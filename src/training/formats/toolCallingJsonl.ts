@@ -44,4 +44,5 @@ export interface DpoRecord {
   prompt: string;
   chosen: string;
   rejected: string;
+  metadata?: Record<string, unknown>;
 }

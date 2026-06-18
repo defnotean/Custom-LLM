@@ -2,7 +2,11 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { DatasetExporter, type ExportableExampleRow } from "../src/training/DatasetExporter";
+import {
+  DatasetExporter,
+  type ExportableExampleRow,
+  type ExportableFeedbackPreferenceRow,
+} from "../src/training/DatasetExporter";
 import { testLogger } from "./helpers";
 
 const rows: ExportableExampleRow[] = [
@@ -70,6 +74,52 @@ const rows: ExportableExampleRow[] = [
     reviewed: false,
     metadataJson: {},
   },
+  {
+    id: "6",
+    source: "FEEDBACK",
+    format: "CHATML",
+    inputJson: { systemPrompt: "You are a bot.", userMessage: "answer better" },
+    outputJson: {
+      finalResponse: "",
+      parseOk: true,
+      toolCall: null,
+      dpo: {
+        prompt: "answer better",
+        chosen: "A reviewed human-preferred answer.",
+        rejected: "The original answer that received negative feedback.",
+      },
+    },
+    qualityScore: 0.95,
+    reviewed: true,
+    metadataJson: { conversationId: "conversation-6" },
+  },
+];
+
+const feedbackRows: ExportableFeedbackPreferenceRow[] = [
+  {
+    id: "feedback-1",
+    conversationId: "conversation-7",
+    userId: "user-7",
+    rating: 1,
+    feedbackText: "The second answer is more precise.",
+    prompt: "What is pgvector?",
+    chosen: "pgvector stores vector embeddings in Postgres.",
+    rejected: "It is a generic database.",
+    reviewed: true,
+    metadataJson: { reviewer: "human" },
+  },
+  {
+    id: "feedback-unreviewed",
+    conversationId: "conversation-8",
+    userId: "user-8",
+    rating: -1,
+    feedbackText: "Needs review.",
+    prompt: "What is Qdrant?",
+    chosen: "Qdrant is a vector database.",
+    rejected: "Qdrant is a CSS framework.",
+    reviewed: false,
+    metadataJson: {},
+  },
 ];
 
 describe("DatasetExporter", () => {
@@ -83,11 +133,13 @@ describe("DatasetExporter", () => {
     dir = await mkdtemp(join(tmpdir(), "export-test-"));
     const exporter = new DatasetExporter({
       source: { listAll: async () => rows },
+      feedbackSource: { listReviewedPreferencePairs: async () => feedbackRows },
       logger: testLogger,
     });
     const summary = await exporter.exportAll(dir);
 
     expect(summary.skipped).toBe(2); // low quality + parse failure
+    expect(summary.feedbackPreferences).toBe(2);
 
     const chatml = (await readFile(join(dir, "chatml.jsonl"), "utf8")).trim().split("\n").filter(Boolean);
     expect(chatml).toHaveLength(1);
@@ -105,7 +157,19 @@ describe("DatasetExporter", () => {
 
     const dpo = (await readFile(join(dir, "dpo-placeholder.jsonl"), "utf8")).trim().split("\n").filter(Boolean);
     expect(dpo).toHaveLength(1);
-    expect(JSON.parse(dpo[0] ?? "{}")).toMatchObject({ prompt: "use ping" });
+    expect(JSON.parse(dpo[0] ?? "{}")).toMatchObject({ prompt: "use ping", metadata: { source: "SYNTHETIC" } });
+
+    const feedbackDpo = (await readFile(join(dir, "preference-feedback.jsonl"), "utf8")).trim().split("\n").filter(Boolean);
+    expect(feedbackDpo).toHaveLength(2);
+    expect(JSON.parse(feedbackDpo[0] ?? "{}")).toMatchObject({
+      prompt: "answer better",
+      metadata: { source: "FEEDBACK", reviewed: true, conversationId: "conversation-6" },
+    });
+    expect(JSON.parse(feedbackDpo[1] ?? "{}")).toMatchObject({
+      prompt: "What is pgvector?",
+      chosen: "pgvector stores vector embeddings in Postgres.",
+      metadata: { source: "FEEDBACK", reviewed: true, reviewer: "human", conversationId: "conversation-7" },
+    });
 
     const alpaca = (await readFile(join(dir, "alpaca.jsonl"), "utf8")).trim().split("\n").filter(Boolean);
     expect(JSON.parse(alpaca[0] ?? "{}")).toMatchObject({ input: "hey what's up" });

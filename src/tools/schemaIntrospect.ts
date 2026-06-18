@@ -59,6 +59,16 @@ export function describeArgsSchema(schema: z.ZodTypeAny): Record<string, string>
   return out;
 }
 
+export function requiredArgKeys(schema: z.ZodTypeAny): string[] {
+  const unwrapped = unwrap(schema);
+  const def = unwrapped._def as { typeName?: z.ZodFirstPartyTypeKind };
+  if (def.typeName !== z.ZodFirstPartyTypeKind.ZodObject) return [];
+  const shape = (unwrapped as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+  return Object.entries(shape)
+    .filter(([, value]) => !isOptionalInput(value))
+    .map(([key]) => key);
+}
+
 /** Deterministic minimal valid-looking sample args (for synthetic examples). */
 export function sampleFromSchema(schema: z.ZodTypeAny): JsonValue {
   const unwrapped = unwrap(schema);
@@ -90,6 +100,14 @@ export function sampleFromSchema(schema: z.ZodTypeAny): JsonValue {
     default:
       return null;
   }
+}
+
+function isOptionalInput(schema: z.ZodTypeAny): boolean {
+  const def = schema._def as { typeName?: z.ZodFirstPartyTypeKind };
+  return (
+    def.typeName === z.ZodFirstPartyTypeKind.ZodOptional ||
+    def.typeName === z.ZodFirstPartyTypeKind.ZodDefault
+  );
 }
 
 function unwrap(schema: z.ZodTypeAny): z.ZodTypeAny {

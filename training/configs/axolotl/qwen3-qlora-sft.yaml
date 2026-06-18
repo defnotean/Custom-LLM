@@ -1,0 +1,81 @@
+# Production SFT QLoRA baseline for the Custom-LLM bot.
+# Requires a CUDA/ROCm training environment with Axolotl installed.
+# Build inputs first:
+#   npm run build:sft-mixture
+# Train:
+#   axolotl train training/configs/axolotl/qwen3-qlora-sft.yaml
+# Merge adapter after eval approval:
+#   axolotl merge-lora training/configs/axolotl/qwen3-qlora-sft.yaml
+
+base_model: Qwen/Qwen3-4B-Instruct-2507
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+load_in_8bit: false
+load_in_4bit: true
+adapter: qlora
+strict: false
+chat_template: qwen3
+
+datasets:
+  - path: training/data/mixtures/production-sft.train.jsonl
+    type: chat_template
+
+test_datasets:
+  - path: training/data/mixtures/production-sft.validation.jsonl
+    ds_type: json
+    split: train
+    type: chat_template
+
+dataset_prepared_path: training/data/axolotl/prepared/qwen3-qlora-sft
+output_dir: training/runs/qwen3-qlora-sft
+
+sequence_len: 2048
+sample_packing: true
+eval_sample_packing: false
+pad_to_sequence_len: true
+
+micro_batch_size: 1
+gradient_accumulation_steps: 16
+num_epochs: 2
+learning_rate: 0.0002
+lr_scheduler: cosine
+warmup_ratio: 0.03
+weight_decay: 0.0
+optimizer: adamw_bnb_8bit
+
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_linear: true
+
+bf16: auto
+fp16:
+tf32: true
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+
+eval_steps: 100
+save_steps: 100
+logging_steps: 10
+saves_per_epoch: 2
+save_total_limit: 3
+
+train_on_inputs: false
+roles_to_train:
+  - assistant
+train_on_eos: turn
+group_by_length: false
+seed: 2026
+
+wandb_project:
+wandb_entity:
+wandb_run_id:
+wandb_name: custom-llm-qwen3-4b-instruct-2507-qlora-sft
+
+# Optional speedups when the target GPU/installation supports them:
+# - FlashAttention 2 / SDPA via the model runtime.
+# - Liger kernels / Cut Cross Entropy via Axolotl integrations.
+# Keep them off until the exact CUDA/PyTorch/Axolotl environment is fixed.

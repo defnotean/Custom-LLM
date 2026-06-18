@@ -53,7 +53,7 @@ The LLM's output is **data, not authority**:
 
 ### Tool routing at 400+ tools
 
-LLM tool-selection accuracy collapses past ~30–50 in-context tools, so the registry is never rendered wholesale into a prompt. The `ToolRetrievalStrategy` interface isolates retrieval; today's implementation is deterministic keyword/category/example scoring with permission pre-filtering (top 10 default). The planned upgrade is embedding retrieval (RAG-MCP style: embed tool descriptions → ANN search → optional rerank) behind the same interface — no agent-layer changes required. Tool descriptions/examples are deliberately written like search documents because they feed routing today and embeddings tomorrow.
+LLM tool-selection accuracy collapses past ~30–50 in-context tools, so the registry is never rendered wholesale into a prompt. The `ToolRetrievalStrategy` interface isolates retrieval. The default implementation is deterministic keyword/category/example scoring with permission pre-filtering. `TOOL_ROUTER_STRATEGY=embedding` enables embedding retrieval over stable tool search documents, blends cosine similarity with the keyword score, and falls back to keyword routing if the embedding provider fails. No agent-layer changes are required. Tool descriptions/examples are deliberately written like search documents because they feed both strategies.
 
 ### Ports & adapters
 
@@ -81,7 +81,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | 6 | Qdrant keeps a relational copy of memories in Postgres when available | Qdrant stays a rebuildable index; user data lives in the relational store (deletion requests, audits) |
 | 7 | Tool-role messages mapped to labeled user messages for OpenAI-compatible providers | Maximum compatibility across local servers with inconsistent `tool` role support; native tool wire-format is a future optimization |
 | 8 | Training capture stores the full system prompt per example | Disk-cheap, fidelity-expensive to lose; exports can filter/dedupe later |
-| 9 | DPO export only emits real pairs (synthetic valid-vs-hallucinated, or future feedback pairs) | Never fabricate preference data |
+| 9 | DPO export only emits explicit pairs (synthetic valid-vs-hallucinated, reviewed feedback preferred-vs-rejected) | Never fabricate preference data |
 | 10 | `API_PORT`/`API_HOST` added beyond the spec env list | The API server needs a bind address; documented in `.env.example` |
 | 11 | discord.js permission names normalized to UPPER_SNAKE | Spec/tool definitions use `MODERATE_MEMBERS` style; conversion at the Discord boundary (`toUpperSnake`) |
 | 12 | Bot identity name "Assistant" hardcoded at composition root | Per-guild persona config belongs in `GuildProfile.settingsJson` (TODO) |
@@ -93,7 +93,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Content moderation (`ModerationRules`) | **Placeholder** — minimal regex screen. Production: Llama Guard via local endpoint + Discord AutoMod + provider moderation |
 | Slash commands (`interactionCreate`) | **Placeholder** — replies with a pointer to `!ai`; registration script + defer/followUp flow not built |
 | Memory summarizer worker | **Placeholder** — scheduled and observable, performs no writes; intended: rolling channel summaries + memory consolidation |
-| Embedding-based tool routing | **Not built** — interface ready (`ToolRetrievalStrategy`); keyword strategy shipping |
+| Embedding-based tool routing | **Implemented, opt-in** via `TOOL_ROUTER_STRATEGY=embedding`; use a real embedding model for semantic recall and compare eval metrics before promotion |
 | QdrantMemoryStore | **Implemented, not integration-tested** — REST calls per documented API; exercise against `docker compose up qdrant` before relying on it |
 | `summarize_channel_recent_messages` | Returns raw transcript; the follow-up LLM turn summarizes. Dedicated summarization pass TODO |
 | `get_guild_stats` | Structural stats only; activity metrics (messages/day) TODO |

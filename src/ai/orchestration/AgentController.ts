@@ -228,6 +228,12 @@ export class AgentController {
   ): Promise<string> {
     trace.toolCall = { name: action.tool, arguments: action.arguments, reason: action.reason };
 
+    if (!trace.candidateToolNames.includes(action.tool)) {
+      trace.toolDenied = "not_in_candidate_set";
+      trace.errors.push(`tool_not_in_candidate_set: ${action.tool}`);
+      return `I can't use \`${action.tool}\` for this request.`;
+    }
+
     const outcome = await this.executor.execute(
       action.tool,
       action.arguments,

@@ -5,8 +5,8 @@ import { LLMProviderError, toErrorMessage } from "../utils/errors";
 import { l2Normalize } from "../utils/vectorMath";
 
 /**
- * Embedding abstraction for memory (and, later, embedding-based tool
- * routing). Two implementations:
+ * Embedding abstraction for memory and embedding-based tool routing. Two
+ * implementations:
  *
  *  - OpenAICompatibleEmbeddingProvider — real semantic embeddings from any
  *    /v1/embeddings endpoint (Ollama with nomic-embed-text, vLLM, etc).

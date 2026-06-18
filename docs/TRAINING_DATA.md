@@ -2,20 +2,26 @@
 
 Every interaction the bot handles is captured with full fidelity so it can become fine-tuning data later. This is the asset the whole project compounds on.
 
-## What gets logged
+## What Gets Logged
 
-`TrainingDataLogger` writes two rows per handled message (when the DB is up and `TRAINING_LOGGING_ENABLED=true`):
+`TrainingDataLogger` writes two rows per handled message when the DB is up and `TRAINING_LOGGING_ENABLED=true`:
 
-1. **Conversation** — the user-facing exchange (message, reply, metadata).
-2. **TrainingExample** — the full trace:
-   - `inputJson`: system prompt **version + full text**, user message, recent transcript, retrieved memories, candidate tools shown, router verdict, ids.
-   - `outputJson`: raw model output, parse success, parsed action, tool call + real tool result, denial reason if gated, final response, errors, latencies, model name.
-   - `qualityScore`: heuristic 0–1 (`EvaluationAgent`) used as an export filter; **not** a substitute for review.
-   - `reviewed`: defaults false — flip after human review.
+1. **Conversation** - the user-facing exchange: message, reply, and metadata.
+2. **TrainingExample** - the full trace:
+   - `inputJson`: system prompt version and full text, user message, recent transcript, retrieved memories, candidate tools shown, router verdict, ids.
+   - `outputJson`: raw model output, parse success, parsed action, tool call and real tool result, denial reason if gated, final response, errors, latencies, model name.
+   - `qualityScore`: heuristic 0-1 score from `EvaluationAgent`; useful as a filter, not a substitute for review.
+   - `reviewed`: defaults false; flip after human review.
 
-Parse failures and tool denials are logged too: failure data is signal (format-following negatives, refusal training).
+Parse failures and tool denials are logged too. Failure data is signal for format-following negatives and refusal training.
 
-## Export formats (`npm run export:training`)
+## Export Formats
+
+Run:
+
+```bash
+npm run export:training
+```
 
 Writes to `exports/training/`:
 
@@ -23,28 +29,63 @@ Writes to `exports/training/`:
 |---|---|---|
 | `chatml.jsonl` | `{"messages":[{system},{user},{assistant}]}` | SFT for conversational turns |
 | `alpaca.jsonl` | `{"instruction","input","output"}` | Alpaca-style configs |
-| `tool-calling.jsonl` | system → user → assistant(`tool_call` JSON) → tool(result) → assistant(final) | SFT for tool selection + argument filling |
-| `dpo-placeholder.jsonl` | `{"prompt","chosen","rejected"}` | Preference tuning (DPO) |
+| `tool-calling.jsonl` | system -> user -> assistant(`tool_call` JSON) -> tool(result) -> assistant(final) | SFT for tool selection and argument filling |
+| `dpo-placeholder.jsonl` | `{"prompt","chosen","rejected","metadata"}` | Synthetic/exported preference pairs for DPO-style trainers |
+| `preference-feedback.jsonl` | `{"prompt","chosen","rejected","metadata"}` | Explicit `source=FEEDBACK` preference pairs with provenance |
 
-Export filters (current defaults): `qualityScore >= 0.3`; conversational turns with `parseOk: false` are excluded from SFT (we don't teach format violations); rows missing user/assistant text are skipped.
+Export filters: `qualityScore >= 0.3`; conversational turns with `parseOk: false` are excluded from SFT; rows missing user/assistant text are skipped.
 
-**DPO honesty note:** real preference pairs need human feedback. The `UserFeedback` table exists for it (👍/👎 reaction capture is a TODO). Today the only pairs exported are synthetic (valid tool call vs hallucinated tool name) from the generator below — useful for anti-hallucination, clearly tagged, never fabricated from thin air.
+## Preference Data
 
-## Synthetic examples (`npm run generate:examples`)
+Real preference pairs need human feedback. `UserFeedback` now has explicit `preferredResponse`, `rejectedResponse`, `reviewed`, and `metadataJson` fields for reviewed DPO pairs. The exporter separates reviewed feedback pairs into `preference-feedback.jsonl` and keeps synthetic/template pairs in `dpo-placeholder.jsonl`. Plain ratings or feedback text are not enough for DPO; a prompt, chosen answer, and rejected answer must exist. Today the only guaranteed pairs are synthetic valid-tool-call vs hallucinated-tool-name pairs from the generator below. Those are useful for anti-hallucination protocol shaping, clearly tagged, and never fabricated from ordinary chat logs.
 
-`ToolExampleGenerator` derives deterministic template examples from the live registry — per tool: direct request, casual phrasing, missing-argument → clarification, permission-denied refusal, success, failure, confirmation-request (gated tools), plus a DPO pair; plus global no-tool chat cases. No external APIs, no randomness. Output: `exports/training/synthetic-tools.jsonl` + DB rows (source=SYNTHETIC) when available.
+Run:
 
-Synthetic data teaches *format*, not *judgment*. Cap its share of any training mixture (see FINE_TUNING_PLAN.md).
+```bash
+npm run build:preference-mixture
+```
 
-## Review workflow (before any training run)
+The builder converts explicit DPO rows from `exports/training/dpo-placeholder.jsonl`, `exports/training/preference-feedback.jsonl`, and synthetic tool examples into deterministic `training/data/preferences/production-dpo.*.jsonl` files plus a provenance report. Synthetic-only reports are acceptable for protocol smoke tests, not final preference alignment.
 
-1. Export → sample-read each file.
-2. Redact/drop anything sensitive (the MemoryPolicy blocks secrets from *memory*, but raw user messages in traces can still contain anything).
+To collect a reviewed preference pair through the private ops API:
+
+```bash
+curl -X POST http://127.0.0.1:3000/training/feedback/preference \
+  -H "content-type: application/json" \
+  -d '{"conversationId":"<conversation id>","preferredResponse":"<better answer>","rejectedResponse":"<worse answer>","reviewed":true}'
+```
+
+The endpoint rejects missing or identical preferred/rejected answers. It references an existing `Conversation` row for the prompt and writes `UserFeedback`; it does not generate rejected answers.
+
+## Synthetic Examples
+
+Run:
+
+```bash
+npm run generate:examples
+```
+
+`ToolExampleGenerator` derives deterministic template examples from the live registry: direct request, direct exact-tool-name request, casual phrasing, argument-explicit direct requests with `providedArgs`, natural direct hard cases, missing-argument clarification and hard cases with `missingArg` metadata, permission-denied refusal, permission-denied-with-args precedence rows, permission hard cases, success, failure, confirmation request and confirmation-with-args hard cases for gated tools, one DPO pair per tool, and global no-tool chat cases. It makes no external API calls and uses no randomness. Output: `exports/training/synthetic-tools.jsonl` plus DB rows with `source=SYNTHETIC` when the DB is reachable.
+
+Synthetic data teaches format, not judgment. Cap its share of any training mixture.
+
+For local scratch protocol experiments, run:
+
+```bash
+npm run build:protocol-sft
+```
+
+This writes `training/data/protocol/sft.train.jsonl`, `sft.validation.jsonl`, `sft.all.jsonl`, and `dataset_report.json`. The builder keeps synthetic provenance in metadata, strips synthetic tags from model-visible system prompts, excludes exact held-out protocol eval prompts, and adds deterministic paraphrases that stay outside the held-out prompt set. Protocol SFT rows also carry self-contained candidate-tool, exact candidate-tool-name, required-argument, provided-argument, missing-argument, no-tool, permission, and confirmation context when needed, so direct rows teach when required details are present, refusal rows teach "message, not tool_call or confirmation_request", no-tool rows teach that no candidate tool is available, and confirmed risky-tool rows teach that execution is allowed. Missing-argument examples are generated only for schema-required arguments, not optional/defaulted fields. The open-data preparer writes a source-balanced `eval.seed.jsonl` so the knowledge suite does not collapse to whichever source sorts first.
+
+## Review Workflow
+
+1. Export and sample-read each file.
+2. Redact or drop anything sensitive. `MemoryPolicy` blocks secrets from memory, but raw traces can still contain arbitrary user text.
 3. Flip `reviewed=true` on vetted rows; train only on reviewed slices once volume allows.
-4. Hold out an eval slice (never train on it) for the metrics in FINE_TUNING_PLAN.md.
+4. Hold out an eval slice and never train on it.
 
-## Privacy & compliance (read this one twice)
+## Privacy And Compliance
 
-- Discord's Developer Policy prohibits using Discord message content to train ML models without permission. **Use logs only from servers you control, with explicit member consent and a posted privacy policy.** Do not scrape.
-- Honor deletion requests end-to-end: Conversation/TrainingExample rows, memories, and any exported files.
-- Secrets: never logged into memory by policy; traces are raw — treat the DB and exports as sensitive data stores.
+- Discord's Developer Policy prohibits using Discord message content to train ML models without permission. Use logs only from servers you control, with explicit member consent and a posted privacy policy. Do not scrape.
+- Honor deletion requests end-to-end: conversations, training examples, memories, and exported files.
+- Treat the DB and exports as sensitive data stores.

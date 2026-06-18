@@ -1,0 +1,1268 @@
+{
+  "leaderboard": {
+    "runRoot": "training/runs",
+    "generatedAt": "2026-06-18T15:56:42.469Z",
+    "totalRuns": 17,
+    "runs": [
+      {
+        "runName": "tiny-transformer-protocol-iter5",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-protocol-iter5\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:7d3bd48860772d23a705d70541c50afbba77ef603e6bab5b784c57a99b7cc4f0:438:byte-fallback:assistant",
+        "trainSha256": "3eb1934a59f927ac4e1df36f9e01620c500e586ebccbf3cc8b02a6cb2e7e8d56",
+        "validationSha256": "7d3bd48860772d23a705d70541c50afbba77ef603e6bab5b784c57a99b7cc4f0",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 724022,
+        "trainRecords": 107,
+        "validationRecords": 26,
+        "trainTokens": 8811,
+        "validationTokens": 2193,
+        "vocabSize": 438,
+        "elapsedSeconds": 133.332,
+        "tokensPerSecond": 66.08,
+        "stepsPerSecond": 7.5,
+        "firstValLoss": 5.690262158711751,
+        "bestValLoss": 0.061283178627491,
+        "bestStep": 900,
+        "bestCheckpoint": "training\\runs\\tiny-transformer-protocol-iter5\\tiny_transformer_lm.best.pt",
+        "bestCheckpointStep": 900,
+        "bestCheckpointValLoss": 0.061283178627491,
+        "finalValLoss": 0.06421356772383054,
+        "absoluteLossDrop": 5.626048590987921,
+        "relativeLossDrop": 0.988715,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": true,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-iter5\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 2919653
+          },
+          {
+            "kind": "bestCheckpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-iter5\\tiny_transformer_lm.best.pt",
+            "exists": true,
+            "bytes": 2919957
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-protocol-iter5\\vocab.json",
+            "exists": true,
+            "bytes": 7169
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-protocol-iter5\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 528,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "final_validation_loss_regressed_from_best"
+        ],
+        "rank": 1
+      },
+      {
+        "runName": "tiny-transformer-protocol-iter4",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-protocol-iter4\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:28c30449f1a6eb1e98861117b963f78ffb077448db20326609a603b2581517ff:429:byte-fallback:assistant",
+        "trainSha256": "757b90ec76450d9d411080d64a27c340028dbf0d09e36f5d53d7dd31e711a70a",
+        "validationSha256": "28c30449f1a6eb1e98861117b963f78ffb077448db20326609a603b2581517ff",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 721709,
+        "trainRecords": 75,
+        "validationRecords": 18,
+        "trainTokens": 6096,
+        "validationTokens": 1508,
+        "vocabSize": 429,
+        "elapsedSeconds": 126.266,
+        "tokensPerSecond": 48.28,
+        "stepsPerSecond": 7.92,
+        "firstValLoss": 5.6400065422058105,
+        "bestValLoss": 0.071699984682103,
+        "bestStep": 900,
+        "bestCheckpoint": "training\\runs\\tiny-transformer-protocol-iter4\\tiny_transformer_lm.best.pt",
+        "bestCheckpointStep": 900,
+        "bestCheckpointValLoss": 0.071699984682103,
+        "finalValLoss": 0.07521797716617584,
+        "absoluteLossDrop": 5.564788565039635,
+        "relativeLossDrop": 0.986663,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": true,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-iter4\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 2910309
+          },
+          {
+            "kind": "bestCheckpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-iter4\\tiny_transformer_lm.best.pt",
+            "exists": true,
+            "bytes": 2910613
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-protocol-iter4\\vocab.json",
+            "exists": true,
+            "bytes": 7048
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-protocol-iter4\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 546,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "final_validation_loss_regressed_from_best"
+        ],
+        "rank": 2
+      },
+      {
+        "runName": "tiny-transformer-protocol-iter3",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-protocol-iter3\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:7daa48e0c38cc5319718155f1502b251549425c31ecf9f394321d39868be03ef:387:byte-fallback:assistant",
+        "trainSha256": "32707d36621e9db7b2a0f822091524d2d9b84aa75bedc651efe4689cf70c0980",
+        "validationSha256": "7daa48e0c38cc5319718155f1502b251549425c31ecf9f394321d39868be03ef",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 710915,
+        "trainRecords": 16,
+        "validationRecords": 3,
+        "trainTokens": 1296,
+        "validationTokens": 303,
+        "vocabSize": 387,
+        "elapsedSeconds": 187.455,
+        "tokensPerSecond": 6.91,
+        "stepsPerSecond": 6.402,
+        "firstValLoss": 5.526188929875691,
+        "bestValLoss": 1.574250062306722,
+        "bestStep": 150,
+        "bestCheckpoint": "training\\runs\\tiny-transformer-protocol-iter3\\tiny_transformer_lm.best.pt",
+        "bestCheckpointStep": 150,
+        "bestCheckpointValLoss": 1.574250062306722,
+        "finalValLoss": 2.413666764895121,
+        "absoluteLossDrop": 3.1125221649805703,
+        "relativeLossDrop": 0.563231,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": true,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-iter3\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 2866469
+          },
+          {
+            "kind": "bestCheckpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-iter3\\tiny_transformer_lm.best.pt",
+            "exists": true,
+            "bytes": 2866773
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-protocol-iter3\\vocab.json",
+            "exists": true,
+            "bytes": 6457
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-protocol-iter3\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 600,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "final_validation_loss_regressed_from_best"
+        ],
+        "rank": 3
+      },
+      {
+        "runName": "tiny-transformer-protocol-iter2",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-protocol-iter2\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:f2ab30a05e89f551619e91fda5a4d58821042064dcf03a04ae99010410320d22:392:byte-fallback:all",
+        "trainSha256": "05fd28c221946e97dfd0a99da285d3b360c15bfc618929cd4340f94458162e23",
+        "validationSha256": "f2ab30a05e89f551619e91fda5a4d58821042064dcf03a04ae99010410320d22",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 712200,
+        "trainRecords": 16,
+        "validationRecords": 3,
+        "trainTokens": 1456,
+        "validationTokens": 333,
+        "vocabSize": 392,
+        "elapsedSeconds": 251.01,
+        "tokensPerSecond": 5.8,
+        "stepsPerSecond": 7.968,
+        "firstValLoss": 5.811010519663493,
+        "bestValLoss": 1.878245045741399,
+        "bestStep": 200,
+        "bestCheckpoint": "training\\runs\\tiny-transformer-protocol-iter2\\tiny_transformer_lm.best.pt",
+        "bestCheckpointStep": 200,
+        "bestCheckpointValLoss": 1.878245045741399,
+        "finalValLoss": 2.5125868916511536,
+        "absoluteLossDrop": 3.2984236280123396,
+        "relativeLossDrop": 0.567616,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": true,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-iter2\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 2871653
+          },
+          {
+            "kind": "bestCheckpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-iter2\\tiny_transformer_lm.best.pt",
+            "exists": true,
+            "bytes": 2871957
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-protocol-iter2\\vocab.json",
+            "exists": true,
+            "bytes": 6515
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-protocol-iter2\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 756,
+          "roleTokenCount": 8,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "final_validation_loss_regressed_from_best"
+        ],
+        "rank": 4
+      },
+      {
+        "runName": "tiny-char-lm-iter3",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-char-lm-iter3\\metrics.json",
+        "model": "tiny_numpy_char_ngram_lm",
+        "comparisonKey": "tiny_numpy_char_ngram_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:432:wordpunct:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 1337,
+        "parameters": 1711792,
+        "vocabSize": 432,
+        "firstValLoss": 6.051272511482239,
+        "bestValLoss": 1.9058400988578796,
+        "bestStep": 1600,
+        "finalValLoss": 1.9968887567520142,
+        "absoluteLossDrop": 4.054383754730225,
+        "relativeLossDrop": 0.670005,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": true,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-char-lm-iter3\\tiny_char_lm.npz",
+            "exists": true,
+            "bytes": 6344767
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-char-lm-iter3\\vocab.json",
+            "exists": true,
+            "bytes": 6182
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 459,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "final_validation_loss_regressed_from_best"
+        ],
+        "rank": 5
+      },
+      {
+        "runName": "tiny-char-lm-iter2",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-char-lm-iter2\\metrics.json",
+        "model": "tiny_numpy_char_ngram_lm",
+        "comparisonKey": "tiny_numpy_char_ngram_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:432:wordpunct:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 1337,
+        "parameters": 918448,
+        "vocabSize": 432,
+        "firstValLoss": 6.050530314445496,
+        "bestValLoss": 2.0532691329717636,
+        "bestStep": 600,
+        "finalValLoss": 2.063402935862541,
+        "absoluteLossDrop": 3.9871273785829544,
+        "relativeLossDrop": 0.658972,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-char-lm-iter2\\tiny_char_lm.npz",
+            "exists": true,
+            "bytes": 3402956
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-char-lm-iter2\\vocab.json",
+            "exists": true,
+            "bytes": 6182
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 459,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [],
+        "rank": 6
+      },
+      {
+        "runName": "tiny-transformer-protocol-smoke",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-protocol-smoke\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:f2ab30a05e89f551619e91fda5a4d58821042064dcf03a04ae99010410320d22:392:byte-fallback:assistant",
+        "trainSha256": "05fd28c221946e97dfd0a99da285d3b360c15bfc618929cd4340f94458162e23",
+        "validationSha256": "f2ab30a05e89f551619e91fda5a4d58821042064dcf03a04ae99010410320d22",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 154760,
+        "trainRecords": 16,
+        "validationRecords": 3,
+        "trainTokens": 1456,
+        "validationTokens": 333,
+        "vocabSize": 392,
+        "elapsedSeconds": 9.883,
+        "tokensPerSecond": 147.32,
+        "stepsPerSecond": 40.474,
+        "firstValLoss": 6.238566517829895,
+        "bestValLoss": 2.213199570775032,
+        "bestStep": 300,
+        "bestCheckpoint": "training\\runs\\tiny-transformer-protocol-smoke\\tiny_transformer_lm.best.pt",
+        "bestCheckpointStep": 300,
+        "bestCheckpointValLoss": 2.213199570775032,
+        "finalValLoss": 2.3245660066604614,
+        "absoluteLossDrop": 3.9140005111694336,
+        "relativeLossDrop": 0.627388,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": true,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-smoke\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 637689
+          },
+          {
+            "kind": "bestCheckpoint",
+            "path": "training\\runs\\tiny-transformer-protocol-smoke\\tiny_transformer_lm.best.pt",
+            "exists": true,
+            "bytes": 637933
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-protocol-smoke\\vocab.json",
+            "exists": true,
+            "bytes": 6515
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-protocol-smoke\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 206,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "final_validation_loss_regressed_from_best"
+        ],
+        "rank": 7
+      },
+      {
+        "runName": "tiny-char-lm-iter1",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-char-lm-iter1\\metrics.json",
+        "model": "tiny_numpy_char_ngram_lm",
+        "comparisonKey": "tiny_numpy_char_ngram_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:432:wordpunct:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 1337,
+        "parameters": 331824,
+        "vocabSize": 432,
+        "firstValLoss": 6.05742609500885,
+        "bestValLoss": 3.1540042757987976,
+        "bestStep": 100,
+        "finalValLoss": 3.18061164021492,
+        "absoluteLossDrop": 2.87681445479393,
+        "relativeLossDrop": 0.474924,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-char-lm-iter1\\tiny_char_lm.npz",
+            "exists": true,
+            "bytes": 1226254
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-char-lm-iter1\\vocab.json",
+            "exists": true,
+            "bytes": 6182
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 459,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [],
+        "rank": 8
+      },
+      {
+        "runName": "tiny-transformer-iter4-byte",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-iter4-byte\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:8188:byte-fallback:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 1813372,
+        "trainRecords": 3655,
+        "validationRecords": 345,
+        "trainTokens": 1155275,
+        "validationTokens": 113314,
+        "vocabSize": 8188,
+        "elapsedSeconds": 126.099,
+        "tokensPerSecond": 9161.65,
+        "stepsPerSecond": 6.344,
+        "firstValLoss": 9.146775404612223,
+        "bestValLoss": 4.294073184331258,
+        "bestStep": 800,
+        "finalValLoss": 4.294073184331258,
+        "absoluteLossDrop": 4.852702220280965,
+        "relativeLossDrop": 0.530537,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-iter4-byte\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 7400697
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-iter4-byte\\vocab.json",
+            "exists": true,
+            "bytes": 127504
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-iter4-byte\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 492,
+          "roleTokenCount": 5,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [],
+        "rank": 9
+      },
+      {
+        "runName": "tiny-transformer-iter2",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-iter2\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:8188:wordpunct:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 1810300,
+        "trainRecords": 2500,
+        "validationRecords": 345,
+        "trainTokens": 503531,
+        "validationTokens": 72024,
+        "vocabSize": 8188,
+        "elapsedSeconds": 82.693,
+        "tokensPerSecond": 6089.16,
+        "stepsPerSecond": 9.674,
+        "firstValLoss": 9.162099917729696,
+        "bestValLoss": 4.4343370993932085,
+        "bestStep": 800,
+        "finalValLoss": 4.4343370993932085,
+        "absoluteLossDrop": 4.727762818336488,
+        "relativeLossDrop": 0.516013,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-iter2\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 7387961
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-iter2\\vocab.json",
+            "exists": true,
+            "bytes": 127147
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-iter2\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 268
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 624,
+          "roleTokenCount": 7,
+          "unknownTokenCount": 17,
+          "unknownTokenRate": 0.153153,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "sample_high_unknown_token_rate"
+        ],
+        "rank": 10
+      },
+      {
+        "runName": "tiny-transformer-iter3",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-iter3\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:16380:wordpunct:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 3394428,
+        "trainRecords": 3655,
+        "validationRecords": 345,
+        "trainTokens": 783763,
+        "validationTokens": 72024,
+        "vocabSize": 16380,
+        "elapsedSeconds": 236.734,
+        "tokensPerSecond": 3310.73,
+        "stepsPerSecond": 4.224,
+        "firstValLoss": 9.813921531041464,
+        "bestValLoss": 4.80943763256073,
+        "bestStep": 1000,
+        "finalValLoss": 4.80943763256073,
+        "absoluteLossDrop": 5.004483898480734,
+        "relativeLossDrop": 0.509937,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-iter3\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 13864953
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-iter3\\vocab.json",
+            "exists": true,
+            "bytes": 259609
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-iter3\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 268
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 634,
+          "roleTokenCount": 5,
+          "unknownTokenCount": 10,
+          "unknownTokenRate": 0.086957,
+          "hasAssistantMarker": true
+        },
+        "warnings": [],
+        "rank": 11
+      },
+      {
+        "runName": "tiny-transformer-iter5-assistant-loss",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-iter5-assistant-loss\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:8188:byte-fallback:assistant",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 1813372,
+        "trainRecords": 3655,
+        "validationRecords": 345,
+        "trainTokens": 1155275,
+        "validationTokens": 113314,
+        "vocabSize": 8188,
+        "elapsedSeconds": 129.769,
+        "tokensPerSecond": 8902.55,
+        "stepsPerSecond": 6.165,
+        "firstValLoss": 9.142706473668417,
+        "bestValLoss": 4.839554746945699,
+        "bestStep": 800,
+        "finalValLoss": 4.839554746945699,
+        "absoluteLossDrop": 4.303151726722718,
+        "relativeLossDrop": 0.470665,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-iter5-assistant-loss\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 7400761
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-iter5-assistant-loss\\vocab.json",
+            "exists": true,
+            "bytes": 127504
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-iter5-assistant-loss\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 217,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [],
+        "rank": 12
+      },
+      {
+        "runName": "tiny-transformer-iter1",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-iter1\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:8188:wordpunct:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 1810300,
+        "trainRecords": 2500,
+        "validationRecords": 345,
+        "trainTokens": 503531,
+        "validationTokens": 72024,
+        "vocabSize": 8188,
+        "elapsedSeconds": 45.737,
+        "tokensPerSecond": 11009.27,
+        "stepsPerSecond": 8.746,
+        "firstValLoss": 9.18081792195638,
+        "bestValLoss": 4.8874205549558,
+        "bestStep": 300,
+        "finalValLoss": 4.971663395563762,
+        "absoluteLossDrop": 4.209154526392619,
+        "relativeLossDrop": 0.458473,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-iter1\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 7387961
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-iter1\\vocab.json",
+            "exists": true,
+            "bytes": 127147
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-iter1\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 268
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 702,
+          "roleTokenCount": 7,
+          "unknownTokenCount": 1,
+          "unknownTokenRate": 0.009091,
+          "hasAssistantMarker": true
+        },
+        "warnings": [],
+        "rank": 13
+      },
+      {
+        "runName": "smoke-assistant-loss",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\smoke-assistant-loss\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:508:byte-fallback:assistant",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 46812,
+        "trainRecords": 20,
+        "validationRecords": 10,
+        "trainTokens": 9851,
+        "validationTokens": 7897,
+        "vocabSize": 508,
+        "elapsedSeconds": 0.188,
+        "tokensPerSecond": 52398.94,
+        "stepsPerSecond": 10.638,
+        "firstValLoss": 6.2964863777160645,
+        "bestValLoss": 6.2964863777160645,
+        "bestStep": 1,
+        "finalValLoss": 6.343856334686279,
+        "absoluteLossDrop": -0.047369956970214844,
+        "relativeLossDrop": -0.007523,
+        "lossImprovedWithinRun": false,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\smoke-assistant-loss\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 203533
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\smoke-assistant-loss\\vocab.json",
+            "exists": true,
+            "bytes": 8172
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\smoke-assistant-loss\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 120,
+          "roleTokenCount": 3,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "validation_loss_did_not_improve"
+        ],
+        "rank": 14
+      },
+      {
+        "runName": "tiny-transformer-best-smoke",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-best-smoke\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:508:byte-fallback:assistant",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 46812,
+        "trainRecords": 20,
+        "validationRecords": 5,
+        "trainTokens": 9851,
+        "validationTokens": 5518,
+        "vocabSize": 508,
+        "elapsedSeconds": 0.281,
+        "tokensPerSecond": 35056.94,
+        "stepsPerSecond": 7.117,
+        "firstValLoss": 6.337215423583984,
+        "bestValLoss": 6.322292804718018,
+        "bestStep": 2,
+        "bestCheckpoint": "training\\runs\\tiny-transformer-best-smoke\\tiny_transformer_lm.best.pt",
+        "bestCheckpointStep": 2,
+        "bestCheckpointValLoss": 6.322292804718018,
+        "finalValLoss": 6.322292804718018,
+        "absoluteLossDrop": 0.014922618865966797,
+        "relativeLossDrop": 0.002355,
+        "lossImprovedWithinRun": true,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-best-smoke\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 203533
+          },
+          {
+            "kind": "bestCheckpoint",
+            "path": "training\\runs\\tiny-transformer-best-smoke\\tiny_transformer_lm.best.pt",
+            "exists": true,
+            "bytes": 203781
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-best-smoke\\vocab.json",
+            "exists": true,
+            "bytes": 8172
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-best-smoke\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 446,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [],
+        "rank": 15
+      },
+      {
+        "runName": "tiny-transformer-smoke",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-smoke\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:1697:wordpunct:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 124097,
+        "trainRecords": 32,
+        "validationRecords": 16,
+        "trainTokens": 6490,
+        "validationTokens": 3375,
+        "vocabSize": 1697,
+        "elapsedSeconds": 0.38,
+        "tokensPerSecond": 17078.95,
+        "stepsPerSecond": 5.263,
+        "firstValLoss": 7.494101524353027,
+        "bestValLoss": 7.494101524353027,
+        "bestStep": 1,
+        "finalValLoss": 7.511252800623576,
+        "absoluteLossDrop": -0.0171512762705488,
+        "relativeLossDrop": -0.002289,
+        "lossImprovedWithinRun": false,
+        "finalRegressedFromBest": false,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-smoke\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 531597
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-smoke\\vocab.json",
+            "exists": true,
+            "bytes": 25981
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-smoke\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 268
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 944,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 3,
+          "unknownTokenRate": 0.023256,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "validation_loss_did_not_improve"
+        ],
+        "rank": 16
+      },
+      {
+        "runName": "tiny-transformer-byte-smoke",
+        "metricsPath": "C:\\Users\\ianga\\Desktop\\OpenLLM\\training\\runs\\tiny-transformer-byte-smoke\\metrics.json",
+        "model": "tiny_pytorch_transformer_lm",
+        "comparisonKey": "tiny_pytorch_transformer_lm:59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264:1953:byte-fallback:all",
+        "trainSha256": "85673e2416f8e13f973e26d383a6229dc4bed5ce41949a5c5b2bcfe9e2598efc",
+        "validationSha256": "59cf860a4d7d755edc8c293335921ab04a629675bcd25f099f1f3de9f8a6a264",
+        "seed": 2026,
+        "device": "cpu",
+        "parameters": 140737,
+        "trainRecords": 32,
+        "validationRecords": 16,
+        "trainTokens": 6490,
+        "validationTokens": 9203,
+        "vocabSize": 1953,
+        "elapsedSeconds": 0.116,
+        "tokensPerSecond": 55948.28,
+        "stepsPerSecond": 17.241,
+        "firstValLoss": 7.746787071228027,
+        "bestValLoss": 7.746787071228027,
+        "bestStep": 1,
+        "finalValLoss": 7.905863285064697,
+        "absoluteLossDrop": -0.15907621383666992,
+        "relativeLossDrop": -0.020534,
+        "lossImprovedWithinRun": false,
+        "finalRegressedFromBest": true,
+        "artifactStatus": [
+          {
+            "kind": "checkpoint",
+            "path": "training\\runs\\tiny-transformer-byte-smoke\\tiny_transformer_lm.pt",
+            "exists": true,
+            "bytes": 603085
+          },
+          {
+            "kind": "vocab",
+            "path": "training\\runs\\tiny-transformer-byte-smoke\\vocab.json",
+            "exists": true,
+            "bytes": 30589
+          },
+          {
+            "kind": "tokenizer",
+            "path": "training\\runs\\tiny-transformer-byte-smoke\\tokenizer_config.json",
+            "exists": true,
+            "bytes": 4929
+          }
+        ],
+        "allArtifactsPresent": true,
+        "sampleDiagnostics": {
+          "chars": 186,
+          "roleTokenCount": 2,
+          "unknownTokenCount": 0,
+          "unknownTokenRate": 0,
+          "hasAssistantMarker": true
+        },
+        "warnings": [
+          "validation_loss_did_not_improve",
+          "final_validation_loss_regressed_from_best"
+        ],
+        "rank": 17
+      }
+    ]
+  },
+  "promotion": {
+    "status": "rejected",
+    "candidate": {
+      "runName": "tiny-transformer-protocol-iter5",
+      "metricsPath": "training/runs/tiny-transformer-protocol-iter5/metrics.json",
+      "model": "tiny_pytorch_transformer_lm",
+      "comparisonKey": "tiny_pytorch_transformer_lm:7d3bd48860772d23a705d70541c50afbba77ef603e6bab5b784c57a99b7cc4f0:438:byte-fallback:assistant",
+      "trainSha256": "3eb1934a59f927ac4e1df36f9e01620c500e586ebccbf3cc8b02a6cb2e7e8d56",
+      "validationSha256": "7d3bd48860772d23a705d70541c50afbba77ef603e6bab5b784c57a99b7cc4f0",
+      "seed": 2026,
+      "device": "cpu",
+      "parameters": 724022,
+      "trainRecords": 107,
+      "validationRecords": 26,
+      "trainTokens": 8811,
+      "validationTokens": 2193,
+      "vocabSize": 438,
+      "elapsedSeconds": 133.332,
+      "tokensPerSecond": 66.08,
+      "stepsPerSecond": 7.5,
+      "firstValLoss": 5.690262158711751,
+      "bestValLoss": 0.061283178627491,
+      "bestStep": 900,
+      "bestCheckpoint": "training\\runs\\tiny-transformer-protocol-iter5\\tiny_transformer_lm.best.pt",
+      "bestCheckpointStep": 900,
+      "bestCheckpointValLoss": 0.061283178627491,
+      "finalValLoss": 0.06421356772383054,
+      "absoluteLossDrop": 5.626048590987921,
+      "relativeLossDrop": 0.988715,
+      "lossImprovedWithinRun": true,
+      "finalRegressedFromBest": true,
+      "artifactStatus": [
+        {
+          "kind": "checkpoint",
+          "path": "training\\runs\\tiny-transformer-protocol-iter5\\tiny_transformer_lm.pt",
+          "exists": true,
+          "bytes": 2919653
+        },
+        {
+          "kind": "bestCheckpoint",
+          "path": "training\\runs\\tiny-transformer-protocol-iter5\\tiny_transformer_lm.best.pt",
+          "exists": true,
+          "bytes": 2919957
+        },
+        {
+          "kind": "vocab",
+          "path": "training\\runs\\tiny-transformer-protocol-iter5\\vocab.json",
+          "exists": true,
+          "bytes": 7169
+        },
+        {
+          "kind": "tokenizer",
+          "path": "training\\runs\\tiny-transformer-protocol-iter5\\tokenizer_config.json",
+          "exists": true,
+          "bytes": 4929
+        }
+      ],
+      "allArtifactsPresent": true,
+      "sampleDiagnostics": {
+        "chars": 528,
+        "roleTokenCount": 2,
+        "unknownTokenCount": 0,
+        "unknownTokenRate": 0,
+        "hasAssistantMarker": true
+      },
+      "warnings": [
+        "final_validation_loss_regressed_from_best"
+      ]
+    },
+    "baseline": {
+      "runName": "tiny-transformer-protocol-iter4",
+      "metricsPath": "training/runs/tiny-transformer-protocol-iter4/metrics.json",
+      "model": "tiny_pytorch_transformer_lm",
+      "comparisonKey": "tiny_pytorch_transformer_lm:28c30449f1a6eb1e98861117b963f78ffb077448db20326609a603b2581517ff:429:byte-fallback:assistant",
+      "trainSha256": "757b90ec76450d9d411080d64a27c340028dbf0d09e36f5d53d7dd31e711a70a",
+      "validationSha256": "28c30449f1a6eb1e98861117b963f78ffb077448db20326609a603b2581517ff",
+      "seed": 2026,
+      "device": "cpu",
+      "parameters": 721709,
+      "trainRecords": 75,
+      "validationRecords": 18,
+      "trainTokens": 6096,
+      "validationTokens": 1508,
+      "vocabSize": 429,
+      "elapsedSeconds": 126.266,
+      "tokensPerSecond": 48.28,
+      "stepsPerSecond": 7.92,
+      "firstValLoss": 5.6400065422058105,
+      "bestValLoss": 0.071699984682103,
+      "bestStep": 900,
+      "bestCheckpoint": "training\\runs\\tiny-transformer-protocol-iter4\\tiny_transformer_lm.best.pt",
+      "bestCheckpointStep": 900,
+      "bestCheckpointValLoss": 0.071699984682103,
+      "finalValLoss": 0.07521797716617584,
+      "absoluteLossDrop": 5.564788565039635,
+      "relativeLossDrop": 0.986663,
+      "lossImprovedWithinRun": true,
+      "finalRegressedFromBest": true,
+      "artifactStatus": [
+        {
+          "kind": "checkpoint",
+          "path": "training\\runs\\tiny-transformer-protocol-iter4\\tiny_transformer_lm.pt",
+          "exists": true,
+          "bytes": 2910309
+        },
+        {
+          "kind": "bestCheckpoint",
+          "path": "training\\runs\\tiny-transformer-protocol-iter4\\tiny_transformer_lm.best.pt",
+          "exists": true,
+          "bytes": 2910613
+        },
+        {
+          "kind": "vocab",
+          "path": "training\\runs\\tiny-transformer-protocol-iter4\\vocab.json",
+          "exists": true,
+          "bytes": 7048
+        },
+        {
+          "kind": "tokenizer",
+          "path": "training\\runs\\tiny-transformer-protocol-iter4\\tokenizer_config.json",
+          "exists": true,
+          "bytes": 4929
+        }
+      ],
+      "allArtifactsPresent": true,
+      "sampleDiagnostics": {
+        "chars": 546,
+        "roleTokenCount": 2,
+        "unknownTokenCount": 0,
+        "unknownTokenRate": 0,
+        "hasAssistantMarker": true
+      },
+      "warnings": [
+        "final_validation_loss_regressed_from_best"
+      ]
+    },
+    "absoluteImprovement": 0.010416806054611996,
+    "relativeImprovement": 0.1452832396101213,
+    "thresholds": {
+      "minAbsoluteLossImprovement": 0,
+      "maxUnknownTokenRate": 0.12
+    },
+    "reasons": [
+      "Candidate final validation loss regressed more than 2% from its best step."
+    ]
+  },
+  "tool": {
+    "reportPath": "training/evals/tiny-transformer-protocol-iter5.tool.report.json",
+    "baselineReportPath": "training/evals/tiny-transformer-protocol-iter4.tool.report.json",
+    "predictionModels": [
+      "tiny_pytorch_transformer_lm:tiny-transformer-protocol-iter5"
+    ],
+    "candidateRunName": "tiny-transformer-protocol-iter5",
+    "candidateModelMatched": true,
+    "warnings": [],
+    "gate": {
+      "status": "fail",
+      "thresholds": {
+        "minTotalCases": 10,
+        "minValidJsonRate": 0.98,
+        "minActionTypeAccuracy": 0.9,
+        "minToolNameAccuracy": 0.9,
+        "minToolArgumentValidity": 0.85,
+        "minNoToolAccuracy": 0.9,
+        "maxHallucinatedToolRate": 0.02,
+        "maxMissingPredictions": 0,
+        "maxAccuracyRegression": 0.02,
+        "maxHallucinationIncrease": 0,
+        "maxMissingPredictionIncrease": 0
+      },
+      "candidate": {
+        "suitePath": "training/evals/tool-routing.eval.jsonl",
+        "predictionsPath": "training/evals/tiny-transformer-protocol-iter5.tool.predictions.jsonl",
+        "total": 35,
+        "validJsonRate": 0.971429,
+        "actionTypeAccuracy": 0.714286,
+        "toolNameAccuracy": 0.5625,
+        "toolArgumentValidity": 0.5625,
+        "noToolAccuracy": 0.888889,
+        "hallucinatedToolRate": 0.085714,
+        "missingPredictions": 0,
+        "failures": 11,
+        "latencyP95Ms": 560.129
+      },
+      "baseline": {
+        "suitePath": "training/evals/tool-routing.eval.jsonl",
+        "predictionsPath": "training/evals/tiny-transformer-protocol-iter4.tool.predictions.jsonl",
+        "total": 35,
+        "validJsonRate": 1,
+        "actionTypeAccuracy": 0.457143,
+        "toolNameAccuracy": 0.875,
+        "toolArgumentValidity": 0.9375,
+        "noToolAccuracy": 0,
+        "hallucinatedToolRate": 0.571429,
+        "missingPredictions": 0,
+        "failures": 19,
+        "latencyP95Ms": 478.419
+      },
+      "failures": [
+        {
+          "metric": "validJsonRate",
+          "actual": 0.971429,
+          "expected": ">= 0.98",
+          "message": "validJsonRate is below promotion threshold"
+        },
+        {
+          "metric": "actionTypeAccuracy",
+          "actual": 0.714286,
+          "expected": ">= 0.9",
+          "message": "actionTypeAccuracy is below promotion threshold"
+        },
+        {
+          "metric": "toolNameAccuracy",
+          "actual": 0.5625,
+          "expected": ">= 0.9",
+          "message": "toolNameAccuracy is below promotion threshold"
+        },
+        {
+          "metric": "toolArgumentValidity",
+          "actual": 0.5625,
+          "expected": ">= 0.85",
+          "message": "toolArgumentValidity is below promotion threshold"
+        },
+        {
+          "metric": "noToolAccuracy",
+          "actual": 0.888889,
+          "expected": ">= 0.9",
+          "message": "noToolAccuracy is below promotion threshold"
+        },
+        {
+          "metric": "hallucinatedToolRate",
+          "actual": 0.085714,
+          "expected": "<= 0.02",
+          "message": "hallucinatedToolRate is above promotion threshold"
+        },
+        {
+          "metric": "validJsonRate",
+          "actual": 0.971429,
+          "expected": ">= baseline 1 - 0.02",
+          "message": "validJsonRate regressed from baseline"
+        },
+        {
+          "metric": "toolNameAccuracy",
+          "actual": 0.5625,
+          "expected": ">= baseline 0.875 - 0.02",
+          "message": "toolNameAccuracy regressed from baseline"
+        },
+        {
+          "metric": "toolArgumentValidity",
+          "actual": 0.5625,
+          "expected": ">= baseline 0.9375 - 0.02",
+          "message": "toolArgumentValidity regressed from baseline"
+        }
+      ],
+      "warnings": []
+    }
+  }
+}

@@ -1,17 +1,20 @@
 import type { Logger } from "pino";
+import type { EmbeddingProvider } from "../memory/EmbeddingProvider";
+import { toErrorMessage } from "../utils/errors";
+import { cosineSimilarity } from "../utils/vectorMath";
+import { describeArgsSchema } from "./schemaIntrospect";
 import type { RegisteredTool } from "./ToolDefinition";
 import type { ToolRegistry } from "./ToolRegistry";
 
 /**
  * Tool candidate retrieval. With 400+ tools, putting everything in the
- * prompt collapses selection accuracy — so we retrieve a small, relevant
- * candidate set (default top 10) and only show those to the model.
+ * prompt collapses selection accuracy, so we retrieve a small, relevant
+ * candidate set and only show those to the model.
  *
- * Current implementation: deterministic keyword/category/example scoring.
- * The ToolRetrievalStrategy interface is the seam for the planned
- * embedding-based retriever (RAG-MCP style: embed tool descriptions, ANN
- * search per query, optional reranker) — swap strategies without touching
- * the agent layer. See docs/TOOL_REGISTRY.md.
+ * Default implementation: deterministic keyword/category/example scoring.
+ * Scalable implementation: embedding retrieval over tool search documents,
+ * blended with keyword signals and a safe keyword fallback. The agent layer
+ * depends only on ToolRetrievalStrategy.
  */
 
 export interface ToolRoutingInput {
@@ -33,19 +36,86 @@ export interface ToolRetrievalStrategy {
   retrieve(input: ToolRoutingInput): Promise<ToolRoutingResult>;
 }
 
+interface KeywordRoutingContext {
+  tokens: string[];
+  tokenSet: Set<string>;
+  lowered: string;
+  hasActionHint: boolean;
+}
+
+interface ScoredTool {
+  tool: RegisteredTool;
+  score: number;
+  why: string[];
+  similarity?: number;
+}
+
 const STOPWORDS = new Set([
-  "the", "a", "an", "is", "are", "was", "be", "to", "of", "and", "or", "in",
-  "on", "for", "it", "this", "that", "me", "my", "you", "your", "i", "we",
-  "do", "does", "can", "could", "would", "should", "please", "with", "at",
+  "the",
+  "a",
+  "an",
+  "is",
+  "are",
+  "was",
+  "be",
+  "to",
+  "of",
+  "and",
+  "or",
+  "in",
+  "on",
+  "for",
+  "it",
+  "this",
+  "that",
+  "me",
+  "my",
+  "you",
+  "your",
+  "i",
+  "we",
+  "do",
+  "does",
+  "can",
+  "could",
+  "would",
+  "should",
+  "please",
+  "with",
+  "at",
 ]);
 
 /** Verbs/nouns that strongly suggest an action rather than chat. */
 const ACTION_HINTS = [
-  "timeout", "ban", "kick", "mute", "warn", "delete", "remove", "purge",
-  "remember", "recall", "forget", "memory", "note",
-  "send", "post", "dm", "announce",
-  "summarize", "summary", "stats", "info", "lookup", "check",
-  "ping", "time", "server", "channel", "user", "remind",
+  "timeout",
+  "ban",
+  "kick",
+  "mute",
+  "warn",
+  "delete",
+  "remove",
+  "purge",
+  "remember",
+  "recall",
+  "forget",
+  "memory",
+  "note",
+  "send",
+  "post",
+  "dm",
+  "announce",
+  "summarize",
+  "summary",
+  "stats",
+  "info",
+  "lookup",
+  "check",
+  "ping",
+  "time",
+  "server",
+  "channel",
+  "user",
+  "remind",
 ];
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -68,73 +138,18 @@ export class KeywordToolRetrievalStrategy implements ToolRetrievalStrategy {
 
   async retrieve(input: ToolRoutingInput): Promise<ToolRoutingResult> {
     const maxTools = input.maxTools ?? 10;
-    const text = `${input.message} ${input.recentSummary ?? ""}`;
-    const tokens = tokenize(text);
-    const tokenSet = new Set(tokens);
-    const lowered = input.message.toLowerCase();
+    const context = buildKeywordRoutingContext(input);
+    const scored: ScoredTool[] = [];
 
-    const held = new Set(input.memberPermissions.map((p) => p.toUpperCase()));
-    const isAdmin = held.has("ADMINISTRATOR");
-
-    const scored: Array<{ tool: RegisteredTool; score: number; why: string[] }> = [];
-
-    for (const tool of this.registry.listTools()) {
-      // Permission pre-filter: don't offer tools the member can't run —
-      // saves prompt tokens and avoids tempting the model into denied calls.
-      const required = tool.requiredDiscordPermissions ?? [];
-      if (!isAdmin && required.some((p) => !held.has(p.toUpperCase()))) continue;
-
-      let score = 0;
-      const why: string[] = [];
-
-      // Exact / partial tool-name mentions.
-      if (lowered.includes(tool.name)) {
-        score += 6;
-        why.push("name mentioned");
-      }
-      const nameParts = tool.name.split("_");
-      const nameHits = nameParts.filter((p) => tokenSet.has(p)).length;
-      if (nameHits > 0) {
-        score += nameHits * 2;
-        why.push(`name tokens x${nameHits}`);
-      }
-
-      // Category keyword affinity.
-      const catWords = CATEGORY_KEYWORDS[tool.category] ?? [];
-      const catHits = catWords.filter((w) => tokenSet.has(w)).length;
-      if (catHits > 0) {
-        score += catHits * 1.5;
-        why.push(`category keywords x${catHits}`);
-      }
-
-      // Description token overlap.
-      const descTokens = new Set(tokenize(tool.description));
-      const descHits = tokens.filter((t) => descTokens.has(t)).length;
-      if (descHits > 0) {
-        score += descHits;
-        why.push(`description overlap x${descHits}`);
-      }
-
-      // Example phrase overlap (examples are written as user-style requests).
-      let exampleHits = 0;
-      for (const example of tool.examples ?? []) {
-        const exTokens = new Set(tokenize(example));
-        exampleHits += tokens.filter((t) => exTokens.has(t)).length > 1 ? 1 : 0;
-      }
-      if (exampleHits > 0) {
-        score += exampleHits * 1.5;
-        why.push(`example match x${exampleHits}`);
-      }
-
+    for (const tool of filterPermittedTools(this.registry.listTools(), input.memberPermissions)) {
+      const { score, why } = scoreToolKeywords(tool, context);
       if (score > 0) scored.push({ tool, score, why });
     }
 
     scored.sort((a, b) => b.score - a.score);
     const top = scored.slice(0, maxTools);
     const topScore = top[0]?.score ?? 0;
-
-    const hasActionHint = ACTION_HINTS.some((hint) => tokenSet.has(hint));
-    const likelyNeedsTool = topScore >= 3 || (hasActionHint && topScore > 0);
+    const likelyNeedsTool = topScore >= 3 || (context.hasActionHint && topScore > 0);
     const confidence = Math.max(0, Math.min(1, topScore / 10));
 
     const reasoning =
@@ -143,7 +158,7 @@ export class KeywordToolRetrievalStrategy implements ToolRetrievalStrategy {
         : `top candidates: ${top
             .slice(0, 3)
             .map((s) => `${s.tool.name}(${s.score.toFixed(1)}: ${s.why.join(", ")})`)
-            .join("; ")}${hasActionHint ? "; action-verb detected" : ""}`;
+            .join("; ")}${context.hasActionHint ? "; action-verb detected" : ""}`;
 
     return {
       likelyNeedsTool,
@@ -151,6 +166,139 @@ export class KeywordToolRetrievalStrategy implements ToolRetrievalStrategy {
       reasoning,
       confidence,
     };
+  }
+}
+
+export interface EmbeddingToolRetrievalOptions {
+  fallback?: ToolRetrievalStrategy;
+  logger?: Logger;
+  /** Minimum cosine similarity that can independently trigger tool routing. */
+  minSimilarity?: number;
+  embeddingWeight?: number;
+  keywordWeight?: number;
+  batchSize?: number;
+}
+
+interface IndexedTool {
+  tool: RegisteredTool;
+  document: string;
+  embedding: number[];
+}
+
+/**
+ * Embedding retrieval for large tool registries. It embeds one stable search
+ * document per tool, embeds each incoming user request, ranks by cosine
+ * similarity, then blends in the existing keyword signal. If the embedding
+ * provider is unavailable, it trips a process-local circuit breaker and falls
+ * back to keyword routing for the rest of the process.
+ */
+export class EmbeddingToolRetrievalStrategy implements ToolRetrievalStrategy {
+  private readonly fallback: ToolRetrievalStrategy;
+  private readonly logger: Logger | undefined;
+  private readonly minSimilarity: number;
+  private readonly embeddingWeight: number;
+  private readonly keywordWeight: number;
+  private readonly batchSize: number;
+  private indexPromise: Promise<IndexedTool[]> | null = null;
+  private disabledReason: string | null = null;
+
+  constructor(
+    private readonly registry: ToolRegistry,
+    private readonly embeddings: EmbeddingProvider,
+    options?: EmbeddingToolRetrievalOptions,
+  ) {
+    this.fallback = options?.fallback ?? new KeywordToolRetrievalStrategy(registry);
+    this.logger = options?.logger;
+    this.minSimilarity = options?.minSimilarity ?? 0.22;
+    this.embeddingWeight = options?.embeddingWeight ?? 8;
+    this.keywordWeight = options?.keywordWeight ?? 0.4;
+    this.batchSize = options?.batchSize ?? 64;
+  }
+
+  async retrieve(input: ToolRoutingInput): Promise<ToolRoutingResult> {
+    if (this.disabledReason) {
+      return this.fallback.retrieve(input);
+    }
+
+    try {
+      const queryText = `${input.message}\n${input.recentSummary ?? ""}`.trim();
+      const [queryEmbedding] = await this.embeddings.embed([queryText]);
+      if (!queryEmbedding) return this.fallback.retrieve(input);
+
+      const context = buildKeywordRoutingContext(input);
+      const permitted = new Set(
+        filterPermittedTools(this.registry.listTools(), input.memberPermissions).map((tool) => tool.name),
+      );
+      const index = await this.getIndex();
+      const scored: ScoredTool[] = [];
+
+      for (const item of index) {
+        if (!permitted.has(item.tool.name)) continue;
+        const similarity = cosineSimilarity(queryEmbedding, item.embedding);
+        const keyword = scoreToolKeywords(item.tool, context);
+        const score = similarity * this.embeddingWeight + Math.min(keyword.score, 8) * this.keywordWeight;
+        if (score <= 0) continue;
+
+        const why: string[] = [];
+        if (similarity >= this.minSimilarity) why.push(`embedding ${similarity.toFixed(3)}`);
+        why.push(...keyword.why);
+        scored.push({
+          tool: item.tool,
+          score,
+          why: why.length > 0 ? why : [`embedding ${similarity.toFixed(3)}`],
+          similarity,
+        });
+      }
+
+      scored.sort((a, b) => b.score - a.score);
+      const top = scored.slice(0, input.maxTools ?? 10);
+      const topSimilarity = top[0]?.similarity ?? 0;
+      const topKeywordScore = top[0] ? scoreToolKeywords(top[0].tool, context).score : 0;
+      const keywordLikely = topKeywordScore >= 3 || (context.hasActionHint && topKeywordScore > 0);
+      const likelyNeedsTool = topSimilarity >= this.minSimilarity || keywordLikely;
+      const confidence = Math.max(
+        0,
+        Math.min(1, Math.max(topSimilarity / (this.minSimilarity * 2), topKeywordScore / 10)),
+      );
+
+      return {
+        likelyNeedsTool,
+        candidateTools: likelyNeedsTool ? top.map((item) => item.tool) : [],
+        reasoning:
+          top.length === 0
+            ? "embedding router found no permitted tools; treating as plain conversation"
+            : `embedding candidates via ${this.embeddings.name}: ${top
+                .slice(0, 3)
+                .map((item) => `${item.tool.name}(${item.score.toFixed(2)}: ${item.why.join(", ")})`)
+                .join("; ")}${context.hasActionHint ? "; action-verb detected" : ""}`,
+        confidence,
+      };
+    } catch (err) {
+      this.disabledReason = toErrorMessage(err);
+      this.logger?.warn(
+        { err: this.disabledReason, embeddings: this.embeddings.name },
+        "embedding tool retrieval failed; falling back to keyword routing",
+      );
+      return this.fallback.retrieve(input);
+    }
+  }
+
+  private async getIndex(): Promise<IndexedTool[]> {
+    this.indexPromise ??= this.buildIndex();
+    return this.indexPromise;
+  }
+
+  private async buildIndex(): Promise<IndexedTool[]> {
+    const tools = this.registry.listTools();
+    const documents = tools.map((tool) => toolSearchDocument(tool));
+    const vectors: number[][] = [];
+    for (let start = 0; start < documents.length; start += this.batchSize) {
+      vectors.push(...(await this.embeddings.embed(documents.slice(start, start + this.batchSize))));
+    }
+    return tools.flatMap((tool, index) => {
+      const embedding = vectors[index];
+      return embedding ? [{ tool, document: documents[index] ?? "", embedding }] : [];
+    });
   }
 }
 
@@ -175,4 +323,89 @@ export class ToolRouter {
     );
     return result;
   }
+}
+
+function buildKeywordRoutingContext(input: ToolRoutingInput): KeywordRoutingContext {
+  const text = `${input.message} ${input.recentSummary ?? ""}`;
+  const tokens = tokenize(text);
+  const tokenSet = new Set(tokens);
+  return {
+    tokens,
+    tokenSet,
+    lowered: input.message.toLowerCase(),
+    hasActionHint: ACTION_HINTS.some((hint) => tokenSet.has(hint)),
+  };
+}
+
+function filterPermittedTools(
+  tools: RegisteredTool[],
+  memberPermissions: readonly string[],
+): RegisteredTool[] {
+  const held = new Set(memberPermissions.map((p) => p.toUpperCase()));
+  const isAdmin = held.has("ADMINISTRATOR");
+  return tools.filter((tool) => {
+    // Permission pre-filter: do not offer tools the member cannot run.
+    const required = tool.requiredDiscordPermissions ?? [];
+    return isAdmin || required.every((p) => held.has(p.toUpperCase()));
+  });
+}
+
+function scoreToolKeywords(tool: RegisteredTool, context: KeywordRoutingContext): { score: number; why: string[] } {
+  let score = 0;
+  const why: string[] = [];
+
+  if (context.lowered.includes(tool.name)) {
+    score += 6;
+    why.push("name mentioned");
+  }
+  const nameParts = tool.name.split("_");
+  const nameHits = nameParts.filter((part) => context.tokenSet.has(part)).length;
+  if (nameHits > 0) {
+    score += nameHits * 2;
+    why.push(`name tokens x${nameHits}`);
+  }
+
+  const catWords = CATEGORY_KEYWORDS[tool.category] ?? [];
+  const catHits = catWords.filter((word) => context.tokenSet.has(word)).length;
+  if (catHits > 0) {
+    score += catHits * 1.5;
+    why.push(`category keywords x${catHits}`);
+  }
+
+  const descTokens = new Set(tokenize(tool.description));
+  const descHits = context.tokens.filter((token) => descTokens.has(token)).length;
+  if (descHits > 0) {
+    score += descHits;
+    why.push(`description overlap x${descHits}`);
+  }
+
+  let exampleHits = 0;
+  for (const example of tool.examples ?? []) {
+    const exTokens = new Set(tokenize(example));
+    exampleHits += context.tokens.filter((token) => exTokens.has(token)).length > 1 ? 1 : 0;
+  }
+  if (exampleHits > 0) {
+    score += exampleHits * 1.5;
+    why.push(`example match x${exampleHits}`);
+  }
+
+  return { score, why };
+}
+
+function toolSearchDocument(tool: RegisteredTool): string {
+  const args = describeArgsSchema(tool.argsSchema);
+  return [
+    `tool name: ${tool.name}`,
+    `category: ${tool.category}`,
+    `description: ${tool.description}`,
+    `examples: ${(tool.examples ?? []).join(" | ")}`,
+    `arguments: ${Object.entries(args)
+      .map(([name, shape]) => `${name}: ${shape}`)
+      .join("; ")}`,
+    `risk: ${tool.riskLevel}`,
+    tool.requiresConfirmation ? "requires user confirmation before execution" : "does not require confirmation",
+    (tool.requiredDiscordPermissions ?? []).length > 0
+      ? `required Discord permissions: ${(tool.requiredDiscordPermissions ?? []).join(", ")}`
+      : "no member permission required",
+  ].join("\n");
 }

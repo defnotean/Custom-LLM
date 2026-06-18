@@ -1,0 +1,51 @@
+{
+  "status": "fail",
+  "thresholds": {
+    "minTotalCases": 10,
+    "minValidJsonRate": 0.98,
+    "minActionTypeAccuracy": 0.9,
+    "minToolNameAccuracy": 0.9,
+    "minToolArgumentValidity": 0.85,
+    "minNoToolAccuracy": 0.9,
+    "maxHallucinatedToolRate": 0.02,
+    "maxMissingPredictions": 0,
+    "maxAccuracyRegression": 0.02,
+    "maxHallucinationIncrease": 0,
+    "maxMissingPredictionIncrease": 0
+  },
+  "candidate": {
+    "suitePath": "training/evals/tool-routing.eval.jsonl",
+    "predictionsPath": "training/evals/tiny-transformer-protocol-iter14.det.tool.predictions.jsonl",
+    "total": 34,
+    "validJsonRate": 0.941176,
+    "actionTypeAccuracy": 0.970588,
+    "toolNameAccuracy": 0.8125,
+    "toolArgumentValidity": 1,
+    "noToolAccuracy": 1,
+    "hallucinatedToolRate": 0.088235,
+    "missingPredictions": 0,
+    "failures": 3,
+    "latencyP95Ms": 738.315
+  },
+  "failures": [
+    {
+      "metric": "validJsonRate",
+      "actual": 0.941176,
+      "expected": ">= 0.98",
+      "message": "validJsonRate is below promotion threshold"
+    },
+    {
+      "metric": "toolNameAccuracy",
+      "actual": 0.8125,
+      "expected": ">= 0.9",
+      "message": "toolNameAccuracy is below promotion threshold"
+    },
+    {
+      "metric": "hallucinatedToolRate",
+      "actual": 0.088235,
+      "expected": "<= 0.02",
+      "message": "hallucinatedToolRate is above promotion threshold"
+    }
+  ],
+  "warnings": []
+}

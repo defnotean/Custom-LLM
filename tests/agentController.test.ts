@@ -167,8 +167,9 @@ describe("AgentController", () => {
       traces,
     );
     const reply = await controller.handleDiscordMessage(makeCtx("do the secret thing"));
-    expect(reply.content).toMatch(/doesn't exist/i);
-    expect(traces[0]?.toolDenied).toBe("not_found");
+    expect(reply.content).toMatch(/can't use/i);
+    expect(traces[0]?.toolDenied).toBe("not_in_candidate_set");
+    expect(traces[0]?.errors).toContain("tool_not_in_candidate_set: made_up_tool");
   });
 
   it("degrades to plain message when the model ignores the JSON protocol", async () => {

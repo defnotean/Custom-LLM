@@ -1,0 +1,80 @@
+# Production DPO QLoRA baseline for the Custom-LLM bot.
+# Requires a CUDA/ROCm training environment with Axolotl installed.
+# Build inputs first:
+#   npm run build:preference-mixture
+# Train:
+#   axolotl train training/configs/axolotl/qwen3-qlora-dpo.yaml
+#
+# Use only after an SFT adapter passes eval gates. Synthetic-only DPO data is
+# useful for protocol smoke tests, not final tone/quality alignment.
+
+base_model: Qwen/Qwen3-4B-Instruct-2507
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+rl: dpo
+load_in_8bit: false
+load_in_4bit: true
+adapter: qlora
+strict: false
+chat_template: qwen3
+
+datasets:
+  - path: training/data/preferences/production-dpo.train.jsonl
+    split: train
+    type: chatml.prompt_pairs
+
+test_datasets:
+  - path: training/data/preferences/production-dpo.validation.jsonl
+    split: train
+    type: chatml.prompt_pairs
+
+dataset_prepared_path: training/data/axolotl/prepared/qwen3-qlora-dpo
+output_dir: training/runs/qwen3-qlora-dpo
+
+sequence_len: 2048
+sample_packing: false
+eval_sample_packing: false
+pad_to_sequence_len: true
+
+micro_batch_size: 1
+gradient_accumulation_steps: 16
+num_epochs: 1
+learning_rate: 0.00001
+lr_scheduler: cosine
+warmup_ratio: 0.03
+weight_decay: 0.0
+optimizer: adamw_bnb_8bit
+
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_linear: true
+
+dpo_beta: 0.1
+dpo_use_weighting: false
+
+bf16: auto
+fp16:
+tf32: true
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+
+eval_steps: 25
+save_steps: 25
+logging_steps: 5
+saves_per_epoch: 2
+save_total_limit: 3
+
+seed: 2026
+
+wandb_project:
+wandb_entity:
+wandb_run_id:
+wandb_name: custom-llm-qwen3-4b-instruct-2507-qlora-dpo
+
+# Optional speedups when the target GPU/installation supports them:
+# - Liger kernels through TRL/Axolotl integrations.
+# - FlashAttention/SDPA through the model runtime.

@@ -17,13 +17,13 @@ persists every conversation / tool call / training example into a **Substrate**
 project database hosted on your server rack — so real data accumulates for an
 eventual fine-tune.
 
-**Current state (2026-06-03):**
+**Current state (2026-06-18):**
 
 | Piece | State |
 |---|---|
-| Bot code (Prisma → Postgres, tools, memory, training capture) | ✅ complete, 63 tests green |
+| Bot code (Prisma → Postgres, tools, memory, training capture) | ✅ complete, 128 tests green |
 | Bot deps + Prisma client | ✅ installed/generated locally |
-| Synthetic dataset (`exports/training/synthetic-tools.jsonl`) | ✅ 86 examples generated |
+| Synthetic dataset (`exports/training/synthetic-tools.jsonl`) | ✅ 199 examples generated |
 | Substrate on the rack | ❌ **not stood up** (no PG17 / services / tunnel yet) |
 | Substrate project for the bot | ❌ not provisioned |
 | Bot ↔ Substrate wiring | ❌ not started |

@@ -51,6 +51,7 @@ const envSchema = z.object({
     .default("info"),
   MEMORY_ENABLED: booleanString.default("true"),
   TOOL_CALLING_ENABLED: booleanString.default("true"),
+  TOOL_ROUTER_STRATEGY: z.enum(["keyword", "embedding"]).default("keyword"),
   TRAINING_LOGGING_ENABLED: booleanString.default("true"),
   SAFETY_ENABLED: booleanString.default("true"),
 

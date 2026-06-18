@@ -11,7 +11,12 @@ import { MemoryAgent } from "./ai/orchestration/MemoryAgent";
 import { SafetyAgent } from "./ai/orchestration/SafetyAgent";
 
 import { buildToolRegistry } from "./tools";
-import { ToolRouter } from "./tools/ToolRouter";
+import {
+  EmbeddingToolRetrievalStrategy,
+  KeywordToolRetrievalStrategy,
+  ToolRouter,
+  type ToolRetrievalStrategy,
+} from "./tools/ToolRouter";
 import { ToolExecutor } from "./tools/ToolExecutor";
 import { ToolPermissionService } from "./tools/ToolPermissionService";
 import { ToolCooldownService } from "./tools/ToolCooldownService";
@@ -21,6 +26,7 @@ import { ConversationRepository } from "./database/repositories/ConversationRepo
 import { UserRepository } from "./database/repositories/UserRepository";
 import { ToolLogRepository } from "./database/repositories/ToolLogRepository";
 import { TrainingExampleRepository } from "./database/repositories/TrainingExampleRepository";
+import { UserFeedbackRepository } from "./database/repositories/UserFeedbackRepository";
 
 import { MemoryService } from "./memory/MemoryService";
 import type { MemoryStore } from "./memory/MemoryStore";
@@ -62,6 +68,7 @@ async function main(): Promise<void> {
   const userRepo = prisma ? new UserRepository(prisma) : null;
   const toolLogRepo = prisma ? new ToolLogRepository(prisma) : null;
   const trainingRepo = prisma ? new TrainingExampleRepository(prisma) : null;
+  const feedbackRepo = prisma ? new UserFeedbackRepository(prisma) : null;
 
   // ── LLM ────────────────────────────────────────────────────────────────
   const llm = buildLLMRouterFromEnv(env, childLogger("llm"));
@@ -69,8 +76,9 @@ async function main(): Promise<void> {
 
   // ── Embeddings + memory ────────────────────────────────────────────────
   let memoryService: MemoryService | null = null;
+  let embeddings: EmbeddingProvider | null = null;
   if (env.MEMORY_ENABLED) {
-    const embeddings: EmbeddingProvider =
+    embeddings =
       env.EMBEDDING_PROVIDER === "hashing"
         ? new HashingEmbeddingProvider()
         : new OpenAICompatibleEmbeddingProvider({
@@ -93,7 +101,9 @@ async function main(): Promise<void> {
 
   // ── Tools ──────────────────────────────────────────────────────────────
   const registry = buildToolRegistry();
-  const toolRouter = new ToolRouter(registry, { logger: childLogger("tool-router") });
+  const toolRouterLogger = childLogger("tool-router");
+  const toolRetrievalStrategy = buildToolRetrievalStrategy(registry, embeddings, toolRouterLogger);
+  const toolRouter = new ToolRouter(registry, { strategy: toolRetrievalStrategy, logger: toolRouterLogger });
   const executor = new ToolExecutor({
     registry,
     permissions: new ToolPermissionService(),
@@ -103,7 +113,7 @@ async function main(): Promise<void> {
     safetyEnabled: env.SAFETY_ENABLED,
   });
   logger.info(
-    { tools: registry.size, categories: registry.categories() },
+    { tools: registry.size, categories: registry.categories(), retrieval: env.TOOL_ROUTER_STRATEGY },
     "tool registry ready",
   );
 
@@ -116,7 +126,7 @@ async function main(): Promise<void> {
     enabled: env.TRAINING_LOGGING_ENABLED,
   });
   const exporter = trainingRepo
-    ? new DatasetExporter({ source: trainingRepo, logger: childLogger("exporter") })
+    ? new DatasetExporter({ source: trainingRepo, feedbackSource: feedbackRepo ?? undefined, logger: childLogger("exporter") })
     : null;
 
   // ── Discord client + agent ─────────────────────────────────────────────
@@ -207,6 +217,7 @@ async function main(): Promise<void> {
     registry,
     memory: memoryService ? (q, ctx, topK) => memoryService.search(q, ctx, topK) : null,
     exporter: exporter ? (outDir) => exporter.exportAll(outDir) : null,
+    recordFeedbackPreference: feedbackRepo ? (input) => feedbackRepo.createPreferencePair(input) : null,
     getHealth,
     getStats,
     logger: childLogger("api"),
@@ -288,6 +299,21 @@ async function selectMemoryStore(
     );
   }
   return new InMemoryMemoryStore();
+}
+
+function buildToolRetrievalStrategy(
+  registry: ReturnType<typeof buildToolRegistry>,
+  embeddings: EmbeddingProvider | null,
+  logger: ReturnType<typeof childLogger>,
+): ToolRetrievalStrategy {
+  const keyword = new KeywordToolRetrievalStrategy(registry);
+  if (env.TOOL_ROUTER_STRATEGY !== "embedding") return keyword;
+
+  const toolEmbeddings = embeddings ?? new HashingEmbeddingProvider();
+  return new EmbeddingToolRetrievalStrategy(registry, toolEmbeddings, {
+    fallback: keyword,
+    logger,
+  });
 }
 
 async function safeCount(fn: () => Promise<number> | undefined): Promise<number | undefined> {
