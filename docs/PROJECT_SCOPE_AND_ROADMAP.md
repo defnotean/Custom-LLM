@@ -224,7 +224,7 @@ For the "perfect tool calls" target, add BFCL-style scenarios over time:
 - Adversarial no-tool prompts that mention tool names, quote tool names, or discuss tool-call JSON.
 - Multi-step tool workflows.
 - Tool result follow-up without inventing unseen results.
-- Prompt injection in user text, tool output, and memory.
+- Prompt injection in user text, pasted tool output, and memory.
 - Large candidate registry with only top-N tools in prompt.
 
 ## Roadmap
@@ -276,6 +276,7 @@ Tasks:
 - Expand protocol eval to at least 200 cases across all starter tools and risk states.
 - Expand multi-turn confirmation/correction cases beyond the first yes/no/changed-args coverage.
 - Keep expanding adversarial no-tool/casual prompts that mention tool names or protocol JSON.
+- Expand prompt-injection cases beyond the first fake JSON, pasted tool output, memory override, permission-bypass, and confirmation-bypass coverage.
 - Compare keyword vs embedding tool retrieval on the same eval suite.
 - Add latency gates for tool routing.
 
