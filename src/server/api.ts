@@ -23,6 +23,12 @@ export interface ApiDeps {
   getLearnedItem?: LearningRouteDeps["getLearnedItem"];
   markLearningReviewed?: LearningRouteDeps["markReviewed"];
   queueLearningForTraining?: LearningRouteDeps["queueForTraining"];
+  listParameterModules?: LearningRouteDeps["listParameterModules"];
+  getParameterModule?: LearningRouteDeps["getParameterModule"];
+  createParameterModule?: LearningRouteDeps["createParameterModule"];
+  promoteParameterModule?: LearningRouteDeps["promoteParameterModule"];
+  retireParameterModule?: LearningRouteDeps["retireParameterModule"];
+  getParameterSnapshot?: LearningRouteDeps["getParameterSnapshot"];
   exporter: TrainingRouteDeps["exportAll"];
   recordFeedbackPreference?: TrainingRouteDeps["recordFeedbackPreference"];
   getHealth: () => Promise<HealthPayload>;
@@ -47,6 +53,12 @@ export function buildApiServer(deps: ApiDeps): FastifyInstance {
     getLearnedItem: deps.getLearnedItem ?? null,
     markReviewed: deps.markLearningReviewed ?? null,
     queueForTraining: deps.queueLearningForTraining ?? null,
+    listParameterModules: deps.listParameterModules ?? null,
+    getParameterModule: deps.getParameterModule ?? null,
+    createParameterModule: deps.createParameterModule ?? null,
+    promoteParameterModule: deps.promoteParameterModule ?? null,
+    retireParameterModule: deps.retireParameterModule ?? null,
+    getParameterSnapshot: deps.getParameterSnapshot ?? null,
   });
   registerTrainingRoutes(app, {
     exportAll: deps.exporter,

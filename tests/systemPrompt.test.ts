@@ -9,7 +9,7 @@ import {
 describe("systemPrompt", () => {
   it("hardcodes the she/her persona and strict JSON protocol", () => {
     const prompt = buildSystemPrompt({ botName: "Irene", isDM: true });
-    expect(SYSTEM_PROMPT_VERSION).toBe("v1.3.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("v1.4.0");
     expect(DEFAULT_BOT_NAME).toBe("Irene");
     expect(DEFAULT_BOT_PRONOUNS).toBe("she/her");
     expect(prompt).toContain("You present as she/her");
@@ -29,5 +29,17 @@ describe("systemPrompt", () => {
 
     expect(prompt).toContain("Relevant learned skills");
     expect(prompt).toContain("Use ping for health checks");
+  });
+
+  it("includes active parameter module hints when provided", () => {
+    const prompt = buildSystemPrompt({
+      botName: "Irene",
+      isDM: true,
+      parameterModuleSection:
+        "Active learned parameter modules:\n- [module:1 kind=expert params=775358] tool expert",
+    });
+
+    expect(prompt).toContain("Active learned parameter modules");
+    expect(prompt).toContain("tool expert");
   });
 });

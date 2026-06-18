@@ -12,8 +12,9 @@ Discord message
   → safety pre-check               (SafetyService: rate limit + content screen)
   → memory retrieval (top ~5)      (MemoryService → vector store)
   → tool candidate retrieval (~10) (ToolRouter — NEVER the whole registry)
+  → parameter activation (top ~3)  (active promoted growth modules)
   → skill retrieval (top ~3)       (approved LearnedItem skill hints)
-  → prompt builder                 (systemPrompt + tool/memory/skill/safety sections)
+  → prompt builder                 (systemPrompt + tool/memory/parameter/skill/safety sections)
   → LLM call                       (LLMRouter → OpenAI-compatible / Ollama)
   → response parser                (parseAssistantResponse: JSON + repair + Zod)
   → tool gates                     (validate args → permissions → cooldown → risk/confirmation)
@@ -37,10 +38,10 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 | Orchestration | `src/ai/orchestration/` | AgentController + thin agents (conversation, tool-router, memory, safety, evaluation) |
 | LLM | `src/ai/llm/` | Provider abstraction, OpenAI-compatible + native Ollama, fallback router |
 | Parsing | `src/ai/parsing/` | JSON extraction/repair, strict action-protocol validation |
-| Prompts | `src/ai/prompts/` | Versioned system prompt, tool/memory/safety sections |
+| Prompts | `src/ai/prompts/` | Versioned system prompt, tool/memory/parameter/skill/safety sections |
 | Tools | `src/tools/` | Registry, router, executor, permission/cooldown services, categories |
 | Memory | `src/memory/` | Service + policy + embedding providers + stores (pgvector/Qdrant/in-memory) |
-| Live Learning | `src/learning/`, `src/database/repositories/LiveLearningRepository.ts` | Runtime learning ledger, persisted learned-item records, immediate memory/skill access, parameter-module accounting |
+| Live Learning | `src/learning/`, `src/database/repositories/LiveLearningRepository.ts` | Runtime learning ledger, persisted learned-item records, immediate memory/skill access, parameter-module accounting and activation |
 | Safety | `src/safety/` | Rate limiting, moderation screen (placeholder), confirmation gating |
 | Training | `src/training/` | Full-fidelity interaction capture, JSONL exporters, synthetic generation |
 | Persistence | `src/database/`, `prisma/` | Prisma models + repositories |
@@ -70,6 +71,8 @@ Irene should not be a closed-door model that only improves after manual restarts
 - **Parameter growth path:** reviewed data feeds a background learner that can train adapters, specialists, router heads, or experts. New modules are staged, evaluated, registered, and hot-loaded only after gates pass, with rollback available.
 
 Memory retrieval is not the same thing as model-weight learning. Durable memories make Irene more useful immediately, but they do not increase parameter count. Parameter count grows only when the deployed architecture gains trainable modules: adapters, router heads, specialists, experts, ensembles, or a bigger base model. The runtime should track base parameters, adapter parameters, specialist/expert parameters, total deployed parameters, and active parameters per request.
+
+The current runtime can also activate promoted parameter-module records per request: active non-base modules are selected by query/tool relevance, their retrievable source learning is added to the prompt, and the trace records which modules were active. This is the live control-plane behavior; loading real LoRA adapters or specialist checkpoints into the model server remains the next hot-loader step.
 
 ### Tool routing at 400+ tools
 
@@ -123,5 +126,5 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
 | Voice presence, STT, and TTS | **Planned** - use bot voice connections for compliant join/speak/listen behavior; requires opt-in retention policy and evals |
 | Live memory/skill learning | **Memory + interaction capture + review API + skill retrieval implemented** - memory writes are retrievable immediately; tool workflows become skill candidates; `/learning/items` reviews/queues candidates; approved skills are retrieved into prompts as workflow hints; richer UI TODO |
-| Lifelong parameter-growth loop | **Accounting + persistence implemented** - parameter modules can be staged, gate-promoted, counted, persisted, reported through `/learning/status`, and linked to source learned items; background trainer/hot-loader TODO |
+| Lifelong parameter-growth loop | **Accounting + persistence + activation implemented** - parameter modules can be staged, gate-promoted, counted, persisted, reported through `/learning/status`, managed through `/learning/parameter-modules`, linked to source learned items, and retrieved into prompts when active/relevant; background trainer/real adapter hot-loader TODO |
 | Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |

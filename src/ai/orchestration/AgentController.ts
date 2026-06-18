@@ -5,6 +5,7 @@ import type {
   AssistantAction,
   InteractionTrace,
   MemoryHit,
+  ParameterModuleHint,
   SkillHint,
   TrainingSink,
   TrainingSinkResult,
@@ -22,6 +23,7 @@ import {
 import { buildSafetySection } from "../prompts/safetyPrompt";
 import { buildMemorySection } from "../prompts/memoryPrompt";
 import { buildSkillSection } from "../prompts/skillPrompt";
+import { buildParameterModuleSection } from "../prompts/parameterPrompt";
 import type { ToolExecutionContext, ToolMemoryAccess } from "../../tools/ToolDefinition";
 import type { ToolRegistry } from "../../tools/ToolRegistry";
 import type { ToolExecutor, ToolExecutionOutcome } from "../../tools/ToolExecutor";
@@ -50,6 +52,7 @@ export interface AgentControllerOptions {
   toolRouterAgent?: ToolRouterAgent | null;
   memoryAgent?: MemoryAgent | null;
   skillRetriever?: SkillRetrievalPort | null;
+  parameterActivator?: ParameterActivationPort | null;
   safetyAgent?: SafetyAgent | null;
   training?: TrainingSink | null;
   learning?: InteractionLearningSink | null;
@@ -70,6 +73,10 @@ export interface InteractionLearningSink {
 
 export interface SkillRetrievalPort {
   retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<SkillHint[]>;
+}
+
+export interface ParameterActivationPort {
+  retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<ParameterModuleHint[]>;
 }
 
 const CONFIRM_PATTERN = /^(yes|y|yep|yeah|confirm|do it|go ahead|sure|ok|okay)\b/i;
@@ -98,6 +105,7 @@ export class AgentController {
   private readonly toolRouterAgent: ToolRouterAgent | null;
   private readonly memoryAgent: MemoryAgent | null;
   private readonly skillRetriever: SkillRetrievalPort | null;
+  private readonly parameterActivator: ParameterActivationPort | null;
   private readonly safetyAgent: SafetyAgent | null;
   private readonly training: TrainingSink | null;
   private readonly learning: InteractionLearningSink | null;
@@ -116,6 +124,7 @@ export class AgentController {
     this.toolRouterAgent = options.toolRouterAgent ?? null;
     this.memoryAgent = options.memoryAgent ?? null;
     this.skillRetriever = options.skillRetriever ?? null;
+    this.parameterActivator = options.parameterActivator ?? null;
     this.safetyAgent = options.safetyAgent ?? null;
     this.training = options.training ?? null;
     this.learning = options.learning ?? null;
@@ -190,6 +199,24 @@ export class AgentController {
         }
       }
 
+      // 3c. Active learned parameter-module retrieval. This is the live
+      // runtime view of promoted growth modules; the actual executor/tool gates
+      // still decide whether any external action can happen.
+      let parameterModuleSection: string | null = null;
+      if (this.parameterActivator) {
+        try {
+          const modules = await this.parameterActivator.retrieve({
+            query: ctx.content,
+            candidateToolNames,
+            topK: 3,
+          });
+          trace.parameterModulesActivated = modules;
+          parameterModuleSection = buildParameterModuleSection(modules);
+        } catch (err) {
+          this.logger.warn({ err: toErrorMessage(err) }, "parameter-module activation failed; continuing without");
+        }
+      }
+
       // 4. Prompt build.
       const systemPrompt = buildSystemPrompt({
         botName: this.botName,
@@ -199,6 +226,7 @@ export class AgentController {
         toolSection,
         memorySection: memoryHits.length > 0 ? memorySection : null,
         skillSection,
+        parameterModuleSection,
         safetySection: buildSafetySection(),
       });
       trace.systemPrompt = systemPrompt;
@@ -459,6 +487,7 @@ export class AgentController {
       systemPrompt: "",
       memoriesRetrieved: [],
       skillsRetrieved: [],
+      parameterModulesActivated: [],
       candidateToolNames: [],
       likelyNeedsTool: false,
       finalResponse: "",

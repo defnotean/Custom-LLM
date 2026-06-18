@@ -8,7 +8,7 @@ Every interaction the bot handles is captured with full fidelity so it can becom
 
 1. **Conversation** - the user-facing exchange: message, reply, and metadata.
 2. **TrainingExample** - the full trace:
-   - `inputJson`: system prompt version and full text, user message, recent transcript, retrieved memories, candidate tools shown, router verdict, ids.
+   - `inputJson`: system prompt version and full text, user message, recent transcript, retrieved memories, retrieved skills, activated parameter modules, candidate tools shown, router verdict, ids.
    - `outputJson`: raw model output, parse success, parsed action, tool call and real tool result, denial reason if gated, final response, errors, latencies, model name.
    - `qualityScore`: heuristic 0-1 score from `EvaluationAgent`; useful as a filter, not a substitute for review.
    - `reviewed`: defaults false; flip after human review.
@@ -24,6 +24,7 @@ Parse failures and tool denials are logged too. Failure data is signal for forma
 - Candidate content and metadata are scrubbed for obvious tokens/API keys before storage.
 - Candidates are not automatically trained into weights or promoted into parameter modules. They require review, queueing, background training, eval gates, and parameter-module promotion.
 - Approved `skill` candidates with `skill_registry` access are retrieved into future prompts as workflow hints. They do not bypass tool retrieval, permissions, confirmations, or executor gates.
+- Active promoted parameter modules are selected per request and retrieved into future prompts with any retrievable source-learning summaries. This makes a newly promoted adapter/specialist/expert visible to Irene immediately, while real model-weight loading remains the model server hot-loader step.
 
 Review and queue candidates through the private ops API:
 
@@ -37,6 +38,16 @@ curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/review \
 curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/queue \
   -H "content-type: application/json" \
   -d '{"datasetId":"skill-ledger-v1","reason":"approved for next adapter/specialist run"}'
+
+curl -X POST http://127.0.0.1:3000/learning/parameter-modules \
+  -H "content-type: application/json" \
+  -d '{"name":"tool-expert-v1","kind":"expert","parameters":775358,"activeParameters":775358,"route":"ping","sourceLearningItemIds":["<learned-item-id>"],"metadata":{"toolName":"ping"}}'
+
+curl -X POST http://127.0.0.1:3000/learning/parameter-modules/<module-id>/promote \
+  -H "content-type: application/json" \
+  -d '{"gateStatus":"pass","evalReport":{"kind":"skill","path":"training/evals/skill-retrieval.report.json","status":"pass"}}'
+
+curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<module-id>"
 ```
 
 ## Export Formats
@@ -136,6 +147,16 @@ npm run eval:router:gate -- --out training/evals/specialist-routing-oracle.gate.
 ```
 
 This writes a separate router SFT set under `training/data/router/` and a held-out `training/evals/specialist-routing.eval.jsonl` suite. The router rows are not mixed into the main assistant SFT because their assistant output is route-label JSON, not a user-facing assistant action. The current routes are `tool_protocol`, `knowledge`, `persona`, `casual`, `social_cue`, and `boundary`, mapped onto tool, knowledge, conversation, and safety experts.
+
+For approved-skill retrieval regressions, run:
+
+```bash
+npm run build:skill-eval
+npm run eval:skill
+npm run eval:skill:gate
+```
+
+The skill retrieval suite checks direct tool matches, paraphrases, no-hit cases, and filtering of unapproved/non-retrievable skill records. Promotion requires perfect recall, precision, top-1 accuracy for expected skills, no-hit accuracy, and zero forbidden hits before changing runtime retrieval behavior.
 
 ## Review Workflow
 

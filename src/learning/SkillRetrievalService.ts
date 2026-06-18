@@ -31,6 +31,7 @@ export class SkillRetrievalService {
       .filter((item) => item.reviewStatus === "approved")
       .filter((item) => item.retention.canRetrieve)
       .filter((item) => item.accessPaths.includes("skill_registry"))
+      .filter((item) => candidateTools.size === 0 || !toolNameFor(item) || candidateTools.has(toolNameFor(item) ?? ""))
       .map((item) => toScoredHint(item, queryTerms, candidateTools))
       .filter((hint) => hint.score > 0)
       .sort((a, b) => b.score - a.score || b.confidence - a.confidence || a.id.localeCompare(b.id))
@@ -39,7 +40,7 @@ export class SkillRetrievalService {
 }
 
 function toScoredHint(item: LearnedItem, queryTerms: Set<string>, candidateTools: Set<string>): SkillHint {
-  const toolName = typeof item.metadata.toolName === "string" ? item.metadata.toolName : undefined;
+  const toolName = toolNameFor(item);
   const contentTerms = terms([item.content, item.source, toolName ?? ""].join(" "));
   let relevance = 0;
   for (const term of queryTerms) {
@@ -56,6 +57,10 @@ function toScoredHint(item: LearnedItem, queryTerms: Set<string>, candidateTools
     score,
     ...(toolName ? { toolName } : {}),
   };
+}
+
+function toolNameFor(item: LearnedItem): string | undefined {
+  return typeof item.metadata.toolName === "string" ? item.metadata.toolName : undefined;
 }
 
 function terms(value: string): Set<string> {

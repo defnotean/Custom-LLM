@@ -74,6 +74,18 @@ export interface SkillHint {
   toolName?: string;
 }
 
+export interface ParameterModuleHint {
+  id: string;
+  name: string;
+  kind: string;
+  parameters: number;
+  activeParameters: number;
+  score: number;
+  route?: string;
+  sourceLearningItemIds: string[];
+  sourceSummaries: string[];
+}
+
 export interface MemoryQueryContext {
   userId: string;
   guildId: string | null;
@@ -142,6 +154,7 @@ export interface InteractionTrace {
 
   memoriesRetrieved: MemoryHit[];
   skillsRetrieved?: SkillHint[];
+  parameterModulesActivated?: ParameterModuleHint[];
   candidateToolNames: string[];
   likelyNeedsTool: boolean;
   routerReasoning?: string;

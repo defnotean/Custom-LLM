@@ -46,6 +46,7 @@ import { TrainingDataLogger } from "./training/TrainingDataLogger";
 import { DatasetExporter } from "./training/DatasetExporter";
 import { InteractionLearningCapture } from "./learning/InteractionLearningCapture";
 import { SkillRetrievalService } from "./learning/SkillRetrievalService";
+import { ParameterActivationService } from "./learning/ParameterActivationService";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { createMessageHandler } from "./discord/events/messageCreate";
@@ -135,6 +136,7 @@ async function main(): Promise<void> {
     : null;
   const learningCapture = learningRepo ? new InteractionLearningCapture(learningRepo, childLogger("learning-capture")) : null;
   const skillRetriever = learningRepo ? new SkillRetrievalService(learningRepo) : null;
+  const parameterActivator = learningRepo ? new ParameterActivationService(learningRepo) : null;
 
   // ── Discord client + agent ─────────────────────────────────────────────
   const discordClient = createDiscordClient();
@@ -150,6 +152,7 @@ async function main(): Promise<void> {
       ? new MemoryAgent(memoryService, childLogger("memory-agent"))
       : null,
     skillRetriever,
+    parameterActivator,
     safetyAgent: env.SAFETY_ENABLED ? new SafetyAgent(safetyService) : null,
     training: trainingLogger,
     learning: learningCapture,
@@ -234,6 +237,12 @@ async function main(): Promise<void> {
     getLearnedItem: learningRepo ? (id) => learningRepo.getLearnedItem(id) : null,
     markLearningReviewed: learningRepo ? (id, status, options) => learningRepo.markReviewed(id, status, options) : null,
     queueLearningForTraining: learningRepo ? (id, options) => learningRepo.queueForTraining(id, options) : null,
+    listParameterModules: learningRepo ? (filter) => learningRepo.listParameterModules(filter) : null,
+    getParameterModule: learningRepo ? (id) => learningRepo.getParameterModule(id) : null,
+    createParameterModule: learningRepo ? (input) => learningRepo.createParameterModule(input) : null,
+    promoteParameterModule: learningRepo ? (id, options) => learningRepo.promoteParameterModule(id, options) : null,
+    retireParameterModule: learningRepo ? (id) => learningRepo.retireParameterModule(id) : null,
+    getParameterSnapshot: learningRepo ? (options) => learningRepo.getParameterSnapshot(options) : null,
     exporter: exporter ? (outDir) => exporter.exportAll(outDir) : null,
     recordFeedbackPreference: feedbackRepo ? (input) => feedbackRepo.createPreferencePair(input) : null,
     getHealth,

@@ -61,6 +61,7 @@ export class TrainingDataLogger implements TrainingSink {
           metadataJson: toJsonValue({
             systemPromptVersion: trace.systemPromptVersion,
             candidateTools: trace.candidateToolNames,
+            parameterModulesActivated: trace.parameterModulesActivated ?? [],
             toolCall: trace.toolCall ?? null,
             toolSuccess: trace.toolSuccess ?? null,
             parseOk: trace.parseOk ?? null,
@@ -85,6 +86,7 @@ export class TrainingDataLogger implements TrainingSink {
           transcript: trace.transcript ?? null,
           memoriesRetrieved: toJsonValue(trace.memoriesRetrieved),
           skillsRetrieved: toJsonValue(trace.skillsRetrieved ?? []),
+          parameterModulesActivated: toJsonValue(trace.parameterModulesActivated ?? []),
           candidateTools: toJsonValue(trace.candidateToolNames),
           likelyNeedsTool: trace.likelyNeedsTool,
           routerReasoning: trace.routerReasoning ?? null,

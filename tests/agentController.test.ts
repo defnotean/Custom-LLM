@@ -11,7 +11,7 @@ import { ToolCooldownService } from "../src/tools/ToolCooldownService";
 import { defineTool, toolOk } from "../src/tools/ToolDefinition";
 import { SafetyService } from "../src/safety/SafetyService";
 import type { BotMessageContext } from "../src/types/discord";
-import type { InteractionTrace, SkillHint } from "../src/types/ai";
+import type { InteractionTrace, ParameterModuleHint, SkillHint } from "../src/types/ai";
 import { MockLLMProvider, testLogger } from "./helpers";
 
 function makeRegistry(): ToolRegistry {
@@ -69,6 +69,9 @@ function makeController(
       captureInteraction(trace: InteractionTrace, training?: { conversationId?: string; trainingExampleId?: string }): Promise<void>;
     } | null;
     skillRetriever?: { retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<SkillHint[]> } | null;
+    parameterActivator?: {
+      retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<ParameterModuleHint[]>;
+    } | null;
   },
 ) {
   const registry = makeRegistry();
@@ -86,6 +89,7 @@ function makeController(
     executor,
     toolRouterAgent: new ToolRouterAgent(registry, new ToolRouter(registry)),
     skillRetriever: options?.skillRetriever ?? null,
+    parameterActivator: options?.parameterActivator ?? null,
     safetyAgent: new SafetyAgent(new SafetyService(testLogger, { enabled: true })),
     training: {
       logInteraction: async (trace) => {
@@ -250,6 +254,41 @@ describe("AgentController", () => {
         toolName: "ping",
       },
     ]);
+  });
+
+  it("injects active learned parameter modules into the first model prompt", async () => {
+    const traces: InteractionTrace[] = [];
+    const moduleHint: ParameterModuleHint = {
+      id: "module-tool-expert",
+      name: "discord tool-call expert",
+      kind: "expert",
+      route: "ping",
+      parameters: 775_358,
+      activeParameters: 775_358,
+      score: 4.58,
+      sourceLearningItemIds: ["learned-skill-1"],
+      sourceSummaries: ["Use ping for lightweight health checks before deeper diagnostics."],
+    };
+    const { controller, llm } = makeController(
+      ['{"type":"tool_call","tool":"ping","arguments":{},"reason":"active module says ping fits"}', '{"type":"message","content":"pong"}'],
+      traces,
+      {
+        parameterActivator: {
+          retrieve: async (input) => {
+            expect(input).toMatchObject({ query: "ping please, are you alive?", candidateToolNames: expect.arrayContaining(["ping"]) });
+            return [moduleHint];
+          },
+        },
+      },
+    );
+
+    await controller.handleDiscordMessage(makeCtx("ping please, are you alive?"));
+
+    const systemMessage = llm.requests[0]?.messages[0]?.content ?? "";
+    expect(systemMessage).toContain("Active learned parameter modules");
+    expect(systemMessage).toContain("discord tool-call expert");
+    expect(systemMessage).toContain("Use ping for lightweight health checks");
+    expect(traces[0]?.parameterModulesActivated).toEqual([moduleHint]);
   });
 
   it("degrades to plain message when the model ignores the JSON protocol", async () => {

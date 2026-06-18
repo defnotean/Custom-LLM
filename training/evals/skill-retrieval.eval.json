@@ -1,0 +1,342 @@
+{
+  "skills": [
+    {
+      "id": "skill:ping-health",
+      "kind": "skill",
+      "content": "Use ping for lightweight bot health checks, uptime checks, and latency pongs.",
+      "source": "tool_success",
+      "confidence": 0.9,
+      "reviewStatus": "approved",
+      "accessPaths": [
+        "skill_registry"
+      ],
+      "provenance": {},
+      "retention": {
+        "canRetrieve": true,
+        "canTrain": true
+      },
+      "training": {
+        "status": "not_queued"
+      },
+      "parameterModuleIds": [],
+      "createdAt": "2026-06-18T16:00:00.000Z",
+      "updatedAt": "2026-06-18T16:00:00.000Z",
+      "metadata": {
+        "toolName": "ping"
+      }
+    },
+    {
+      "id": "skill:remember-preference",
+      "kind": "skill",
+      "content": "Use remember_fact when the user explicitly asks Irene to remember a stable preference or project fact.",
+      "source": "tool_success",
+      "confidence": 0.9,
+      "reviewStatus": "approved",
+      "accessPaths": [
+        "skill_registry"
+      ],
+      "provenance": {},
+      "retention": {
+        "canRetrieve": true,
+        "canTrain": true
+      },
+      "training": {
+        "status": "not_queued"
+      },
+      "parameterModuleIds": [],
+      "createdAt": "2026-06-18T16:00:00.000Z",
+      "updatedAt": "2026-06-18T16:00:00.000Z",
+      "metadata": {
+        "toolName": "remember_fact"
+      }
+    },
+    {
+      "id": "skill:recall-memory",
+      "kind": "skill",
+      "content": "Use recall_memory when the user asks what Irene remembers or asks to search stored preferences and facts.",
+      "source": "tool_success",
+      "confidence": 0.9,
+      "reviewStatus": "approved",
+      "accessPaths": [
+        "skill_registry"
+      ],
+      "provenance": {},
+      "retention": {
+        "canRetrieve": true,
+        "canTrain": true
+      },
+      "training": {
+        "status": "not_queued"
+      },
+      "parameterModuleIds": [],
+      "createdAt": "2026-06-18T16:00:00.000Z",
+      "updatedAt": "2026-06-18T16:00:00.000Z",
+      "metadata": {
+        "toolName": "recall_memory"
+      }
+    },
+    {
+      "id": "skill:send-channel-message",
+      "kind": "skill",
+      "content": "Use send_message for explicit requests to post a message to another Discord channel.",
+      "source": "tool_success",
+      "confidence": 0.9,
+      "reviewStatus": "approved",
+      "accessPaths": [
+        "skill_registry"
+      ],
+      "provenance": {},
+      "retention": {
+        "canRetrieve": true,
+        "canTrain": true
+      },
+      "training": {
+        "status": "not_queued"
+      },
+      "parameterModuleIds": [],
+      "createdAt": "2026-06-18T16:00:00.000Z",
+      "updatedAt": "2026-06-18T16:00:00.000Z",
+      "metadata": {
+        "toolName": "send_message"
+      }
+    },
+    {
+      "id": "skill:guild-stats",
+      "kind": "skill",
+      "content": "Use get_guild_stats for server statistics, member counts, channel counts, roles, boosts, and guild overview requests.",
+      "source": "tool_success",
+      "confidence": 0.9,
+      "reviewStatus": "approved",
+      "accessPaths": [
+        "skill_registry"
+      ],
+      "provenance": {},
+      "retention": {
+        "canRetrieve": true,
+        "canTrain": true
+      },
+      "training": {
+        "status": "not_queued"
+      },
+      "parameterModuleIds": [],
+      "createdAt": "2026-06-18T16:00:00.000Z",
+      "updatedAt": "2026-06-18T16:00:00.000Z",
+      "metadata": {
+        "toolName": "get_guild_stats"
+      }
+    },
+    {
+      "id": "skill:channel-summary",
+      "kind": "skill",
+      "content": "Use summarize_channel_recent_messages when the user asks for a recent channel recap or summary.",
+      "source": "tool_success",
+      "confidence": 0.9,
+      "reviewStatus": "approved",
+      "accessPaths": [
+        "skill_registry"
+      ],
+      "provenance": {},
+      "retention": {
+        "canRetrieve": true,
+        "canTrain": true
+      },
+      "training": {
+        "status": "not_queued"
+      },
+      "parameterModuleIds": [],
+      "createdAt": "2026-06-18T16:00:00.000Z",
+      "updatedAt": "2026-06-18T16:00:00.000Z",
+      "metadata": {
+        "toolName": "summarize_channel_recent_messages"
+      }
+    },
+    {
+      "id": "skill:candidate-hidden",
+      "kind": "skill",
+      "content": "Unapproved ping skill must never be retrieved.",
+      "source": "tool_success",
+      "confidence": 0.9,
+      "reviewStatus": "candidate",
+      "accessPaths": [
+        "skill_registry"
+      ],
+      "provenance": {},
+      "retention": {
+        "canRetrieve": true,
+        "canTrain": true
+      },
+      "training": {
+        "status": "not_queued"
+      },
+      "parameterModuleIds": [],
+      "createdAt": "2026-06-18T16:00:00.000Z",
+      "updatedAt": "2026-06-18T16:00:00.000Z",
+      "metadata": {
+        "toolName": "ping"
+      }
+    },
+    {
+      "id": "skill:not-retrievable",
+      "kind": "skill",
+      "content": "Approved but non-retrievable skill must never be retrieved.",
+      "source": "tool_success",
+      "confidence": 0.9,
+      "reviewStatus": "approved",
+      "accessPaths": [
+        "skill_registry"
+      ],
+      "provenance": {},
+      "retention": {
+        "canRetrieve": false,
+        "canTrain": true
+      },
+      "training": {
+        "status": "not_queued"
+      },
+      "parameterModuleIds": [],
+      "createdAt": "2026-06-18T16:00:00.000Z",
+      "updatedAt": "2026-06-18T16:00:00.000Z",
+      "metadata": {
+        "toolName": "recall_memory"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "skill:case:ping-direct",
+      "kind": "direct_tool",
+      "query": "ping please, are you alive?",
+      "candidateToolNames": [
+        "ping"
+      ],
+      "expectedSkillIds": [
+        "skill:ping-health"
+      ],
+      "forbiddenSkillIds": [],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:remember-preference",
+      "kind": "direct_tool",
+      "query": "remember that I prefer short replies",
+      "candidateToolNames": [
+        "remember_fact"
+      ],
+      "expectedSkillIds": [
+        "skill:remember-preference"
+      ],
+      "forbiddenSkillIds": [],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:recall-memory",
+      "kind": "paraphrase",
+      "query": "what do you remember about my timezone?",
+      "candidateToolNames": [
+        "recall_memory"
+      ],
+      "expectedSkillIds": [
+        "skill:recall-memory"
+      ],
+      "forbiddenSkillIds": [],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:send-channel",
+      "kind": "paraphrase",
+      "query": "post this update in announcements",
+      "candidateToolNames": [
+        "send_message"
+      ],
+      "expectedSkillIds": [
+        "skill:send-channel-message"
+      ],
+      "forbiddenSkillIds": [],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:guild-stats",
+      "kind": "direct_tool",
+      "query": "how many members and channels are in this server?",
+      "candidateToolNames": [
+        "get_guild_stats"
+      ],
+      "expectedSkillIds": [
+        "skill:guild-stats"
+      ],
+      "forbiddenSkillIds": [],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:channel-summary",
+      "kind": "paraphrase",
+      "query": "give me a quick recap of recent messages here",
+      "candidateToolNames": [
+        "summarize_channel_recent_messages"
+      ],
+      "expectedSkillIds": [
+        "skill:channel-summary"
+      ],
+      "forbiddenSkillIds": [],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:casual-negative",
+      "kind": "negative",
+      "query": "pineapple pizza, valid or cursed?",
+      "candidateToolNames": [],
+      "expectedSkillIds": [],
+      "forbiddenSkillIds": [],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:no-tool-negative",
+      "kind": "negative",
+      "query": "just vibe check this idea, do not run tools",
+      "candidateToolNames": [],
+      "expectedSkillIds": [],
+      "forbiddenSkillIds": [],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:unapproved-filter",
+      "kind": "filtering",
+      "query": "ping health check",
+      "candidateToolNames": [
+        "ping"
+      ],
+      "expectedSkillIds": [
+        "skill:ping-health"
+      ],
+      "forbiddenSkillIds": [
+        "skill:candidate-hidden"
+      ],
+      "topK": 3,
+      "metadata": {}
+    },
+    {
+      "id": "skill:case:retention-filter",
+      "kind": "filtering",
+      "query": "search stored memories",
+      "candidateToolNames": [
+        "recall_memory"
+      ],
+      "expectedSkillIds": [
+        "skill:recall-memory"
+      ],
+      "forbiddenSkillIds": [
+        "skill:not-retrievable"
+      ],
+      "topK": 3,
+      "metadata": {}
+    }
+  ]
+}
