@@ -54,7 +54,7 @@ export interface PromotionReportSummary {
 }
 
 export const DEFAULT_PROMOTION_THRESHOLDS: PromotionThresholds = {
-  minTotalCases: 10,
+  minTotalCases: 200,
   minValidJsonRate: 0.98,
   minActionTypeAccuracy: 0.9,
   minToolNameAccuracy: 0.9,

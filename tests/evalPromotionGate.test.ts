@@ -79,8 +79,8 @@ function makeReport(
   return {
     suitePath: "training/evals/tool-routing.eval.jsonl",
     predictionsPath: "training/evals/candidate.predictions.jsonl",
-    total: 35,
-    parseOk: 35,
+    total: 200,
+    parseOk: 200,
     validJsonRate: overrides?.validJsonRate ?? 1,
     actionTypeAccuracy: overrides?.actionTypeAccuracy ?? 0.97,
     toolNameAccuracy: overrides?.toolNameAccuracy ?? 0.95,
@@ -89,7 +89,7 @@ function makeReport(
     hallucinatedToolRate: overrides?.hallucinatedToolRate ?? 0,
     missingPredictions: overrides?.missingPredictions ?? 0,
     latencyMs: {
-      count: overrides?.latencyP95Ms === null ? 0 : 35,
+      count: overrides?.latencyP95Ms === null ? 0 : 200,
       average: overrides?.latencyP95Ms === null ? null : 90,
       p95: overrides?.latencyP95Ms ?? 120,
       max: overrides?.latencyP95Ms === null ? null : 150,

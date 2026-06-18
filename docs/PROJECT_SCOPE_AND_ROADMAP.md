@@ -276,7 +276,7 @@ Goal: get as close as practical to perfect tool calls under realistic Discord co
 
 Tasks:
 
-- Expand protocol eval to at least 200 cases across all starter tools and risk states.
+- Keep the protocol eval above the 200-case promotion floor; the current suite has 246 cases across starter tools, no-tool prompts, confirmation, clarification, permission, and injection risk states.
 - Expand multi-turn confirmation/correction cases beyond the first yes/no/changed-args coverage.
 - Keep expanding adversarial no-tool/casual prompts that mention tool names or protocol JSON.
 - Expand prompt-injection cases beyond the first fake JSON, pasted tool output, memory override, permission-bypass, and confirmation-bypass coverage.

@@ -24,6 +24,7 @@ describe("ToolEvalSuite", () => {
     const allCases = buildToolEvalCases(registry);
 
     expect(cases.length).toBeGreaterThan(5);
+    expect(allCases.length).toBeGreaterThanOrEqual(200);
     expect(cases.some((item) => item.kind === "tool_call")).toBe(true);
     expect(cases.some((item) => item.kind === "no_tool")).toBe(true);
     expect(cases.some((item) => item.kind === "no_tool" && item.metadata.adversarial === true)).toBe(true);
@@ -113,6 +114,40 @@ describe("ToolEvalSuite", () => {
         .filter((item) => item.metadata.tool === "send_message")
         .every((item) => Array.isArray(item.metadata.requiredArgs) && item.metadata.requiredArgs.includes("content")),
     ).toBe(true);
+    const casesByKind = allCases.reduce<Record<string, number>>((counts, item) => {
+      counts[item.kind] = (counts[item.kind] ?? 0) + 1;
+      return counts;
+    }, {});
+    expect(casesByKind.tool_call).toBeGreaterThanOrEqual(90);
+    expect(casesByKind.no_tool).toBeGreaterThanOrEqual(70);
+    expect(casesByKind.clarification).toBeGreaterThanOrEqual(30);
+    expect(casesByKind.permission_refusal).toBeGreaterThanOrEqual(25);
+    expect(casesByKind.confirmation_request).toBeGreaterThanOrEqual(8);
+    expect(allCases.find((item) => item.id === "tool:send_message:direct_variant_1")).toMatchObject({
+      kind: "tool_call",
+      candidateTools: ["send_message"],
+      metadata: { tool: "send_message", variant: 1 },
+    });
+    expect(allCases.find((item) => item.id === "tool:timeout_user:confirm_variant_1")).toMatchObject({
+      kind: "confirmation_request",
+      candidateTools: ["timeout_user"],
+      metadata: { tool: "timeout_user", confirmed: false, confirmationVariant: 1 },
+    });
+    expect(allCases.find((item) => item.id === "tool:add_numbers:clarify_a_1")).toMatchObject({
+      kind: "clarification",
+      candidateTools: ["add_numbers"],
+      metadata: { tool: "add_numbers", missingArg: "a", clarificationVariant: 1 },
+    });
+    expect(allCases.find((item) => item.id === "no_tool:tool_surface:send_message:1")).toMatchObject({
+      kind: "no_tool",
+      candidateTools: [],
+      metadata: { mentionedTool: "send_message", mentionedTools: ["send_message"] },
+    });
+    expect(allCases.find((item) => item.id === "no_tool:expanded:pasted_json_delete")).toMatchObject({
+      kind: "no_tool",
+      candidateTools: [],
+      metadata: { mentionedTools: ["delete_message"], subcategory: "pasted_json" },
+    });
     const addNumbersDirect = allCases.find((item) => item.id === "tool:add_numbers:direct");
     expect(addNumbersDirect?.prompt).toContain("a=1");
     expect(addNumbersDirect?.prompt).toContain("b=1");

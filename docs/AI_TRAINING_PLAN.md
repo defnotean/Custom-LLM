@@ -344,15 +344,15 @@ Current eval suite:
 
 | Eval kind | Cases | What it checks |
 |---|---:|---|
-| `tool_call` | 17 | Select listed tools, fill expected arguments, and execute after prior confirmation |
-| `clarification` | 10 | Ask for missing required details instead of guessing |
-| `permission_refusal` | 6 | Avoid unauthorized moderation/admin tool calls, including permission-bypass injection |
-| `confirmation_request` | 3 | Request confirmation for risky tools, including changed args and confirmation-bypass injection |
-| `no_tool` | 11 | Avoid forcing a tool call for casual chat, tool-name mentions, JSON-format discussion, stories, quotes, hallucinated-tool hypotheticals, cancellation turns, fake JSON, pasted tool output, and memory override text |
+| `tool_call` | 97 | Select listed tools, fill expected arguments, execute after prior confirmation, and survive direct phrasing variants across starter tools |
+| `clarification` | 36 | Ask for missing required details instead of guessing, with multiple missing-argument phrasings |
+| `permission_refusal` | 26 | Avoid unauthorized moderation/admin tool calls, including permission-bypass injection and permission phrasing variants |
+| `confirmation_request` | 8 | Request confirmation for risky tools, including changed args, confirmation-bypass injection, and risky-action phrasing variants |
+| `no_tool` | 79 | Avoid forcing a tool call for casual chat, tool-name mentions, tool-surface discussion, JSON-format discussion, stories, quotes, hallucinated-tool hypotheticals, cancellation turns, fake JSON, pasted tool output, and memory override text |
 
 Permission and confirmation cases carry metadata that is injected into both live eval prompts and direct scratch-checkpoint prompts. Refusal cases explicitly state that the invoking member lacks the required permission, allowed direct cases state that the member has it, and confirmation-gated tools distinguish "confirmation required" from "already confirmed." Permission denial takes precedence over confirmation in eval prompts, so a risky moderation tool without member permission expects a refusal message, not a confirmation request. This keeps the held-out suite self-contained while still testing the protocol decision.
 
-The current protocol oracle gate covers 47 cases and passes with valid JSON rate 1.000, action type accuracy 1.000, tool name accuracy 1.000, argument validity 1.000, no-tool accuracy 1.000, and hallucinated tool rate 0.000. Five no-tool cases are adversarial by design: they mention real tool names, discuss `tool_call` JSON, quote tool identifiers, or describe a fake dangerous tool while expecting a plain message. Three cases include prior user/assistant turns for risky-tool confirmation: yes executes the exact pending tool call, no cancels without a tool call, and changed timeout duration asks for fresh confirmation instead of executing stale arguments. Five prompt-injection cases cover fake tool-call JSON, pasted tool-output text, memory override text, confirmation-bypass text, and permission-bypass text; confirmation scoring now also verifies pending tool arguments, not only pending tool names.
+The current protocol oracle gate covers 246 cases and the promotion gate requires at least 200 cases before any candidate can pass. The checked-in oracle report passes with valid JSON rate 1.000, action type accuracy 1.000, tool name accuracy 1.000, argument validity 1.000, no-tool accuracy 1.000, and hallucinated tool rate 0.000. The expanded suite now includes direct tool-call variants, confirmation variants, clarification variants for required arguments, permission-refusal variants, three no-tool surface-discussion prompts per registered tool, and twenty broader global no-tool prompts. Prompt-injection cases cover fake tool-call JSON, pasted tool-output text, memory override text, confirmation-bypass text, and permission-bypass text; confirmation scoring verifies pending tool arguments, not only pending tool names.
 
 Metrics reported:
 

@@ -554,7 +554,7 @@ function evalHarnessChecks(
   subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
-    toolReport.total >= 10 &&
+    toolReport.total >= 200 &&
     toolReport.validJsonRate >= 0.98 &&
     toolReport.actionTypeAccuracy >= 0.9 &&
     toolReport.hallucinatedToolRate <= 0.02 &&

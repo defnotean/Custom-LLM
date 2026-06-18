@@ -195,7 +195,7 @@ describe("ProductionTrainingReadiness", () => {
     const longContextEvalReportPath = join(evalDir, "long-context-oracle.report.json");
     const longContextSuitePath = join(evalDir, "long-context.eval.jsonl");
     await writeJson(toolEvalReportPath, {
-      total: 35,
+      total: 200,
       validJsonRate: 1,
       actionTypeAccuracy: 1,
       toolNameAccuracy: 1,
