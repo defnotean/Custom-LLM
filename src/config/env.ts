@@ -39,6 +39,11 @@ const envSchema = z.object({
   PARAMETER_HOTLOAD_API_KEY: z.string().default(""),
   PARAMETER_HOTLOAD_TIMEOUT_MS: z.coerce.number().int().min(1).max(600_000).default(30_000),
 
+  // External parameter-module trainer dispatch endpoint
+  PARAMETER_TRAINER_ENDPOINT: z.string().default(""),
+  PARAMETER_TRAINER_API_KEY: z.string().default(""),
+  PARAMETER_TRAINER_TIMEOUT_MS: z.coerce.number().int().min(1).max(600_000).default(30_000),
+
   // Embeddings
   EMBEDDING_PROVIDER: z.enum(["local", "openai-compatible", "hashing"]).default("local"),
   EMBEDDING_BASE_URL: z.string().default("http://localhost:11434/v1"),

@@ -26,6 +26,7 @@ Parse failures and tool denials are logged too. Failure data is signal for forma
 - Approved `skill` candidates with `skill_registry` access are retrieved into future prompts as workflow hints. They do not bypass tool retrieval, permissions, confirmations, or executor gates.
 - Active promoted parameter modules are selected per request and retrieved into future prompts with any retrievable source-learning summaries. This makes a newly promoted adapter/specialist/expert visible to Irene immediately. Real model-weight loading uses the checked hotload handoff and requires a configured model-server control endpoint.
 - Approved queued candidates are also scanned by `ParameterGrowthPlanner`, which writes trainer handoff manifests with source ids, content/metadata hashes, target module type, parameter budget estimates, gate requirements, and risk flags. These manifests do not train weights; they tell the future trainer exactly what to train and what must pass before promotion.
+- `ParameterTrainerDispatchService` re-checks generated parameter-growth datasets, blocks stale or tampered files, and emits a versioned `parameter-training-dispatch-v1` request for a private trainer. Dry runs let Irene's operator inspect the exact request before spending training compute.
 - Trained parameter-module candidates must ship a staging manifest checked by `ParameterModuleStagingGate`: dataset manifest hash, emitted dataset hashes, artifact hashes, source learned-item ids, required eval passes, and rollback target all have to match before the module should be registered or promoted.
 
 Review and queue candidates through the private ops API:
@@ -45,6 +46,7 @@ npm run plan:parameter-growth
 npm run check:parameter-growth-plan -- --allow-risk-review
 npm run build:parameter-growth-data -- --allow-risk-review
 npm run check:parameter-growth-data -- --manifest training/data/parameter-growth/<plan-id>/manifest.json
+npm run dispatch:parameter-training -- --manifest training/data/parameter-growth/<plan-id>/manifest.json --dry-run
 npm run check:parameter-module-staging -- --manifest training/runs/parameter-modules/<run-id>/staging-manifest.json
 
 curl -X POST http://127.0.0.1:3000/learning/parameter-modules/stage-from-manifest \
@@ -75,6 +77,8 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 `build:parameter-growth-data` re-fetches every source learned item from the live store, verifies the plan's content and metadata hashes, re-checks review/training/retention state, then writes per-batch JSONL plus a manifest under `training/data/parameter-growth/`. If any source item changed after planning, the build fails instead of training on stale or unreviewed data.
 
 `check:parameter-growth-data` verifies the generated manifest and JSONL files after the build: recorded hashes and byte counts must match, record schemas must be valid, batch counts must line up, record ids must be unique, and obvious token/API-key patterns must be absent.
+
+`dispatch:parameter-training` runs the same dataset quality gate before trainer handoff. Dry runs return the exact `parameter-training-dispatch-v1` request, including the dataset manifest, expected run directory, expected staging manifest path, and next gates (`check:parameter-module-staging`, stage-from-manifest, promotion, hotload build/check/apply). Non-dry-run dispatch requires `PARAMETER_TRAINER_ENDPOINT` or `--endpoint-url`; invalid datasets are blocked before the private trainer is called.
 
 `check:parameter-module-staging` verifies the trainer's output before registry creation/promotion: module parameter counts must be within budget, source learned-item ids must match the dataset records, dataset and artifact hashes must match the staging manifest, required eval reports must pass, eval report evidence must be hash-verified, and rollback metadata must exist. `POST /learning/parameter-modules/stage-from-manifest` runs the same gate, creates a staged module from the manifest, records runtime-compatible eval reports, and stores the full staging report in module metadata. Promotion has its own readiness gate too: the module must still be staged, have rollback metadata, source ids, dataset hashes, passing stage-from-manifest evidence, no failed eval reports, and required runtime eval kinds for the module type. This is the handoff gate between "a trainer produced files" and "Irene may activate a new adapter/specialist/expert."
 

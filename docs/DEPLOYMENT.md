@@ -26,6 +26,7 @@ Bare-metal alternative: `npm run build && node dist/src/index.js` under systemd/
 |---|---|
 | Secrets | Env only (`.env` is gitignored). Use your platform's secret store; never bake into images |
 | API exposure | The Fastify API is **unauthenticated** — keep `API_HOST` on a private interface or add auth/reverse-proxy before exposing |
+| Parameter trainer endpoint | Keep `PARAMETER_TRAINER_ENDPOINT` empty until a private trainer service exists. `npm run dispatch:parameter-training -- --dry-run` exercises the contract without spending compute; non-dry-run dispatch should only target trusted internal infrastructure |
 | Parameter hotload endpoint | `npm run serve:parameter-hotload` provides the private control contract with auth/status/rollback state and a `state-only` backend; a real model-server backend adapter is still required before it actually attaches LoRA/specialist weights. Never expose this endpoint publicly |
 | Database | Managed Postgres with pgvector available (or the bundled image); backups on; `prisma migrate deploy` in CI/CD |
 | Logs | pino JSON to stdout → your aggregator. `LOG_LEVEL=info` |
