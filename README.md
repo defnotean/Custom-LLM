@@ -16,7 +16,7 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Safety**: rate limiting, content screen (placeholder rules), mandatory confirmation for high-risk actions
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `/learning/status`, `/learning/items`, `/learning/parameter-modules`, `/learning/parameter-modules/stage-from-manifest`, `/learning/parameter-hotload/apply`, `/learning/parameter-snapshot`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 246 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 249 passing tests
 
 ## Quickstart
 
@@ -87,6 +87,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run eval:knowledge:tiny` | Run the promoted local scratch Transformer checkpoint against the held-out knowledge suite |
 | `npm run build:behavior-eval` / `npm run eval:behavior:llm` / `npm run eval:behavior:tiny` / `npm run eval:behavior` / `npm run eval:behavior:gate` | Build held-out persona/social-cue evals, collect live or scratch-checkpoint JSON outputs, score behavior requirements, and enforce behavior gates |
 | `npm run build:router-eval` / `npm run eval:router:oracle` / `npm run eval:router:tiny` / `npm run eval:router` / `npm run eval:router:gate` | Build and gate held-out specialist routing evals for tool/knowledge/persona/casual/social/boundary routing |
+| `npm run build:tool-router-eval` / `npm run eval:tool-router` / `npm run eval:tool-router:gate` | Build and gate candidate-tool retrieval so expected tools land in top-N and permission-filtered tools stay hidden |
 | `npm run build:skill-eval` / `npm run eval:skill` / `npm run eval:skill:gate` | Build and gate approved-skill retrieval evals so learned workflow hints stay precise and do not leak unapproved skills |
 | `npm run build:long-context-eval` / `npm run eval:long-context:oracle` / `npm run eval:long-context:llm` / `npm run eval:long-context` / `npm run eval:long-context:gate` | Build and gate synthetic needle, synthetic repo-artifact, real repo snapshot, and multi-file repo reasoning evals for the SubQ/subquadratic sparse-attention path |
 | `npm run check:contamination` | Audit train JSONL against held-out eval suites for exact leakage and high n-gram overlap |
@@ -166,7 +167,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/skill/long-context eval gates, adversarial no-tool, first-pass multi-turn confirmation, and prompt-injection protocol cases, ops API, docker compose, 246 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, adversarial no-tool, first-pass multi-turn confirmation, and prompt-injection protocol cases, ops API, docker compose, 249 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 

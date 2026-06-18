@@ -362,6 +362,21 @@ The oracle report is a sanity check and must stay at 100% except `hallucinatedTo
 
 `npm run eval:gate` is the promotion gate. It fails if valid JSON rate, action type accuracy, tool selection, argument validity, no-tool accuracy, hallucination rate, missing predictions, optional p95 latency, or optional baseline regression tolerances fall outside the configured thresholds. A lower training loss does not promote a model unless this gate passes.
 
+## Tool-Router Retrieval Eval
+
+The protocol suite checks what the model emits after candidate tools are chosen. The tool-router retrieval suite checks the step before that: expected tools must appear in the top-N candidate list, permission-filtered tools must stay hidden, no-tool prompts must not route, and retrieval latency must stay bounded.
+
+```bash
+npm run build:tool-router-eval
+npm run eval:tool-router -- --strategy keyword --out training/evals/tool-router-keyword.report.json
+npm run eval:tool-router:gate -- --candidate training/evals/tool-router-keyword.report.json --out training/evals/tool-router-keyword.gate.json
+
+# Development comparison only; hashing embeddings are lexical, not semantic.
+npm run eval:tool-router -- --strategy hashing-embedding --out training/evals/tool-router-hashing-embedding.report.json
+```
+
+Current keyword report: 20 cases, expected tool recall 1.000, case recall accuracy 1.000, top-1 accuracy 1.000, likely-needs-tool accuracy 1.000, no-tool accuracy 1.000, forbidden candidate rate 0.000, and p95 latency 1 ms. The local hashing-embedding comparison recalls expected tools but false-positives one casual no-tool prompt, so it remains a development fallback until a real embedding model beats or matches the keyword gate.
+
 ## Knowledge Eval Harness
 
 The protocol suite checks tool behavior; the knowledge suite checks held-out general answer quality from the validation seed:
@@ -557,7 +572,7 @@ Every model iteration must:
 
 1. Add consented Discord logs and repo synthetic tool examples to the same ChatML/tool-calling mixture.
 2. Expand protocol, behavior, and router eval harnesses around valid JSON rate, correct tool selection, correct arguments, no-tool accuracy, persona consistency, social-cue accuracy, refusal accuracy, hallucinated-tool rate, route accuracy, expert accuracy, and latency.
-3. Compare keyword and `TOOL_ROUTER_STRATEGY=embedding` retrieval on the held-out protocol suite before enabling embedding retrieval in production.
+3. Compare keyword and `TOOL_ROUTER_STRATEGY=embedding` retrieval on `training/evals/tool-router.eval.jsonl` before enabling embedding retrieval in production.
 4. Run QLoRA SFT on a 3B-7B open-weight base once the reviewed dataset and eval harness exist.
 5. Promote a model only if evals improve tool behavior without regressing knowledge, social behavior, long-context retrieval, or latency.
 6. Add DPO/GRPO only after real preference pairs exist.

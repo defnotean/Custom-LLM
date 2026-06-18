@@ -29,6 +29,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "sft-token-headroom")).toBe("pass");
     expect(checkStatus(report.checks, "behavior-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("warn");
   });
@@ -115,6 +116,7 @@ describe("ProductionTrainingReadiness", () => {
     const knowledgeEvalReportPath = join(evalDir, "knowledge-oracle.report.json");
     const behaviorEvalReportPath = join(evalDir, "behavior-oracle.report.json");
     const routerEvalReportPath = join(evalDir, "specialist-routing-oracle.report.json");
+    const toolRouterEvalReportPath = join(evalDir, "tool-router-keyword.report.json");
     const longContextEvalReportPath = join(evalDir, "long-context-oracle.report.json");
     await writeJson(toolEvalReportPath, {
       total: 35,
@@ -158,6 +160,18 @@ describe("ProductionTrainingReadiness", () => {
       invalidPredictions: 0,
       failures: [],
     });
+    await writeJson(toolRouterEvalReportPath, {
+      total: 20,
+      expectedToolRecall: 1,
+      caseRecallAccuracy: 1,
+      top1Accuracy: 1,
+      likelyNeedsToolAccuracy: 1,
+      noToolAccuracy: 1,
+      forbiddenCandidateRate: 0,
+      missingExpectedTools: 0,
+      forbiddenCandidateHits: 0,
+      failures: [],
+    });
     await writeJson(longContextEvalReportPath, {
       total: 17,
       answerRate: 1,
@@ -185,6 +199,7 @@ describe("ProductionTrainingReadiness", () => {
         knowledgeEvalReportPath,
         behaviorEvalReportPath,
         routerEvalReportPath,
+        toolRouterEvalReportPath,
         longContextEvalReportPath,
         axolotlSftConfigPath,
         axolotlDpoConfigPath,

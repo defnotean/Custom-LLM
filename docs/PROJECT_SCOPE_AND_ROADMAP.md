@@ -277,12 +277,14 @@ Tasks:
 - Expand multi-turn confirmation/correction cases beyond the first yes/no/changed-args coverage.
 - Keep expanding adversarial no-tool/casual prompts that mention tool names or protocol JSON.
 - Expand prompt-injection cases beyond the first fake JSON, pasted tool output, memory override, permission-bypass, and confirmation-bypass coverage.
-- Compare keyword vs embedding tool retrieval on the same eval suite.
-- Add latency gates for tool routing.
+- Expand the tool-router retrieval eval beyond the first 20 cases.
+- Compare keyword vs real semantic embedding tool retrieval on the same eval suite before promoting embedding retrieval.
+- Tighten latency gates for tool routing as the registry grows.
 
 Success criteria:
 
 - Strict protocol gate passes on expanded suite.
+- Tool-router retrieval gate keeps expected-tool recall and no-tool accuracy at 1.000 with zero permission-filter leaks.
 - No hallucinated tools.
 - No off-candidate tool execution.
 - No regression versus `tiny-transformer-protocol-iter16` on comparable protocol cases.

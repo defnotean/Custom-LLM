@@ -91,6 +91,19 @@ const routerEvalReportSchema = z.object({
   failures: z.array(z.unknown()),
 });
 
+const toolRouterEvalReportSchema = z.object({
+  total: z.number().int().nonnegative(),
+  expectedToolRecall: z.number().min(0).max(1),
+  caseRecallAccuracy: z.number().min(0).max(1),
+  top1Accuracy: z.number().min(0).max(1).nullable(),
+  likelyNeedsToolAccuracy: z.number().min(0).max(1),
+  noToolAccuracy: z.number().min(0).max(1).nullable(),
+  forbiddenCandidateRate: z.number().min(0).max(1),
+  missingExpectedTools: z.number().int().nonnegative(),
+  forbiddenCandidateHits: z.number().int().nonnegative(),
+  failures: z.array(z.unknown()),
+});
+
 const longContextEvalReportSchema = z.object({
   total: z.number().int().nonnegative(),
   answerRate: z.number().min(0).max(1),
@@ -113,6 +126,7 @@ export interface ProductionTrainingReadinessOptions {
   knowledgeEvalReportPath?: string;
   behaviorEvalReportPath?: string;
   routerEvalReportPath?: string;
+  toolRouterEvalReportPath?: string;
   longContextEvalReportPath?: string;
   axolotlSftConfigPath?: string;
   axolotlDpoConfigPath?: string;
@@ -165,6 +179,7 @@ type ToolEvalReport = z.infer<typeof toolEvalReportSchema>;
 type KnowledgeEvalReport = z.infer<typeof knowledgeEvalReportSchema>;
 type BehaviorEvalReport = z.infer<typeof behaviorEvalReportSchema>;
 type RouterEvalReport = z.infer<typeof routerEvalReportSchema>;
+type ToolRouterEvalReport = z.infer<typeof toolRouterEvalReportSchema>;
 type LongContextEvalReport = z.infer<typeof longContextEvalReportSchema>;
 
 const DEFAULTS = {
@@ -175,6 +190,7 @@ const DEFAULTS = {
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
   behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
+  toolRouterEvalReportPath: "training/evals/tool-router-keyword.report.json",
   longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
   axolotlSftConfigPath: "training/configs/axolotl/qwen3-qlora-sft.yaml",
   axolotlDpoConfigPath: "training/configs/axolotl/qwen3-qlora-dpo.yaml",
@@ -207,13 +223,15 @@ export async function checkProductionTrainingReadiness(
     sequenceLength: config.sequenceLength,
     topLongest: 5,
   });
-  const [toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport, longContextEvalReport] = await Promise.all([
-    readJson(config.toolEvalReportPath, toolEvalReportSchema),
-    readJson(config.knowledgeEvalReportPath, knowledgeEvalReportSchema),
-    readJson(config.behaviorEvalReportPath, behaviorEvalReportSchema),
-    readJson(config.routerEvalReportPath, routerEvalReportSchema),
-    readJson(config.longContextEvalReportPath, longContextEvalReportSchema),
-  ]);
+  const [toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport, toolRouterEvalReport, longContextEvalReport] =
+    await Promise.all([
+      readJson(config.toolEvalReportPath, toolEvalReportSchema),
+      readJson(config.knowledgeEvalReportPath, knowledgeEvalReportSchema),
+      readJson(config.behaviorEvalReportPath, behaviorEvalReportSchema),
+      readJson(config.routerEvalReportPath, routerEvalReportSchema),
+      readJson(config.toolRouterEvalReportPath, toolRouterEvalReportSchema),
+      readJson(config.longContextEvalReportPath, longContextEvalReportSchema),
+    ]);
   const [axolotlSft, axolotlDpo, unslothSft, unslothDpo] = await Promise.all([
     readFile(config.axolotlSftConfigPath, "utf8"),
     readFile(config.axolotlDpoConfigPath, "utf8"),
@@ -226,7 +244,14 @@ export async function checkProductionTrainingReadiness(
   checks.push(...sftSequenceChecks(sequenceReport, config));
   checks.push(...sftConfigChecks(axolotlSft, unslothSft));
   checks.push(
-    ...evalHarnessChecks(toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport, longContextEvalReport),
+    ...evalHarnessChecks(
+      toolEvalReport,
+      knowledgeEvalReport,
+      behaviorEvalReport,
+      routerEvalReport,
+      toolRouterEvalReport,
+      longContextEvalReport,
+    ),
   );
 
   if (config.stage === "dpo" || config.stage === "all") {
@@ -446,6 +471,7 @@ function evalHarnessChecks(
   knowledgeReport: KnowledgeEvalReport,
   behaviorReport: BehaviorEvalReport,
   routerReport: RouterEvalReport,
+  toolRouterReport: ToolRouterEvalReport,
   longContextReport: LongContextEvalReport,
 ): ReadinessCheck[] {
   return [
@@ -513,6 +539,29 @@ function evalHarnessChecks(
           missingPredictions: routerReport.missingPredictions,
           invalidPredictions: routerReport.invalidPredictions,
           failures: routerReport.failures.length,
+        }),
+    toolRouterReport.total >= 20 &&
+    toolRouterReport.expectedToolRecall === 1 &&
+    toolRouterReport.caseRecallAccuracy === 1 &&
+    (toolRouterReport.top1Accuracy ?? 0) >= 0.85 &&
+    toolRouterReport.likelyNeedsToolAccuracy >= 0.95 &&
+    toolRouterReport.noToolAccuracy === 1 &&
+    toolRouterReport.forbiddenCandidateRate === 0 &&
+    toolRouterReport.missingExpectedTools === 0 &&
+    toolRouterReport.forbiddenCandidateHits === 0 &&
+    toolRouterReport.failures.length === 0
+      ? pass("tool-router-eval-harness", `Tool-router retrieval eval is healthy with ${toolRouterReport.total} cases`)
+      : fail("tool-router-eval-harness", "Tool-router retrieval report does not satisfy promotion-gate expectations", {
+          total: toolRouterReport.total,
+          expectedToolRecall: toolRouterReport.expectedToolRecall,
+          caseRecallAccuracy: toolRouterReport.caseRecallAccuracy,
+          top1Accuracy: toolRouterReport.top1Accuracy,
+          likelyNeedsToolAccuracy: toolRouterReport.likelyNeedsToolAccuracy,
+          noToolAccuracy: toolRouterReport.noToolAccuracy,
+          forbiddenCandidateRate: toolRouterReport.forbiddenCandidateRate,
+          missingExpectedTools: toolRouterReport.missingExpectedTools,
+          forbiddenCandidateHits: toolRouterReport.forbiddenCandidateHits,
+          failures: toolRouterReport.failures.length,
         }),
     longContextReport.total >= 17 &&
     longContextReport.answerRate >= 0.95 &&

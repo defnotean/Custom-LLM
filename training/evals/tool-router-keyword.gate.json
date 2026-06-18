@@ -1,0 +1,31 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "minTotalCases": 20,
+    "minExpectedToolRecall": 1,
+    "minCaseRecallAccuracy": 1,
+    "minTop1Accuracy": 0.85,
+    "minLikelyNeedsToolAccuracy": 0.95,
+    "minNoToolAccuracy": 1,
+    "maxForbiddenCandidateRate": 0,
+    "maxMissingExpectedTools": 0,
+    "maxForbiddenCandidateHits": 0
+  },
+  "candidate": {
+    "suitePath": "training/evals/tool-router.eval.jsonl",
+    "strategy": "keyword",
+    "total": 20,
+    "expectedToolRecall": 1,
+    "caseRecallAccuracy": 1,
+    "top1Accuracy": 1,
+    "likelyNeedsToolAccuracy": 1,
+    "noToolAccuracy": 1,
+    "forbiddenCandidateRate": 0,
+    "missingExpectedTools": 0,
+    "forbiddenCandidateHits": 0,
+    "failures": 0,
+    "latencyP95Ms": 1
+  },
+  "failures": [],
+  "warnings": []
+}
