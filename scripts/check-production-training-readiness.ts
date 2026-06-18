@@ -33,6 +33,9 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
     else if (arg === "--behavior-eval-report") options.behaviorEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--router-eval-report") options.routerEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--long-context-eval-report") options.longContextEvalReportPath = requireValue(argv[++index], arg);
+    else if (arg === "--raw-dataset-manifest") options.rawDatasetManifestPath = requireValue(argv[++index], arg);
+    else if (arg === "--processed-dataset-report") options.processedDatasetReportPath = requireValue(argv[++index], arg);
+    else if (arg === "--dataset-preparer-source") options.datasetPreparerSourcePath = requireValue(argv[++index], arg);
     else if (arg === "--long-context-suite") options.longContextSuitePath = requireValue(argv[++index], arg);
     else if (arg === "--llm-router-source") options.llmRouterSourcePath = requireValue(argv[++index], arg);
     else if (arg === "--tiny-trainer") options.tinyTrainerPath = requireValue(argv[++index], arg);
@@ -48,6 +51,14 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
       options.minSftValidationRecords = parseNonnegativeInt(argv[++index], arg);
     else if (arg === "--max-synthetic-train-share")
       options.maxSyntheticTrainShare = parseRatio(argv[++index], arg);
+    else if (arg === "--min-dataset-accepted")
+      options.minDatasetAcceptedRecords = parseNonnegativeInt(argv[++index], arg);
+    else if (arg === "--min-dataset-validation")
+      options.minDatasetValidationRecords = parseNonnegativeInt(argv[++index], arg);
+    else if (arg === "--min-dataset-eval-seed")
+      options.minDatasetEvalSeedRecords = parseNonnegativeInt(argv[++index], arg);
+    else if (arg === "--min-dataset-eval-seed-source-share")
+      options.minDatasetEvalSeedSourceShare = parseRatio(argv[++index], arg);
     else if (arg === "--min-preference-records") options.minPreferenceRecords = parseNonnegativeInt(argv[++index], arg);
     else if (arg === "--allow-synthetic-only-preferences") options.allowSyntheticOnlyPreferences = true;
     else throw new Error(`Unknown argument: ${arg}`);

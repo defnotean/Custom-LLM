@@ -26,6 +26,7 @@ No Discord scraping. Use bot logs only from servers you control with explicit me
 ```bash
 npm run download:datasets -- --all-open
 npm run prepare:datasets -- --max-per-source 8000
+npm run check:dataset-governance
 py -3.11 training/train_tiny_char_lm.py --steps 2400 --eval-every 400 --context 96 --d-model 64 --hidden 256 --lr 0.0012 --out-dir training/runs/tiny-char-lm-iter3
 npm run check:training -- --metrics training/runs/tiny-char-lm-iter3/metrics.json --baseline-metrics training/runs/tiny-char-lm-iter2/metrics.json --require-baseline-improvement
 ```
@@ -259,6 +260,7 @@ npm run build:router-sft
 npm run build:sft-mixture
 npm run build:preference-mixture
 npm run analyze:sft-sequences -- --out training/data/mixtures/production-sft.sequence-report.json
+npm run check:dataset-governance
 npm run build:eval-suite
 npm run build:knowledge-eval
 npm run build:behavior-eval
@@ -316,11 +318,12 @@ Current production config targets:
 Production readiness gate:
 
 ```bash
+npm run check:dataset-governance
 npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, and tool/knowledge/behavior/router/long-context oracle eval reports. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies dataset governance, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, and tool/knowledge/behavior/router/long-context oracle eval reports. `npm run check:dataset-governance` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, and obvious secret/PII scans. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -548,6 +551,7 @@ Every dataset build must:
 - Save hashes for prepared files and training inputs.
 - Report missing optional sources separately from missing required sources.
 - Cap synthetic examples so they teach format without dominating judgment.
+- Pass `npm run check:dataset-governance` so raw licenses/checksums, processed provenance, eval-seed balance, hashes, gated-source boundaries, and secret/PII scans are healthy.
 - Keep preference/DPO rows explicit: prompt, chosen, and rejected must already exist; do not fabricate rejected answers from ordinary chat logs or plain ratings.
 - Pass `npm run check:contamination` before model promotion so held-out evals are not in train JSONL by exact ID, exact text, or high n-gram overlap.
 - Keep generated datasets and checkpoints out of git.
@@ -561,7 +565,7 @@ Every model iteration must:
 - Pass `npm run check:training` for artifact integrity.
 - Pass `npm run report:training-runs -- --candidate-metrics <run>/metrics.json --tool-report <candidate-tool-report>.json --knowledge-report <candidate-knowledge-report>.json --behavior-report <candidate-behavior-report>.json --router-report <candidate-router-report>.json --out <iteration-report>.json --require-promotion` before treating a comparable local scratch run as the new baseline. Attached prediction `model` metadata must match the candidate run name; mismatches are reported as `<kind>_prediction_model_mismatch`. If the tokenizer, vocabulary family, or loss scope changes, pass an explicit `--baseline-metrics` only when the cross-family comparison is intentional and documented.
 - Pass `npm run check:training-report -- --report <iteration-report>.json --mode review --require-behavior --require-router` before archiving a full specialist iteration as complete. Use `--mode promotion` only for candidates intended to replace the current model.
-- Pass `npm run check:training-configs` and `npm run check:production-readiness` before any production QLoRA run.
+- Pass `npm run check:dataset-governance`, `npm run check:training-configs`, and `npm run check:production-readiness` before any production QLoRA run.
 - Pass `npm run analyze:sft-sequences` after each mixture rebuild and review over-length records or `maxTokenBudgetUsage` above the readiness headroom before increasing sequence length.
 - Run the protocol eval suite before promotion; a lower training loss does not ship if tool-call or no-tool metrics regress.
 - Pass `npm run eval:gate` against the candidate report, and compare against the current production baseline when one exists.

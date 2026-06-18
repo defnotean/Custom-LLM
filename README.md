@@ -76,6 +76,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run apply:parameter-hotload` | Validate and dry-run or POST a checked hotload manifest to `PARAMETER_HOTLOAD_ENDPOINT` |
 | `npm run serve:parameter-hotload` | Run the local hotload control endpoint with state-only backend, status, auth, and rollback hooks |
 | `npm run download:datasets` / `npm run prepare:datasets` | Acquire and prepare open SFT datasets with provenance + quality reports |
+| `npm run check:dataset-governance` | Verify raw dataset provenance, licenses, source balance, output hashes, synthetic share, and secret/PII scans |
 | `npm run build:sft-mixture` / `npm run build:preference-mixture` | Build production SFT and DPO/preference train/validation mixtures |
 | `npm run build:protocol-sft` | Build a contamination-guarded protocol-only scratch SFT set from synthetic tool examples |
 | `npm run build:behavior-sft` | Build a held-out-safe persona/social behavior SFT set from project-owned templates |
@@ -147,7 +148,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 1. Run the bot; every interaction is captured (`docs/TRAINING_DATA.md`).
 2. `npm run export:training` → ChatML / Alpaca / tool-calling / DPO JSONL.
 3. Review + redact + hold out an eval set.
-4. Build the first reproducible dataset/training iteration (`docs/AI_TRAINING_PLAN.md`), pass `npm run check:production-readiness`, then QLoRA-fine-tune the Qwen3 4B Instruct production profile (Unsloth/Axolotl), evaluate protocol, knowledge, router, persona/social behavior, long-context retrieval if using SubQ/SSA, dry-run `npm run dispatch:parameter-training`, and run `npm run check:parameter-module-staging` before shipping a trained module.
+4. Build the first reproducible dataset/training iteration (`docs/AI_TRAINING_PLAN.md`), pass `npm run check:dataset-governance` and `npm run check:production-readiness`, then QLoRA-fine-tune the Qwen3 4B Instruct production profile (Unsloth/Axolotl), evaluate protocol, knowledge, router, persona/social behavior, long-context retrieval if using SubQ/SSA, dry-run `npm run dispatch:parameter-training`, and run `npm run check:parameter-module-staging` before shipping a trained module.
 
 ⚠️ Use only consented data from servers you control — Discord's Developer Policy prohibits training on scraped message content.
 
@@ -168,7 +169,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, SubQ/SSA architecture contract check, adversarial no-tool, first-pass multi-turn confirmation, and prompt-injection protocol cases, ops API, docker compose, 254 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, SubQ/SSA architecture contract check, dataset governance readiness check, adversarial no-tool, first-pass multi-turn confirmation, and prompt-injection protocol cases, ops API, docker compose, 257 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 

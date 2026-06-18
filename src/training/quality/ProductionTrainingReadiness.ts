@@ -9,6 +9,10 @@ import {
   checkSubquadraticArchitectureReadiness,
   type SubquadraticArchitectureReadinessReport,
 } from "./SubquadraticArchitectureReadiness";
+import {
+  checkDatasetGovernanceReadiness,
+  type DatasetGovernanceReadinessReport,
+} from "./DatasetGovernanceReadiness";
 
 const outputFileSchema = z.object({
   path: z.string().min(1),
@@ -132,6 +136,9 @@ export interface ProductionTrainingReadinessOptions {
   routerEvalReportPath?: string;
   toolRouterEvalReportPath?: string;
   longContextEvalReportPath?: string;
+  rawDatasetManifestPath?: string;
+  processedDatasetReportPath?: string;
+  datasetPreparerSourcePath?: string;
   longContextSuitePath?: string;
   llmRouterSourcePath?: string;
   tinyTrainerPath?: string;
@@ -149,6 +156,10 @@ export interface ProductionTrainingReadinessOptions {
   minSftTrainRecords?: number;
   minSftValidationRecords?: number;
   maxSyntheticTrainShare?: number;
+  minDatasetAcceptedRecords?: number;
+  minDatasetValidationRecords?: number;
+  minDatasetEvalSeedRecords?: number;
+  minDatasetEvalSeedSourceShare?: number;
   minPreferenceRecords?: number;
   allowSyntheticOnlyPreferences?: boolean;
 }
@@ -200,6 +211,9 @@ const DEFAULTS = {
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
   toolRouterEvalReportPath: "training/evals/tool-router-keyword.report.json",
   longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
+  rawDatasetManifestPath: "training/data/raw/dataset_manifest.json",
+  processedDatasetReportPath: "training/data/processed/dataset_report.json",
+  datasetPreparerSourcePath: "src/training/external/OpenDatasetPreparer.ts",
   longContextSuitePath: "training/evals/long-context.eval.jsonl",
   llmRouterSourcePath: "src/ai/llm/LLMRouter.ts",
   tinyTrainerPath: "training/train_tiny_transformer_lm.py",
@@ -214,6 +228,10 @@ const DEFAULTS = {
   minSftPackingEfficiency: 0.5,
   minSftTrainRecords: 1000,
   minSftValidationRecords: 100,
+  minDatasetAcceptedRecords: 1_000,
+  minDatasetValidationRecords: 100,
+  minDatasetEvalSeedRecords: 50,
+  minDatasetEvalSeedSourceShare: 0.25,
   minPreferenceRecords: 50,
 };
 
@@ -243,6 +261,7 @@ export async function checkProductionTrainingReadiness(
     toolRouterEvalReport,
     longContextEvalReport,
     subqArchitectureReport,
+    datasetGovernanceReport,
   ] =
     await Promise.all([
       readJson(config.toolEvalReportPath, toolEvalReportSchema),
@@ -256,6 +275,18 @@ export async function checkProductionTrainingReadiness(
         routerSourcePath: config.llmRouterSourcePath,
         trainerPath: config.tinyTrainerPath,
         evaluatorPath: config.tinyEvaluatorPath,
+      }),
+      checkDatasetGovernanceReadiness({
+        rawManifestPath: config.rawDatasetManifestPath,
+        processedReportPath: config.processedDatasetReportPath,
+        sftReportPath: config.sftReportPath,
+        preferenceReportPath: config.preferenceReportPath,
+        preparerSourcePath: config.datasetPreparerSourcePath,
+        minAcceptedRecords: config.minDatasetAcceptedRecords,
+        minValidationRecords: config.minDatasetValidationRecords,
+        minEvalSeedRecords: config.minDatasetEvalSeedRecords,
+        minEvalSeedSourceShare: config.minDatasetEvalSeedSourceShare,
+        maxSyntheticTrainShare: config.maxSyntheticTrainShare,
       }),
     ]);
   const [axolotlSft, axolotlDpo, unslothSft, unslothDpo] = await Promise.all([
@@ -280,6 +311,7 @@ export async function checkProductionTrainingReadiness(
       subqArchitectureReport,
     ),
   );
+  checks.push(datasetGovernanceReadinessCheck(datasetGovernanceReport));
 
   if (config.stage === "dpo" || config.stage === "all") {
     checks.push(...dpoChecks(preferenceReport, config, true));
@@ -308,6 +340,25 @@ export async function checkProductionTrainingReadiness(
     },
     checks,
   };
+}
+
+function datasetGovernanceReadinessCheck(report: DatasetGovernanceReadinessReport): ReadinessCheck {
+  const warnings = report.checks
+    .filter((check) => check.status === "warn")
+    .map((check) => ({ id: check.id, summary: check.summary, details: check.details }));
+  return report.status === "pass"
+    ? pass("dataset-governance", `Dataset governance is healthy with ${report.summary.processedAccepted} accepted rows`, {
+        rawSources: report.summary.rawSources,
+        evalSeed: report.summary.evalSeed,
+        syntheticTrainShare: report.summary.syntheticTrainShare,
+        warnings,
+      })
+    : fail("dataset-governance", "Dataset governance readiness failed", {
+        failures: report.checks
+          .filter((check) => check.status === "fail")
+          .map((check) => ({ id: check.id, summary: check.summary, details: check.details })),
+        warnings,
+      });
 }
 
 async function sftChecks(

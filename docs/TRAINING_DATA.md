@@ -136,6 +136,20 @@ curl -X POST http://127.0.0.1:3000/training/feedback/preference \
 
 The endpoint rejects missing or identical preferred/rejected answers. It references an existing `Conversation` row for the prompt and writes `UserFeedback`; it does not generate rejected answers.
 
+## Open SFT Dataset Governance
+
+For licensed open SFT data, run:
+
+```bash
+npm run download:datasets -- --all-open
+npm run prepare:datasets -- --max-per-source 8000
+npm run build:sft-mixture
+npm run build:preference-mixture
+npm run check:dataset-governance
+```
+
+`check:dataset-governance` verifies raw source provenance, allowed licenses, checksums, gated-source boundaries, processed source coverage, source-balanced eval seeds, output hashes, capped synthetic share, and obvious secret/PII scans. It is also included in `npm run check:production-readiness`, so a production training preflight fails if dataset governance regresses.
+
 ## Synthetic Examples
 
 Run:

@@ -32,6 +32,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "subq-architecture-contract")).toBe("pass");
+    expect(checkStatus(report.checks, "dataset-governance")).toBe("pass");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("warn");
   });
 
@@ -84,10 +85,67 @@ describe("ProductionTrainingReadiness", () => {
     const sftValidation = join(dataDir, "production-sft.validation.jsonl");
     const dpoTrain = join(dataDir, "production-dpo.train.jsonl");
     const dpoValidation = join(dataDir, "production-dpo.validation.jsonl");
-    await writeFile(sftTrain, `${chatRecord("sft-1")}\n${chatRecord("sft-2")}\n${chatRecord("sft-3")}\n`, "utf8");
-    await writeFile(sftValidation, `${chatRecord("sft-val")}\n`, "utf8");
+    const dollyRaw = join(dataDir, "dolly.raw.jsonl");
+    const oasstRaw = join(dataDir, "oasst1-ready.raw.jsonl");
+    await writeFile(dollyRaw, `${JSON.stringify({ instruction: "hello", response: "hi" })}\n`, "utf8");
+    await writeFile(oasstRaw, `${JSON.stringify({ prompt: "status", reply: "ready" })}\n`, "utf8");
+    const dollyRawReport = await fileReport(dollyRaw);
+    const oasstRawReport = await fileReport(oasstRaw);
+    await writeFile(
+      sftTrain,
+      `${chatRecord("sft-1", "dolly", "cc-by-sa-3.0", "train")}\n${chatRecord("sft-2", "oasst1_ready", "apache-2.0", "train")}\n${chatRecord("sft-3", "dolly", "cc-by-sa-3.0", "train")}\n`,
+      "utf8",
+    );
+    await writeFile(sftValidation, `${chatRecord("sft-val", "oasst1_ready", "apache-2.0", "validation")}\n`, "utf8");
     await writeFile(dpoTrain, `${dpoRecord("dpo-1")}\n`, "utf8");
     await writeFile(dpoValidation, `${dpoRecord("dpo-val")}\n`, "utf8");
+
+    const rawDatasetManifestPath = join(dataDir, "dataset_manifest.json");
+    await writeJson(rawDatasetManifestPath, {
+      generatedAt: "2026-06-18T00:00:00.000Z",
+      outDir: dataDir,
+      sources: [
+        {
+          id: "dolly",
+          name: "Databricks Dolly",
+          url: "https://example.invalid/dolly.jsonl",
+          outputFile: "dolly.raw.jsonl",
+          license: "cc-by-sa-3.0",
+          homepage: "https://example.invalid/dolly",
+          expectedSha256: dollyRawReport.sha256,
+          gated: false,
+          status: "downloaded",
+          path: dollyRaw,
+          bytes: dollyRawReport.bytes,
+          sha256: dollyRawReport.sha256,
+        },
+        {
+          id: "oasst1_ready",
+          name: "OpenAssistant Ready",
+          url: "https://example.invalid/oasst.jsonl",
+          outputFile: "oasst1-ready.raw.jsonl",
+          license: "apache-2.0",
+          homepage: "https://example.invalid/oasst",
+          expectedSha256: oasstRawReport.sha256,
+          gated: false,
+          status: "downloaded",
+          path: oasstRaw,
+          bytes: oasstRawReport.bytes,
+          sha256: oasstRawReport.sha256,
+        },
+        {
+          id: "xlam_tool_calling",
+          name: "xLAM tool calling",
+          url: "https://example.invalid/xlam",
+          outputFile: "xlam.jsonl",
+          license: "cc-by-4.0",
+          homepage: "https://example.invalid/xlam",
+          gated: true,
+          status: "gated-manual-access",
+          path: join(dataDir, "xlam.jsonl"),
+        },
+      ],
+    });
 
     const sftReportPath = join(dataDir, "production-sft.report.json");
     const preferenceReportPath = join(dataDir, "production-dpo.report.json");
@@ -111,6 +169,22 @@ describe("ProductionTrainingReadiness", () => {
       syntheticOnly: true,
       sources: [sourceSummary("synthetic_tool_preferences", dpoTrain, "synthetic", false, 2)],
       files: [await fileReport(dpoTrain), await fileReport(dpoValidation)],
+    });
+    const processedDatasetReportPath = join(dataDir, "dataset_report.json");
+    await writeJson(processedDatasetReportPath, {
+      totalRaw: 6,
+      accepted: 4,
+      train: 3,
+      validation: 1,
+      evalSeed: 2,
+      evalSeedBySource: { dolly: 1, oasst1_ready: 1 },
+      evalSeedSkippedHighOverlap: 0,
+      skipped: { "dolly:too-long": 1, "oasst1_ready:duplicate": 1 },
+      bySource: {
+        dolly: { raw: 3, accepted: 2 },
+        oasst1_ready: { raw: 3, accepted: 2 },
+      },
+      files: [await fileReport(sftTrain), await fileReport(sftValidation)],
     });
 
     const toolEvalReportPath = join(evalDir, "oracle.report.json");
@@ -192,6 +266,7 @@ describe("ProductionTrainingReadiness", () => {
     const llmRouterSourcePath = join(configDir, "LLMRouter.ts");
     const tinyTrainerPath = join(configDir, "train_tiny_transformer_lm.py");
     const tinyEvaluatorPath = join(configDir, "evaluate_tiny_transformer_lm.py");
+    const datasetPreparerSourcePath = join(configDir, "OpenDatasetPreparer.ts");
     await writeFile(axolotlSftConfigPath, overrides.axolotlSft ?? goodAxolotlSftConfig(), "utf8");
     await writeFile(axolotlDpoConfigPath, overrides.axolotlDpo ?? goodAxolotlDpoConfig(), "utf8");
     await writeFile(unslothSftConfigPath, overrides.unslothSft ?? goodUnslothSftConfig(), "utf8");
@@ -211,11 +286,19 @@ describe("ProductionTrainingReadiness", () => {
       'attention_mode=str(config.get("attention_mode", "dense"))\nsparse_local_window=int(config.get("sparse_local_window", 32))\nsparse_log_base=int(config.get("sparse_log_base", 2))\n',
       "utf8",
     );
+    await writeFile(
+      datasetPreparerSourcePath,
+      'const secretPatterns = [];\nconst sensitive = "sensitive";\nconst reasons = "too-long too-short duplicate";\nfunction selectBalancedEvalSeed() { return []; }\n',
+      "utf8",
+    );
 
     return {
       options: {
         sftReportPath,
         preferenceReportPath,
+        rawDatasetManifestPath,
+        processedDatasetReportPath,
+        datasetPreparerSourcePath,
         toolEvalReportPath,
         knowledgeEvalReportPath,
         behaviorEvalReportPath,
@@ -232,6 +315,10 @@ describe("ProductionTrainingReadiness", () => {
         unslothDpoConfigPath,
         minSftTrainRecords: 3,
         minSftValidationRecords: 1,
+        minDatasetAcceptedRecords: 4,
+        minDatasetValidationRecords: 1,
+        minDatasetEvalSeedRecords: 2,
+        minDatasetEvalSeedSourceShare: 0.25,
         minPreferenceRecords: 3,
       },
     };
@@ -327,14 +414,14 @@ function sourceSummary(
   };
 }
 
-function chatRecord(id: string): string {
+function chatRecord(id: string, source: string, license: string, split: string): string {
   return JSON.stringify({
     messages: [
       { role: "system", content: "You are helpful." },
       { role: "user", content: `Question ${id}` },
       { role: "assistant", content: `Answer ${id}` },
     ],
-    metadata: { id, source: "fixture", split: "train" },
+    metadata: { id, source, license, split },
   });
 }
 

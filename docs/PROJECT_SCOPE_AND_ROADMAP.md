@@ -169,6 +169,7 @@ Dataset quality gates:
 - Secret and credential filtering.
 - Sequence-length audit before GPU training.
 - Synthetic share caps so format examples do not dominate judgment.
+- `npm run check:dataset-governance` before production training so raw source provenance, licenses, checksums, gated-source boundaries, output hashes, eval-seed balance, and secret/PII scans are healthy.
 - `npm run check:contamination` before any promotion claim.
 - Memory-to-training promotion review so raw remembered facts do not automatically become weight updates.
 - Parameter-count accounting for every trainable module: base params, active params, adapter params, router params, specialist params, and total deployed system params.
@@ -247,6 +248,7 @@ Success criteria:
 - `npm test`
 - `npm run build`
 - `npm run check:contamination`
+- `npm run check:dataset-governance`
 - `npm run check:production-readiness`
 - `npm run check:training-configs`
 - `npm run check:subq-architecture`
@@ -303,7 +305,7 @@ Tasks:
 
 Success criteria:
 
-- Production readiness passes before training.
+- Dataset governance and production readiness pass before training.
 - Post-training gates pass or failures are documented with a next data iteration.
 - Human review confirms Irene's voice is direct, casual, and socially aware.
 
