@@ -27,6 +27,40 @@ describe("MemoryService", () => {
     expect(hits[0]?.content).toContain("CET");
   });
 
+  it("records successful memory writes as live learning items when configured", async () => {
+    const learnedInputs: unknown[] = [];
+    const service = new MemoryService(new InMemoryMemoryStore(), new HashingEmbeddingProvider(), testLogger, {
+      learning: {
+        createLearnedItem: async (input) => {
+          learnedInputs.push(input);
+          return { id: "learned-1" } as never;
+        },
+      },
+    });
+
+    const stored = await service.remember({
+      content: "I prefer concise implementation updates",
+      scope: "USER",
+      userId: "u1",
+      guildId: "g1",
+      channelId: "c1",
+      explicit: true,
+    });
+
+    expect(stored.stored).toBe(true);
+    expect(stored.learnedItemId).toBe("learned-1");
+    expect(learnedInputs).toHaveLength(1);
+    expect(learnedInputs[0]).toMatchObject({
+      kind: "memory",
+      source: "explicit_memory",
+      content: "I prefer concise implementation updates",
+      confidence: 1,
+      accessPaths: ["memory_rag"],
+      provenance: { userId: "u1", guildId: "g1", channelId: "c1", memoryId: stored.id },
+      retention: { canRetrieve: true, canTrain: true },
+    });
+  });
+
   it("applies policy on non-explicit writes (one-offs rejected)", async () => {
     const service = makeService();
     const result = await service.remember({

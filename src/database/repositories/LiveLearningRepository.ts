@@ -22,7 +22,7 @@ import {
   type ParameterModuleStatus,
   type TrainingPromotionStatus,
 } from "../../learning/LiveLearningRegistry";
-import type { JsonObject } from "../../types/common";
+import type { JsonObject, LearningStatsPayload } from "../../types/common";
 import { toJsonValue } from "../../types/common";
 
 export interface CreateLearnedItemInput {
@@ -313,6 +313,44 @@ export class LiveLearningRepository {
       generatedAt: this.now(),
       selectedModuleIds: options?.selectedModuleIds,
     });
+  }
+
+  async getStats(): Promise<LearningStatsPayload> {
+    const [
+      learnedItems,
+      candidateItems,
+      approvedItems,
+      queuedItems,
+      trainedItems,
+      parameterModules,
+      activeParameterModules,
+      stagedParameterModules,
+      snapshot,
+    ] = await Promise.all([
+      this.prisma.learnedItem.count(),
+      this.prisma.learnedItem.count({ where: { reviewStatus: "CANDIDATE" } }),
+      this.prisma.learnedItem.count({ where: { reviewStatus: "APPROVED" } }),
+      this.prisma.learnedItem.count({ where: { trainingStatus: "QUEUED" } }),
+      this.prisma.learnedItem.count({ where: { trainingStatus: "TRAINED" } }),
+      this.prisma.parameterModuleRecord.count(),
+      this.prisma.parameterModuleRecord.count({ where: { status: "ACTIVE" } }),
+      this.prisma.parameterModuleRecord.count({ where: { status: "STAGED" } }),
+      this.getParameterSnapshot(),
+    ]);
+
+    return {
+      learnedItems,
+      candidateItems,
+      approvedItems,
+      queuedItems,
+      trainedItems,
+      parameterModules,
+      activeParameterModules,
+      stagedParameterModules,
+      totalSystemParams: snapshot.totalSystemParams,
+      stagedParams: snapshot.stagedParams,
+      activeParamsPerRequest: snapshot.activeParamsPerRequest,
+    };
   }
 
   private async getRequiredLearnedItem(id: string): Promise<LearnedItem> {

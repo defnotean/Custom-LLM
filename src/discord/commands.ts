@@ -151,6 +151,9 @@ export async function handleCommand(
         return [
           `Uptime: ${Math.floor(s.uptimeSec / 60)}m · Tools: ${s.registry.tools} in ${s.registry.categories.length} categories`,
           `LLM: ${s.llm.provider} (${s.llm.model})`,
+          s.learning?.enabled
+            ? `Learning: items ${s.learning.learnedItems} · queued ${s.learning.queuedItems} · trained ${s.learning.trainedItems} · active params ${s.learning.activeParamsPerRequest}`
+            : "Learning: persistence disabled",
           s.db.available
             ? `DB: conversations ${s.db.conversations ?? 0} · tool logs ${s.db.toolLogs ?? 0} · training examples ${s.db.trainingExamples ?? 0} · memories ${s.db.memories ?? 0}`
             : "DB: not connected (persistence disabled)",

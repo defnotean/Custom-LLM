@@ -21,6 +21,7 @@ Discord message
   → Discord reply                  (typing indicator, 2000-char splitting)
   → conversation + training log    (TrainingDataLogger → Conversation + TrainingExample)
   → optional memory write-back     (MemoryPolicy decides)
+  → learned-item ledger record     (LiveLearningRepository, when DB is available)
 ```
 
 Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsTool: false`, the prompt contains no tool section and there is no second LLM turn — one model call, minimal context.
@@ -41,7 +42,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 | Safety | `src/safety/` | Rate limiting, moderation screen (placeholder), confirmation gating |
 | Training | `src/training/` | Full-fidelity interaction capture, JSONL exporters, synthetic generation |
 | Persistence | `src/database/`, `prisma/` | Prisma models + repositories |
-| API | `src/server/` | Fastify ops API (health/tools/memory/training/stats) |
+| API | `src/server/` | Fastify ops API (health/tools/memory/learning/training/stats) |
 | Jobs | `src/jobs/` | In-process queue scaffold + workers |
 
 ### Trust model (non-negotiable)
@@ -119,6 +120,6 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
 | Voice presence, STT, and TTS | **Planned** - use bot voice connections for compliant join/speak/listen behavior; requires opt-in retention policy and evals |
-| Live memory/skill learning | **Core registry + persistence scaffold implemented** - `LiveLearningRegistry` tracks immediate memory/RAG and skill access; `LiveLearningRepository` persists learned items, training queue status, provenance, retention, and module links; runtime wiring TODO |
-| Lifelong parameter-growth loop | **Core registry + persistence scaffold implemented** - parameter modules can be staged, gate-promoted, counted, persisted, and linked to source learned items; background trainer/hot-loader TODO |
+| Live memory/skill learning | **Memory path implemented, skill path TODO** - successful memory writes are retrievable immediately and also persisted as learned items with provenance, retention, and training eligibility; skill/eval-failure capture TODO |
+| Lifelong parameter-growth loop | **Accounting + persistence implemented** - parameter modules can be staged, gate-promoted, counted, persisted, reported through `/learning/status`, and linked to source learned items; background trainer/hot-loader TODO |
 | Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |

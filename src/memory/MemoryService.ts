@@ -1,6 +1,14 @@
 import type { Logger } from "pino";
 import type { MemoryHit, MemoryPort, MemoryQueryContext, MemoryScopeName } from "../types/ai";
-import type { JsonValue } from "../types/common";
+import type { JsonObject, JsonValue } from "../types/common";
+import type {
+  LearnedItem,
+  LearningAccessPath,
+  LearningKind,
+  LearningProvenance,
+  LearningRetentionPolicy,
+  LearningReviewStatus,
+} from "../learning/LiveLearningRegistry";
 import { toErrorMessage } from "../utils/errors";
 import { buildMemorySection } from "../ai/prompts/memoryPrompt";
 import type { EmbeddingProvider } from "./EmbeddingProvider";
@@ -29,18 +37,35 @@ export interface RememberResult {
   id: string | null;
   stored: boolean;
   reason: string;
+  learnedItemId?: string;
+}
+
+export interface LiveLearningCapture {
+  createLearnedItem(input: {
+    kind: LearningKind;
+    content: string;
+    source: string;
+    confidence?: number;
+    reviewStatus?: LearningReviewStatus;
+    accessPaths?: LearningAccessPath[];
+    provenance?: LearningProvenance;
+    retention?: Partial<LearningRetentionPolicy>;
+    metadata?: JsonObject;
+  }): Promise<LearnedItem>;
 }
 
 export class MemoryService implements MemoryPort {
   private readonly policy: MemoryPolicy;
+  private readonly learning: LiveLearningCapture | null;
 
   constructor(
     private readonly store: MemoryStore,
     private readonly embeddings: EmbeddingProvider,
     private readonly logger: Logger,
-    options?: { policy?: MemoryPolicy },
+    options?: { policy?: MemoryPolicy; learning?: LiveLearningCapture | null },
   ) {
     this.policy = options?.policy ?? new MemoryPolicy();
+    this.learning = options?.learning ?? null;
   }
 
   get storeName(): string {
@@ -80,8 +105,10 @@ export class MemoryService implements MemoryPort {
       embedding,
     });
 
-    this.logger.debug({ id: record.id, scope }, "memory stored");
-    return { id: record.id, stored: true, reason: verdict.reason };
+    const learnedItemId = await this.recordLearnedMemory(input, record.id, scope, verdict.reason);
+
+    this.logger.debug({ id: record.id, learnedItemId, scope }, "memory stored");
+    return { id: record.id, stored: true, reason: verdict.reason, ...(learnedItemId ? { learnedItemId } : {}) };
   }
 
   async search(
@@ -169,5 +196,44 @@ export class MemoryService implements MemoryPort {
 
   async count(): Promise<number> {
     return this.store.count();
+  }
+
+  private async recordLearnedMemory(
+    input: RememberInput,
+    memoryId: string,
+    scope: MemoryScopeName,
+    policyReason: string,
+  ): Promise<string | undefined> {
+    if (!this.learning) return undefined;
+
+    try {
+      const item = await this.learning.createLearnedItem({
+        kind: "memory",
+        content: input.content,
+        source: input.explicit ? "explicit_memory" : "memory_policy",
+        confidence: input.explicit ? 1 : 0.82,
+        accessPaths: ["memory_rag"],
+        provenance: {
+          userId: input.userId ?? undefined,
+          guildId: input.guildId ?? null,
+          channelId: input.channelId ?? null,
+          memoryId,
+        },
+        retention: {
+          canRetrieve: true,
+          canTrain: input.explicit === true,
+        },
+        metadata: {
+          memoryScope: scope,
+          importance: input.importance ?? null,
+          explicit: input.explicit ?? false,
+          policyReason,
+        },
+      });
+      return item.id;
+    } catch (err) {
+      this.logger.warn({ err: toErrorMessage(err), memoryId }, "failed to record learned memory item");
+      return undefined;
+    }
   }
 }

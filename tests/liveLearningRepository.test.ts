@@ -232,6 +232,65 @@ describe("LiveLearningRepository", () => {
       trainedAt: "2026-06-18T14:07:00.000Z",
     });
   });
+
+  it("summarizes learned items and parameter module growth", async () => {
+    const prisma = {
+      learnedItem: {
+        count: async (args?: { where?: Record<string, unknown> }) => {
+          if (args?.where?.reviewStatus === "CANDIDATE") return 2;
+          if (args?.where?.reviewStatus === "APPROVED") return 1;
+          if (args?.where?.trainingStatus === "QUEUED") return 1;
+          if (args?.where?.trainingStatus === "TRAINED") return 1;
+          return 4;
+        },
+      },
+      parameterModuleRecord: {
+        count: async (args?: { where?: Record<string, unknown> }) => {
+          if (args?.where?.status === "ACTIVE") return 2;
+          if (args?.where?.status === "STAGED") return 1;
+          return 3;
+        },
+        findMany: async () => [
+          parameterRow({
+            id: "base-1",
+            kind: "BASE_MODEL",
+            parameters: 4_000_000_000n,
+            activeParameters: 4_000_000_000n,
+            status: "ACTIVE",
+          }),
+          parameterRow({
+            id: "adapter-1",
+            kind: "ADAPTER",
+            parameters: 12_000_000n,
+            activeParameters: 12_000_000n,
+            status: "ACTIVE",
+          }),
+          parameterRow({
+            id: "expert-1",
+            kind: "EXPERT",
+            parameters: 775_358n,
+            activeParameters: 775_358n,
+            status: "STAGED",
+          }),
+        ],
+      },
+    };
+
+    const repo = new LiveLearningRepository(prisma as never);
+    await expect(repo.getStats()).resolves.toMatchObject({
+      learnedItems: 4,
+      candidateItems: 2,
+      approvedItems: 1,
+      queuedItems: 1,
+      trainedItems: 1,
+      parameterModules: 3,
+      activeParameterModules: 2,
+      stagedParameterModules: 1,
+      totalSystemParams: 4_012_000_000,
+      stagedParams: 775_358,
+      activeParamsPerRequest: 4_012_000_000,
+    });
+  });
 });
 
 function learnedRow(overrides: Record<string, unknown> = {}) {

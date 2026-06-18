@@ -28,6 +28,7 @@ import { UserRepository } from "./database/repositories/UserRepository";
 import { ToolLogRepository } from "./database/repositories/ToolLogRepository";
 import { TrainingExampleRepository } from "./database/repositories/TrainingExampleRepository";
 import { UserFeedbackRepository } from "./database/repositories/UserFeedbackRepository";
+import { LiveLearningRepository } from "./database/repositories/LiveLearningRepository";
 
 import { MemoryService } from "./memory/MemoryService";
 import type { MemoryStore } from "./memory/MemoryStore";
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   const toolLogRepo = prisma ? new ToolLogRepository(prisma) : null;
   const trainingRepo = prisma ? new TrainingExampleRepository(prisma) : null;
   const feedbackRepo = prisma ? new UserFeedbackRepository(prisma) : null;
+  const learningRepo = prisma ? new LiveLearningRepository(prisma) : null;
 
   // ── LLM ────────────────────────────────────────────────────────────────
   const llm = buildLLMRouterFromEnv(env, childLogger("llm"));
@@ -89,7 +91,7 @@ async function main(): Promise<void> {
           });
 
     const store = await selectMemoryStore(embeddings, prisma);
-    memoryService = new MemoryService(store, embeddings, childLogger("memory"));
+    memoryService = new MemoryService(store, embeddings, childLogger("memory"), { learning: learningRepo });
     logger.info({ store: store.name, embeddings: embeddings.name }, "memory system ready");
   } else {
     logger.info("memory system disabled via MEMORY_ENABLED=false");
@@ -164,20 +166,24 @@ async function main(): Promise<void> {
     },
   });
 
-  const getStats = async (): Promise<StatsPayload> => ({
-    uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
-    registry: { tools: registry.size, categories: registry.categories() },
-    llm: { provider: llm.info.name, model: llm.info.model },
-    db: prisma
-      ? {
-          available: true,
-          conversations: await safeCount(() => conversationRepo?.count()),
-          toolLogs: await safeCount(() => toolLogRepo?.count()),
-          trainingExamples: await safeCount(() => trainingRepo?.count()),
-          memories: await safeCount(() => memoryService?.count()),
-        }
-      : { available: false },
-  });
+  const getStats = async (): Promise<StatsPayload> => {
+    const learningStats = learningRepo ? await safeValue(() => learningRepo.getStats()) : null;
+    return {
+      uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
+      registry: { tools: registry.size, categories: registry.categories() },
+      llm: { provider: llm.info.name, model: llm.info.model },
+      learning: learningStats ? { enabled: true, ...learningStats } : { enabled: false },
+      db: prisma
+        ? {
+            available: true,
+            conversations: await safeCount(() => conversationRepo?.count()),
+            toolLogs: await safeCount(() => toolLogRepo?.count()),
+            trainingExamples: await safeCount(() => trainingRepo?.count()),
+            memories: await safeCount(() => memoryService?.count()),
+          }
+        : { available: false },
+    };
+  };
 
   // ── Discord event handlers ─────────────────────────────────────────────
   const commandServices: CommandServices = {
@@ -217,6 +223,7 @@ async function main(): Promise<void> {
   const api = buildApiServer({
     registry,
     memory: memoryService ? (q, ctx, topK) => memoryService.search(q, ctx, topK) : null,
+    learningStats: learningRepo ? () => learningRepo.getStats() : null,
     exporter: exporter ? (outDir) => exporter.exportAll(outDir) : null,
     recordFeedbackPreference: feedbackRepo ? (input) => feedbackRepo.createPreferencePair(input) : null,
     getHealth,
@@ -318,6 +325,14 @@ function buildToolRetrievalStrategy(
 }
 
 async function safeCount(fn: () => Promise<number> | undefined): Promise<number | undefined> {
+  try {
+    return await fn();
+  } catch {
+    return undefined;
+  }
+}
+
+async function safeValue<T>(fn: () => Promise<T> | undefined): Promise<T | undefined> {
   try {
     return await fn();
   } catch {

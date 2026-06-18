@@ -17,10 +17,25 @@ export interface HealthPayload {
   memory: { enabled: boolean; store: string };
 }
 
+export interface LearningStatsPayload {
+  learnedItems: number;
+  candidateItems: number;
+  approvedItems: number;
+  queuedItems: number;
+  trainedItems: number;
+  parameterModules: number;
+  activeParameterModules: number;
+  stagedParameterModules: number;
+  totalSystemParams: number;
+  stagedParams: number;
+  activeParamsPerRequest: number;
+}
+
 export interface StatsPayload {
   uptimeSec: number;
   registry: { tools: number; categories: string[] };
   llm: { provider: string; model: string };
+  learning?: ({ enabled: false } | ({ enabled: true } & LearningStatsPayload));
   db: {
     available: boolean;
     conversations?: number;

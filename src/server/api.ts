@@ -6,6 +6,7 @@ import { registerHealthRoutes } from "./routes/health";
 import { registerToolRoutes } from "./routes/tools";
 import { registerMemoryRoutes, type MemoryRouteDeps } from "./routes/memory";
 import { registerTrainingRoutes, type TrainingRouteDeps } from "./routes/training";
+import { registerLearningRoutes, type LearningRouteDeps } from "./routes/learning";
 
 /**
  * Operational HTTP API (health, tool catalog, memory search, training
@@ -17,6 +18,7 @@ import { registerTrainingRoutes, type TrainingRouteDeps } from "./routes/trainin
 export interface ApiDeps {
   registry: ToolRegistry;
   memory: MemoryRouteDeps["search"];
+  learningStats?: LearningRouteDeps["getStats"];
   exporter: TrainingRouteDeps["exportAll"];
   recordFeedbackPreference?: TrainingRouteDeps["recordFeedbackPreference"];
   getHealth: () => Promise<HealthPayload>;
@@ -35,6 +37,7 @@ export function buildApiServer(deps: ApiDeps): FastifyInstance {
   registerHealthRoutes(app, { getHealth: deps.getHealth, getStats: deps.getStats });
   registerToolRoutes(app, deps.registry);
   registerMemoryRoutes(app, { search: deps.memory });
+  registerLearningRoutes(app, { getStats: deps.learningStats ?? null });
   registerTrainingRoutes(app, {
     exportAll: deps.exporter,
     recordFeedbackPreference: deps.recordFeedbackPreference,
