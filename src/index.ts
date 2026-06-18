@@ -59,6 +59,8 @@ import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { createMessageHandler } from "./discord/events/messageCreate";
 import { createInteractionHandler } from "./discord/events/interactionCreate";
 import { DiscordVoiceService } from "./discord/voice/DiscordVoiceService";
+import { VoiceSpeechQueue } from "./discord/voice/VoiceSpeechQueue";
+import { DiscordVoiceSpeechPlayer, HttpTtsProvider } from "./discord/voice/VoiceTtsPlayback";
 import type { CommandServices } from "./discord/commands";
 
 import { buildApiServer, startApiServer } from "./server/api";
@@ -161,8 +163,36 @@ async function main(): Promise<void> {
 
   // ── Discord client + agent ─────────────────────────────────────────────
   const discordClient = createDiscordClient();
+  const voiceSpeechQueue = env.VOICE_TTS_ENDPOINT
+    ? new VoiceSpeechQueue(
+        new DiscordVoiceSpeechPlayer({
+          tts: new HttpTtsProvider({
+            endpointUrl: env.VOICE_TTS_ENDPOINT,
+            ...(env.VOICE_TTS_API_KEY ? { apiKey: env.VOICE_TTS_API_KEY } : {}),
+            voice: env.VOICE_TTS_VOICE,
+            format: env.VOICE_TTS_FORMAT,
+            timeoutMs: env.VOICE_TTS_TIMEOUT_MS,
+          }),
+          streamType: env.VOICE_TTS_STREAM_TYPE,
+          playbackTimeoutMs: env.VOICE_TTS_PLAYBACK_TIMEOUT_MS,
+          logger: childLogger("voice-tts"),
+        }),
+        {
+          maxTextChars: env.VOICE_SPEECH_MAX_CHARS,
+          maxQueueDepth: env.VOICE_SPEECH_MAX_QUEUE_DEPTH,
+          cooldownMs: env.VOICE_SPEECH_COOLDOWN_MS,
+          onPlaybackError: (job, err) =>
+            childLogger("voice-tts").warn(
+              { jobId: job.id, guildId: job.guildId, err: toErrorMessage(err) },
+              "voice speech playback failed",
+            ),
+        },
+      )
+    : null;
+  logger.info({ ttsConfigured: Boolean(voiceSpeechQueue) }, "voice speech queue ready");
   const voiceService = new DiscordVoiceService({
     settingsStore: guildRepo,
+    speechQueue: voiceSpeechQueue,
     logger: childLogger("voice"),
   });
 

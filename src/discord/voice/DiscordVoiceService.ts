@@ -186,7 +186,7 @@ export class DiscordVoiceService {
     if (!this.speechQueue) {
       return {
         ok: false,
-        message: "TTS playback is not configured yet. Wire a VoiceSpeechQueue backend before using `!ai voice say`.",
+        message: "TTS playback is not configured. Set VOICE_TTS_ENDPOINT before using `!ai voice say`.",
       };
     }
 

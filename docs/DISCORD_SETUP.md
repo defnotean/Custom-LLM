@@ -45,7 +45,23 @@ DISCORD_PRESENCE_ACTIVITY_NAME=for tool calls
 
 Supported activity types are `Playing`, `Listening`, `Watching`, `Competing`, and `Custom`.
 
-Voice join/leave commands are shipped behind an opt-in policy. Speech queue commands are present, but `!ai voice say` requires a configured TTS/playback backend before it can produce audio. STT commands are not shipped yet. The current voice code requires guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training.
+Voice join/leave commands are shipped behind an opt-in policy. `!ai voice say` uses a configurable HTTP TTS endpoint plus Discord Voice playback when `VOICE_TTS_ENDPOINT` is set. STT commands are not shipped yet. The current voice code requires guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training.
+
+```env
+# Contract: POST JSON {text, voice, format, metadata}; return audio bytes or JSON {audioBase64}.
+VOICE_TTS_ENDPOINT=http://127.0.0.1:8080/tts
+VOICE_TTS_API_KEY=
+VOICE_TTS_VOICE=irene
+VOICE_TTS_FORMAT=ogg-opus
+VOICE_TTS_STREAM_TYPE=ogg/opus
+VOICE_TTS_TIMEOUT_MS=30000
+VOICE_TTS_PLAYBACK_TIMEOUT_MS=120000
+VOICE_SPEECH_MAX_CHARS=600
+VOICE_SPEECH_MAX_QUEUE_DEPTH=3
+VOICE_SPEECH_COOLDOWN_MS=3000
+```
+
+Set `VOICE_TTS_STREAM_TYPE` to match the bytes your TTS service returns. `ogg/opus` is the cleanest Discord path; `arbitrary` depends on the local FFmpeg/runtime support available to `@discordjs/voice`.
 
 To enable Irene for the voice channel you are currently in:
 
