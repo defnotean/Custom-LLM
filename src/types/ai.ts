@@ -65,6 +65,15 @@ export interface MemoryHit {
   score: number;
 }
 
+export interface SkillHint {
+  id: string;
+  content: string;
+  source: string;
+  confidence: number;
+  score: number;
+  toolName?: string;
+}
+
 export interface MemoryQueryContext {
   userId: string;
   guildId: string | null;
@@ -132,6 +141,7 @@ export interface InteractionTrace {
   transcript?: string;
 
   memoriesRetrieved: MemoryHit[];
+  skillsRetrieved?: SkillHint[];
   candidateToolNames: string[];
   likelyNeedsTool: boolean;
   routerReasoning?: string;

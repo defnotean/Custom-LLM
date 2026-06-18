@@ -12,7 +12,8 @@ Discord message
   → safety pre-check               (SafetyService: rate limit + content screen)
   → memory retrieval (top ~5)      (MemoryService → vector store)
   → tool candidate retrieval (~10) (ToolRouter — NEVER the whole registry)
-  → prompt builder                 (systemPrompt + tool/memory/safety sections)
+  → skill retrieval (top ~3)       (approved LearnedItem skill hints)
+  → prompt builder                 (systemPrompt + tool/memory/skill/safety sections)
   → LLM call                       (LLMRouter → OpenAI-compatible / Ollama)
   → response parser                (parseAssistantResponse: JSON + repair + Zod)
   → tool gates                     (validate args → permissions → cooldown → risk/confirmation)
@@ -121,6 +122,6 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
 | Voice presence, STT, and TTS | **Planned** - use bot voice connections for compliant join/speak/listen behavior; requires opt-in retention policy and evals |
-| Live memory/skill learning | **Memory + interaction capture + review API implemented** - successful memory writes are retrievable immediately and persisted as learned items; successful tool workflows become skill candidates; parse/tool/safety failures become eval-failure candidates; `/learning/items` lists, reviews, and queues candidates; richer UI TODO |
+| Live memory/skill learning | **Memory + interaction capture + review API + skill retrieval implemented** - memory writes are retrievable immediately; tool workflows become skill candidates; `/learning/items` reviews/queues candidates; approved skills are retrieved into prompts as workflow hints; richer UI TODO |
 | Lifelong parameter-growth loop | **Accounting + persistence implemented** - parameter modules can be staged, gate-promoted, counted, persisted, reported through `/learning/status`, and linked to source learned items; background trainer/hot-loader TODO |
 | Sharding | Not needed until ~2,500 guilds; design is stateless-ready except in-process cooldown/pending-confirmation maps (move to Redis first) |

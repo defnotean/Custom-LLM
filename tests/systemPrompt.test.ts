@@ -9,7 +9,7 @@ import {
 describe("systemPrompt", () => {
   it("hardcodes the she/her persona and strict JSON protocol", () => {
     const prompt = buildSystemPrompt({ botName: "Irene", isDM: true });
-    expect(SYSTEM_PROMPT_VERSION).toBe("v1.2.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("v1.3.0");
     expect(DEFAULT_BOT_NAME).toBe("Irene");
     expect(DEFAULT_BOT_PRONOUNS).toBe("she/her");
     expect(prompt).toContain("You present as she/her");
@@ -18,5 +18,16 @@ describe("systemPrompt", () => {
     expect(prompt).toContain("Do not add generic filter/refusal language to allowed requests");
     expect(prompt).toContain("Output format - STRICT");
     expect(prompt).toContain("Respond with ONLY a single valid JSON object");
+  });
+
+  it("includes reviewed learned skills when provided", () => {
+    const prompt = buildSystemPrompt({
+      botName: "Irene",
+      isDM: true,
+      skillSection: "Relevant learned skills:\n- [skill:1 tool=ping] Use ping for health checks.",
+    });
+
+    expect(prompt).toContain("Relevant learned skills");
+    expect(prompt).toContain("Use ping for health checks");
   });
 });

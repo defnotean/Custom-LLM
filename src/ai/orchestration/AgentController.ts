@@ -5,6 +5,7 @@ import type {
   AssistantAction,
   InteractionTrace,
   MemoryHit,
+  SkillHint,
   TrainingSink,
   TrainingSinkResult,
 } from "../../types/ai";
@@ -20,6 +21,7 @@ import {
 } from "../prompts/systemPrompt";
 import { buildSafetySection } from "../prompts/safetyPrompt";
 import { buildMemorySection } from "../prompts/memoryPrompt";
+import { buildSkillSection } from "../prompts/skillPrompt";
 import type { ToolExecutionContext, ToolMemoryAccess } from "../../tools/ToolDefinition";
 import type { ToolRegistry } from "../../tools/ToolRegistry";
 import type { ToolExecutor, ToolExecutionOutcome } from "../../tools/ToolExecutor";
@@ -47,6 +49,7 @@ export interface AgentControllerOptions {
   executor: ToolExecutor;
   toolRouterAgent?: ToolRouterAgent | null;
   memoryAgent?: MemoryAgent | null;
+  skillRetriever?: SkillRetrievalPort | null;
   safetyAgent?: SafetyAgent | null;
   training?: TrainingSink | null;
   learning?: InteractionLearningSink | null;
@@ -63,6 +66,10 @@ export interface AgentControllerOptions {
 
 export interface InteractionLearningSink {
   captureInteraction(trace: InteractionTrace, training?: TrainingSinkResult): Promise<void>;
+}
+
+export interface SkillRetrievalPort {
+  retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<SkillHint[]>;
 }
 
 const CONFIRM_PATTERN = /^(yes|y|yep|yeah|confirm|do it|go ahead|sure|ok|okay)\b/i;
@@ -90,6 +97,7 @@ export class AgentController {
   private readonly executor: ToolExecutor;
   private readonly toolRouterAgent: ToolRouterAgent | null;
   private readonly memoryAgent: MemoryAgent | null;
+  private readonly skillRetriever: SkillRetrievalPort | null;
   private readonly safetyAgent: SafetyAgent | null;
   private readonly training: TrainingSink | null;
   private readonly learning: InteractionLearningSink | null;
@@ -107,6 +115,7 @@ export class AgentController {
     this.executor = options.executor;
     this.toolRouterAgent = options.toolRouterAgent ?? null;
     this.memoryAgent = options.memoryAgent ?? null;
+    this.skillRetriever = options.skillRetriever ?? null;
     this.safetyAgent = options.safetyAgent ?? null;
     this.training = options.training ?? null;
     this.learning = options.learning ?? null;
@@ -153,13 +162,32 @@ export class AgentController {
 
       // 3. Tool candidate retrieval (top-N subset, never the whole registry).
       let toolSection: string | null = null;
+      let candidateToolNames: string[] = [];
       if (this.toolCallingEnabled && this.toolRouterAgent) {
         const selection = await this.toolRouterAgent.selectCandidates(ctx, { maxTools: 10 });
         toolSection = selection.toolSection;
         trace.likelyNeedsTool = selection.routing.likelyNeedsTool;
         trace.routerReasoning = selection.routing.reasoning;
         trace.routerConfidence = selection.routing.confidence;
-        trace.candidateToolNames = selection.routing.candidateTools.map((t) => t.name);
+        candidateToolNames = selection.routing.candidateTools.map((t) => t.name);
+        trace.candidateToolNames = candidateToolNames;
+      }
+
+      // 3b. Approved learned-skill retrieval. Skills are prompt hints only;
+      // tool execution still goes through normal candidate and executor gates.
+      let skillSection: string | null = null;
+      if (this.skillRetriever) {
+        try {
+          const skills = await this.skillRetriever.retrieve({
+            query: ctx.content,
+            candidateToolNames,
+            topK: 3,
+          });
+          trace.skillsRetrieved = skills;
+          skillSection = buildSkillSection(skills);
+        } catch (err) {
+          this.logger.warn({ err: toErrorMessage(err) }, "skill retrieval failed; continuing without");
+        }
       }
 
       // 4. Prompt build.
@@ -170,6 +198,7 @@ export class AgentController {
         isDM: ctx.isDM,
         toolSection,
         memorySection: memoryHits.length > 0 ? memorySection : null,
+        skillSection,
         safetySection: buildSafetySection(),
       });
       trace.systemPrompt = systemPrompt;
@@ -298,6 +327,7 @@ export class AgentController {
           isDM: ctx.isDM,
           toolSection: null,
           memorySection: null,
+          skillSection: null,
           safetySection: buildSafetySection(),
         }),
         username: ctx.username,
@@ -428,6 +458,7 @@ export class AgentController {
       systemPromptVersion: SYSTEM_PROMPT_VERSION,
       systemPrompt: "",
       memoriesRetrieved: [],
+      skillsRetrieved: [],
       candidateToolNames: [],
       likelyNeedsTool: false,
       finalResponse: "",

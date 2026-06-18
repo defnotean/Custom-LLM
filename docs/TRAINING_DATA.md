@@ -23,6 +23,7 @@ Parse failures and tool denials are logged too. Failure data is signal for forma
 - Parse failures, safety blocks, tool denials, and tool execution failures become `eval_failure` candidates with `training_queue` access.
 - Candidate content and metadata are scrubbed for obvious tokens/API keys before storage.
 - Candidates are not automatically trained into weights or promoted into parameter modules. They require review, queueing, background training, eval gates, and parameter-module promotion.
+- Approved `skill` candidates with `skill_registry` access are retrieved into future prompts as workflow hints. They do not bypass tool retrieval, permissions, confirmations, or executor gates.
 
 Review and queue candidates through the private ops API:
 

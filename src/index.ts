@@ -45,6 +45,7 @@ import { SafetyService } from "./safety/SafetyService";
 import { TrainingDataLogger } from "./training/TrainingDataLogger";
 import { DatasetExporter } from "./training/DatasetExporter";
 import { InteractionLearningCapture } from "./learning/InteractionLearningCapture";
+import { SkillRetrievalService } from "./learning/SkillRetrievalService";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { createMessageHandler } from "./discord/events/messageCreate";
@@ -133,6 +134,7 @@ async function main(): Promise<void> {
     ? new DatasetExporter({ source: trainingRepo, feedbackSource: feedbackRepo ?? undefined, logger: childLogger("exporter") })
     : null;
   const learningCapture = learningRepo ? new InteractionLearningCapture(learningRepo, childLogger("learning-capture")) : null;
+  const skillRetriever = learningRepo ? new SkillRetrievalService(learningRepo) : null;
 
   // ── Discord client + agent ─────────────────────────────────────────────
   const discordClient = createDiscordClient();
@@ -147,6 +149,7 @@ async function main(): Promise<void> {
     memoryAgent: memoryService
       ? new MemoryAgent(memoryService, childLogger("memory-agent"))
       : null,
+    skillRetriever,
     safetyAgent: env.SAFETY_ENABLED ? new SafetyAgent(safetyService) : null,
     training: trainingLogger,
     learning: learningCapture,

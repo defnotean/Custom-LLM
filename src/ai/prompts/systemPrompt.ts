@@ -4,7 +4,7 @@
  * on any behavioral change.
  */
 
-export const SYSTEM_PROMPT_VERSION = "v1.2.0";
+export const SYSTEM_PROMPT_VERSION = "v1.3.0";
 export const DEFAULT_BOT_NAME = "Irene";
 export const DEFAULT_BOT_PRONOUNS = "she/her";
 
@@ -17,6 +17,8 @@ export interface SystemPromptOptions {
   toolSection?: string | null;
   /** Rendered memory section (from memoryPrompt.ts), or null when empty/disabled. */
   memorySection?: string | null;
+  /** Rendered learned-skill section (from skillPrompt.ts), or null when empty/disabled. */
+  skillSection?: string | null;
   /** Rendered safety section (from safetyPrompt.ts). */
   safetySection?: string | null;
 }
@@ -70,6 +72,7 @@ export function buildSystemPrompt(options: SystemPromptOptions): string {
   sections.push(`Context:\n${where}`);
 
   if (options.memorySection) sections.push(options.memorySection);
+  if (options.skillSection) sections.push(options.skillSection);
   if (options.toolSection) sections.push(options.toolSection);
   if (options.safetySection) sections.push(options.safetySection);
 

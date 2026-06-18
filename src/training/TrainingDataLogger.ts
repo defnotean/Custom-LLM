@@ -84,6 +84,7 @@ export class TrainingDataLogger implements TrainingSink {
           userMessage: trace.userMessage,
           transcript: trace.transcript ?? null,
           memoriesRetrieved: toJsonValue(trace.memoriesRetrieved),
+          skillsRetrieved: toJsonValue(trace.skillsRetrieved ?? []),
           candidateTools: toJsonValue(trace.candidateToolNames),
           likelyNeedsTool: trace.likelyNeedsTool,
           routerReasoning: trace.routerReasoning ?? null,

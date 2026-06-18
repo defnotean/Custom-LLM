@@ -11,7 +11,7 @@ import { ToolCooldownService } from "../src/tools/ToolCooldownService";
 import { defineTool, toolOk } from "../src/tools/ToolDefinition";
 import { SafetyService } from "../src/safety/SafetyService";
 import type { BotMessageContext } from "../src/types/discord";
-import type { InteractionTrace } from "../src/types/ai";
+import type { InteractionTrace, SkillHint } from "../src/types/ai";
 import { MockLLMProvider, testLogger } from "./helpers";
 
 function makeRegistry(): ToolRegistry {
@@ -68,6 +68,7 @@ function makeController(
     learning?: {
       captureInteraction(trace: InteractionTrace, training?: { conversationId?: string; trainingExampleId?: string }): Promise<void>;
     } | null;
+    skillRetriever?: { retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<SkillHint[]> } | null;
   },
 ) {
   const registry = makeRegistry();
@@ -84,6 +85,7 @@ function makeController(
     registry,
     executor,
     toolRouterAgent: new ToolRouterAgent(registry, new ToolRouter(registry)),
+    skillRetriever: options?.skillRetriever ?? null,
     safetyAgent: new SafetyAgent(new SafetyService(testLogger, { enabled: true })),
     training: {
       logInteraction: async (trace) => {
@@ -207,6 +209,47 @@ describe("AgentController", () => {
     expect(captures[0]?.trace.toolCall).toMatchObject({ name: "ping" });
     expect(captures[0]?.trace.toolSuccess).toBe(true);
     expect(captures[0]?.training).toEqual({ conversationId: "conversation-1", trainingExampleId: "training-1" });
+  });
+
+  it("injects approved learned skills into the first model prompt", async () => {
+    const traces: InteractionTrace[] = [];
+    const { controller, llm } = makeController(
+      ['{"type":"tool_call","tool":"ping","arguments":{},"reason":"learned skill says ping fits"}', '{"type":"message","content":"pong"}'],
+      traces,
+      {
+        skillRetriever: {
+          retrieve: async (input) => {
+            expect(input).toMatchObject({ query: "ping please, are you alive?", candidateToolNames: expect.arrayContaining(["ping"]) });
+            return [
+              {
+                id: "skill-ping",
+                content: "Use ping for lightweight health checks.",
+                source: "tool_success",
+                confidence: 0.9,
+                score: 4.9,
+                toolName: "ping",
+              },
+            ];
+          },
+        },
+      },
+    );
+
+    await controller.handleDiscordMessage(makeCtx("ping please, are you alive?"));
+
+    const systemMessage = llm.requests[0]?.messages[0]?.content ?? "";
+    expect(systemMessage).toContain("Relevant learned skills");
+    expect(systemMessage).toContain("Use ping for lightweight health checks.");
+    expect(traces[0]?.skillsRetrieved).toEqual([
+      {
+        id: "skill-ping",
+        content: "Use ping for lightweight health checks.",
+        source: "tool_success",
+        confidence: 0.9,
+        score: 4.9,
+        toolName: "ping",
+      },
+    ]);
   });
 
   it("degrades to plain message when the model ignores the JSON protocol", async () => {
