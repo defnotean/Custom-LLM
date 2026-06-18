@@ -24,9 +24,9 @@ describe("ToolRouterEvalSuite", () => {
     dir = await mkdtemp(join(tmpdir(), "tool-router-eval-"));
     const suitePath = join(dir, "tool-router.eval.jsonl");
     const summary = await writeToolRouterEvalSuite(suitePath);
-    expect(summary.cases).toBeGreaterThanOrEqual(53);
-    expect(summary.toolCases).toBeGreaterThanOrEqual(33);
-    expect(summary.noToolCases).toBeGreaterThanOrEqual(15);
+    expect(summary.cases).toBeGreaterThanOrEqual(75);
+    expect(summary.toolCases).toBeGreaterThanOrEqual(49);
+    expect(summary.noToolCases).toBeGreaterThanOrEqual(21);
     expect(summary.sha256).toMatch(/^[a-f0-9]{64}$/);
 
     const cases = (await readFile(suitePath, "utf8"))
@@ -36,6 +36,11 @@ describe("ToolRouterEvalSuite", () => {
     expect(cases.find((item) => item.id === "tool-router:timeout")).toMatchObject({
       expectedTools: ["timeout_user"],
       memberPermissions: ["MODERATE_MEMBERS"],
+    });
+    expect(cases.find((item) => item.id === "tool-router:send-message:exact-surface")).toMatchObject({
+      expectedTools: ["send_message"],
+      memberPermissions: ["SEND_MESSAGES"],
+      metadata: { subcategory: "exact_tool_surface" },
     });
     expect(cases.find((item) => item.id === "tool-router:permission:timeout-hidden")).toMatchObject({
       expectedTools: [],
@@ -60,6 +65,11 @@ describe("ToolRouterEvalSuite", () => {
       forbiddenTools: ["delete_message"],
       memberPermissions: ["MANAGE_MESSAGES"],
     });
+    expect(cases.find((item) => item.id === "tool-router:no-tool:memory-tool-story")).toMatchObject({
+      expectedLikelyNeedsTool: false,
+      expectedTools: [],
+      forbiddenTools: ["remember_fact", "recall_memory"],
+    });
   });
 
   it("evaluates keyword retrieval against the live registry", async () => {
@@ -68,7 +78,7 @@ describe("ToolRouterEvalSuite", () => {
     await writeToolRouterEvalSuite(suitePath);
 
     const report = await evaluateToolRouter(suitePath, buildToolRegistry(), "keyword");
-    expect(report.total).toBeGreaterThanOrEqual(53);
+    expect(report.total).toBeGreaterThanOrEqual(75);
     expect(report.expectedToolRecall).toBe(1);
     expect(report.caseRecallAccuracy).toBe(1);
     expect(report.noToolAccuracy).toBe(1);

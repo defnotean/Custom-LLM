@@ -280,7 +280,7 @@ Tasks:
 - Keep expanding multi-turn confirmation/correction cases beyond the current yes variants, cancel variants, defer turn, and changed-argument coverage.
 - Keep expanding adversarial no-tool/casual prompts that mention tool names or protocol JSON.
 - Expand prompt-injection cases beyond the first fake JSON, pasted tool output, memory override, permission-bypass, and confirmation-bypass coverage.
-- Keep expanding the 53-case tool-router retrieval eval with new starter tools, paraphrases, permission-filter contrasts, and prompts that mention tools without authorizing execution.
+- Keep expanding the 75-case tool-router retrieval eval with new starter tools, paraphrases, permission-filter contrasts, exact tool-surface requests, and prompts that mention tools without authorizing execution.
 - Compare keyword vs real semantic embedding tool retrieval on the same eval suite before promoting embedding retrieval.
 - Tighten latency gates for tool routing as the registry grows.
 

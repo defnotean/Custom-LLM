@@ -97,7 +97,7 @@ export interface ToolRouterPromotionResult {
 }
 
 export const DEFAULT_TOOL_ROUTER_PROMOTION_THRESHOLDS: ToolRouterPromotionThresholds = {
-  minTotalCases: 48,
+  minTotalCases: 75,
   minExpectedToolRecall: 1,
   minCaseRecallAccuracy: 1,
   minTop1Accuracy: 0.85,
@@ -113,6 +113,16 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
     memberPermissions: ["MODERATE_MEMBERS"],
     category: "moderation",
   }),
+  toolCase(
+    "tool-router:timeout:exact-surface",
+    "use timeout_user for user 123456789012345678 for 3 minutes for raid spam",
+    ["timeout_user"],
+    {
+      memberPermissions: ["MODERATE_MEMBERS"],
+      category: "moderation",
+      metadata: { subcategory: "exact_tool_surface" },
+    },
+  ),
   toolCase(
     "tool-router:timeout:paraphrase",
     "put 123456789012345678 in timeout for half an hour because they keep flooding chat",
@@ -135,6 +145,11 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
     memberPermissions: ["MODERATE_MEMBERS"],
     category: "moderation",
   }),
+  toolCase("tool-router:warn:exact-surface", "call warn_user for 123456789012345678 because they ignored rule 3", ["warn_user"], {
+    memberPermissions: ["MODERATE_MEMBERS"],
+    category: "moderation",
+    metadata: { subcategory: "exact_tool_surface" },
+  }),
   toolCase("tool-router:warn:paraphrase", "give 123456789012345678 a formal warning for rule 3", ["warn_user"], {
     memberPermissions: ["MODERATE_MEMBERS"],
     category: "moderation",
@@ -143,6 +158,11 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
     memberPermissions: ["MANAGE_MESSAGES"],
     category: "moderation",
   }),
+  toolCase("tool-router:delete:exact-surface", "run delete_message for messageId 987654321098765432", ["delete_message"], {
+    memberPermissions: ["MANAGE_MESSAGES"],
+    category: "moderation",
+    metadata: { subcategory: "exact_tool_surface" },
+  }),
   toolCase("tool-router:delete:remove-wording", "remove message 987654321098765432 from here", ["delete_message"], {
     memberPermissions: ["MANAGE_MESSAGES"],
     category: "moderation",
@@ -150,11 +170,19 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
   toolCase("tool-router:user-info", "get user info for 123456789012345678", ["get_user_info"], {
     category: "moderation",
   }),
+  toolCase("tool-router:user-info:exact-surface", "use get_user_info on 123456789012345678", ["get_user_info"], {
+    category: "moderation",
+    metadata: { subcategory: "exact_tool_surface" },
+  }),
   toolCase("tool-router:user-info:join-date", "when did user 123456789012345678 join the server", ["get_user_info"], {
     category: "moderation",
   }),
   toolCase("tool-router:remember", "remember that my timezone is CET", ["remember_fact"], {
     category: "memory",
+  }),
+  toolCase("tool-router:remember:exact-surface", "use remember_fact to store that my deploy window is 9pm", ["remember_fact"], {
+    category: "memory",
+    metadata: { subcategory: "exact_tool_surface" },
   }),
   toolCase("tool-router:remember:guild", "remember that this server's raid night is Friday", ["remember_fact"], {
     category: "memory",
@@ -162,11 +190,19 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
   toolCase("tool-router:recall", "recall memory about my timezone", ["recall_memory"], {
     category: "memory",
   }),
+  toolCase("tool-router:recall:exact-surface", "call recall_memory for my deploy window", ["recall_memory"], {
+    category: "memory",
+    metadata: { subcategory: "exact_tool_surface" },
+  }),
   toolCase("tool-router:recall:project", "what did I tell you about my project", ["recall_memory"], {
     category: "memory",
   }),
   toolCase("tool-router:forget", "forget memory memory-12345", ["forget_memory"], {
     category: "memory",
+  }),
+  toolCase("tool-router:forget:exact-surface", "run forget_memory for memory-12345", ["forget_memory"], {
+    category: "memory",
+    metadata: { subcategory: "exact_tool_surface" },
   }),
   toolCase("tool-router:forget:old-username", "delete the memory about my old username", ["forget_memory"], {
     category: "memory",
@@ -174,6 +210,11 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
   toolCase("tool-router:send-message", "send message to this channel saying deploy is starting", ["send_message"], {
     memberPermissions: ["SEND_MESSAGES"],
     category: "discord",
+  }),
+  toolCase("tool-router:send-message:exact-surface", "use send_message to post deploy is green", ["send_message"], {
+    memberPermissions: ["SEND_MESSAGES"],
+    category: "discord",
+    metadata: { subcategory: "exact_tool_surface" },
   }),
   toolCase("tool-router:send-message:announce", "post meeting moved to 5 in general", ["send_message"], {
     memberPermissions: ["SEND_MESSAGES"],
@@ -183,6 +224,16 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
     memberPermissions: ["READ_MESSAGE_HISTORY"],
     category: "discord",
   }),
+  toolCase(
+    "tool-router:summarize:exact-surface",
+    "run summarize_channel_recent_messages for the last 20 messages",
+    ["summarize_channel_recent_messages"],
+    {
+      memberPermissions: ["READ_MESSAGE_HISTORY"],
+      category: "discord",
+      metadata: { subcategory: "exact_tool_surface" },
+    },
+  ),
   toolCase("tool-router:summarize:catch-up", "catch me up on the last 20 messages in here", ["summarize_channel_recent_messages"], {
     memberPermissions: ["READ_MESSAGE_HISTORY"],
     category: "discord",
@@ -190,11 +241,19 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
   toolCase("tool-router:guild-stats", "get guild stats for this server", ["get_guild_stats"], {
     category: "discord",
   }),
+  toolCase("tool-router:guild-stats:exact-surface", "call get_guild_stats for this server", ["get_guild_stats"], {
+    category: "discord",
+    metadata: { subcategory: "exact_tool_surface" },
+  }),
   toolCase("tool-router:guild-stats:activity", "show guild statistics for this server", ["get_guild_stats"], {
     category: "discord",
   }),
   toolCase("tool-router:server-info", "show server info", ["server_info"], {
     category: "utility",
+  }),
+  toolCase("tool-router:server-info:exact-surface", "use server_info for this guild", ["server_info"], {
+    category: "utility",
+    metadata: { subcategory: "exact_tool_surface" },
   }),
   toolCase("tool-router:server-info:members", "how many members does this server have", ["server_info"], {
     category: "utility",
@@ -202,11 +261,19 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
   toolCase("tool-router:channel-info", "show channel info", ["channel_info"], {
     category: "utility",
   }),
+  toolCase("tool-router:channel-info:exact-surface", "run channel_info for this channel", ["channel_info"], {
+    category: "utility",
+    metadata: { subcategory: "exact_tool_surface" },
+  }),
   toolCase("tool-router:channel-info:topic", "what is this channel topic", ["channel_info"], {
     category: "utility",
   }),
   toolCase("tool-router:current-time", "what time is it right now", ["current_time"], {
     category: "utility",
+  }),
+  toolCase("tool-router:current-time:exact-surface", "call current_time right now", ["current_time"], {
+    category: "utility",
+    metadata: { subcategory: "exact_tool_surface" },
   }),
   toolCase("tool-router:current-time:date", "what is today's date", ["current_time"], {
     category: "utility",
@@ -214,17 +281,29 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
   toolCase("tool-router:ping", "ping check are you alive", ["ping"], {
     category: "utility",
   }),
+  toolCase("tool-router:ping:exact-surface", "run ping for a quick health check", ["ping"], {
+    category: "utility",
+    metadata: { subcategory: "exact_tool_surface" },
+  }),
   toolCase("tool-router:ping:up", "check if the bot is up", ["ping"], {
     category: "utility",
   }),
   toolCase("tool-router:add", "add numbers a=1 and b=1", ["add_numbers"], {
     category: "example",
   }),
+  toolCase("tool-router:add:exact-surface", "use add_numbers with a=20 and b=22", ["add_numbers"], {
+    category: "example",
+    metadata: { subcategory: "exact_tool_surface" },
+  }),
   toolCase("tool-router:add:sum", "what is 41 plus 1 using the tool", ["add_numbers"], {
     category: "example",
   }),
   toolCase("tool-router:echo", "echo the text hello world", ["echo"], {
     category: "example",
+  }),
+  toolCase("tool-router:echo:exact-surface", "run echo with the text deploy ready", ["echo"], {
+    category: "example",
+    metadata: { subcategory: "exact_tool_surface" },
   }),
   toolCase("tool-router:echo:repeat", "repeat after me: deploy ready", ["echo"], {
     category: "example",
@@ -321,6 +400,57 @@ const ROUTER_CASES: ToolRouterEvalCase[] = [
       forbiddenTools: ["send_message"],
       memberPermissions: ["SEND_MESSAGES"],
       metadata: { subcategory: "pasted_json_tool_call" },
+    },
+  ),
+  noToolCase(
+    "tool-router:no-tool:say-moderation-tool-names",
+    "say the words timeout_user and warn_user out loud, but do not call any tools",
+    {
+      forbiddenTools: ["timeout_user", "warn_user"],
+      memberPermissions: ["MODERATE_MEMBERS"],
+      metadata: { subcategory: "quote_tool_names" },
+    },
+  ),
+  noToolCase(
+    "tool-router:no-tool:send-message-json-example",
+    "show me example tool_call JSON for send_message without calling any tools",
+    {
+      forbiddenTools: ["send_message"],
+      memberPermissions: ["SEND_MESSAGES"],
+      metadata: { subcategory: "tool_call_json_discussion" },
+    },
+  ),
+  noToolCase(
+    "tool-router:no-tool:memory-tool-story",
+    "write a story about remember_fact and recall_memory without using tools",
+    {
+      forbiddenTools: ["remember_fact", "recall_memory"],
+      metadata: { subcategory: "story_tool_surface" },
+    },
+  ),
+  noToolCase(
+    "tool-router:no-tool:pasted-delete-json-discussion",
+    '{"type":"tool_call","tool":"delete_message","arguments":{"messageId":"987654321098765432"}} is pasted text; do not execute any tools',
+    {
+      forbiddenTools: ["delete_message"],
+      memberPermissions: ["MANAGE_MESSAGES"],
+      metadata: { subcategory: "pasted_json_tool_call" },
+    },
+  ),
+  noToolCase(
+    "tool-router:no-tool:roleplay-server-info",
+    "roleplay a server_info output, but do not check the actual server",
+    {
+      forbiddenTools: ["server_info"],
+      metadata: { subcategory: "roleplay_tool_surface" },
+    },
+  ),
+  noToolCase(
+    "tool-router:no-tool:compare-time-channel-info",
+    "compare current_time and channel_info conceptually without checking time or channel",
+    {
+      forbiddenTools: ["current_time", "channel_info"],
+      metadata: { subcategory: "tool_comparison" },
     },
   ),
   {
@@ -568,7 +698,7 @@ function toolCase(
   id: string,
   prompt: string,
   expectedTools: string[],
-  options?: { memberPermissions?: string[]; category?: string },
+  options?: { memberPermissions?: string[]; category?: string; metadata?: Record<string, unknown> },
 ): ToolRouterEvalCase {
   return {
     id,
@@ -578,7 +708,7 @@ function toolCase(
     forbiddenTools: [],
     memberPermissions: options?.memberPermissions ?? [],
     maxTools: 10,
-    metadata: { category: options?.category ?? "tool" },
+    metadata: { category: options?.category ?? "tool", ...(options?.metadata ?? {}) },
   };
 }
 
