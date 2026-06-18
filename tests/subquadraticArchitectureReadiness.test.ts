@@ -18,7 +18,7 @@ describe("SubquadraticArchitectureReadiness", () => {
     const report = await checkSubquadraticArchitectureReadiness(fixture);
 
     expect(report.status).toBe("pass");
-    expect(report.summary.cases).toBe(17);
+    expect(report.summary.cases).toBe(25);
     expect(report.summary.sources).toMatchObject({
       "synthetic-needle-in-context": expect.any(Number),
       "synthetic-repo-artifact": expect.any(Number),
@@ -98,6 +98,14 @@ async function writeLongContextSuite(path: string, caseOverride: Record<string, 
     ["real-repo-snapshot", "repo_router_provider"],
     ["real-repo-multifile", "repo_script_readiness_chain"],
     ["real-repo-multifile", "repo_router_subq_chain"],
+    ["synthetic-repo-artifact", "repo_subq_architecture_gate"],
+    ["synthetic-repo-artifact", "repo_voice_retention_policy"],
+    ["synthetic-repo-artifact", "repo_parameter_staging_gate"],
+    ["synthetic-repo-artifact", "repo_tool_gate_order"],
+    ["real-repo-multifile", "repo_subq_architecture_chain"],
+    ["real-repo-multifile", "repo_tool_protocol_readiness_chain"],
+    ["real-repo-multifile", "repo_dataset_governance_chain"],
+    ["real-repo-multifile", "repo_parameter_growth_chain"],
   ] as const;
   const rows = [
     ...required.map(([source, taskType], index) =>

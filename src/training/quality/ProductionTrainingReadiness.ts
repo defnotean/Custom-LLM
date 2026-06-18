@@ -642,7 +642,7 @@ function evalHarnessChecks(
           forbiddenCandidateHits: toolRouterReport.forbiddenCandidateHits,
           failures: toolRouterReport.failures.length,
         }),
-    longContextReport.total >= 17 &&
+    longContextReport.total >= 25 &&
     longContextReport.answerRate >= 0.95 &&
     longContextReport.exactMatchRate >= 0.9 &&
     longContextReport.expectedContainRate >= 0.95 &&

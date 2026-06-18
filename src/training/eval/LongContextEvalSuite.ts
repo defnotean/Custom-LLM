@@ -18,7 +18,15 @@ export type LongContextTaskType =
   | "repo_readiness_contract"
   | "repo_router_provider"
   | "repo_script_readiness_chain"
-  | "repo_router_subq_chain";
+  | "repo_router_subq_chain"
+  | "repo_subq_architecture_gate"
+  | "repo_voice_retention_policy"
+  | "repo_parameter_staging_gate"
+  | "repo_tool_gate_order"
+  | "repo_subq_architecture_chain"
+  | "repo_tool_protocol_readiness_chain"
+  | "repo_dataset_governance_chain"
+  | "repo_parameter_growth_chain";
 
 export interface LongContextEvalCase {
   id: string;
@@ -367,6 +375,78 @@ function makeRepoArtifactCases(): LongContextEvalCase[] {
       question:
         "Which exact request metadata flag asks the router to prefer the long-context SubQ path? Return only the exact expression.",
     }),
+    makeRepoArtifactCase({
+      id: "long-context-repo-subq-architecture-command",
+      targetKey: "LONG_CONTEXT_REPO_LOOKUP_SUBQ_ARCHITECTURE_COMMAND",
+      targetChars: 30_000,
+      position: "middle",
+      taskType: "repo_subq_architecture_gate",
+      expected: "npm run check:subq-architecture",
+      distractorAnswers: [
+        "npm run eval:gate",
+        "npm run check:production-readiness",
+        "npm run eval:long-context:gate",
+        "npm run check:training-configs",
+      ],
+      targetLine:
+        "SSA-RUNBOOK LONG_CONTEXT_REPO_LOOKUP_SUBQ_ARCHITECTURE_COMMAND: the static architecture contract for the subquadratic sparse-attention track is checked with npm run check:subq-architecture. This command is required before any SubQ-class route is promoted.",
+      question:
+        "Which npm command checks the static SubQ/SSA architecture contract? Return only the exact command.",
+    }),
+    makeRepoArtifactCase({
+      id: "long-context-repo-voice-retention-policy",
+      targetKey: "LONG_CONTEXT_REPO_LOOKUP_VOICE_RETENTION_POLICY",
+      targetChars: 18_000,
+      position: "early",
+      taskType: "repo_voice_retention_policy",
+      expected: "raw audio transient by default",
+      distractorAnswers: [
+        "raw audio stored forever",
+        "transcripts always used for training",
+        "voice sessions bypass memory policy",
+        "speaker attribution disabled",
+      ],
+      targetLine:
+        "VOICE-POLICY LONG_CONTEXT_REPO_LOOKUP_VOICE_RETENTION_POLICY: Irene voice sessions keep raw audio transient by default; transcript retention is optional and training use requires review.",
+      question:
+        "What is the default raw-audio retention policy for Irene voice sessions? Return only the exact phrase.",
+    }),
+    makeRepoArtifactCase({
+      id: "long-context-repo-parameter-staging-gate",
+      targetKey: "LONG_CONTEXT_REPO_LOOKUP_PARAMETER_STAGING_GATE",
+      targetChars: 24_000,
+      position: "late",
+      taskType: "repo_parameter_staging_gate",
+      expected: "ParameterModuleStagingGate",
+      distractorAnswers: [
+        "ParameterGrowthPlanGate",
+        "ParameterModulePromotionGate",
+        "ParameterHotloadManifestQuality",
+        "ParameterTrainerDispatchService",
+      ],
+      targetLine:
+        "PARAMETER-GROWTH LONG_CONTEXT_REPO_LOOKUP_PARAMETER_STAGING_GATE: trained module staging manifests are checked by ParameterModuleStagingGate before any module can be registered for promotion.",
+      question:
+        "Which component checks trained module staging manifests before registration? Return only the exact component name.",
+    }),
+    makeRepoArtifactCase({
+      id: "long-context-repo-tool-gate-order",
+      targetKey: "LONG_CONTEXT_REPO_LOOKUP_TOOL_GATE_ORDER",
+      targetChars: 26_000,
+      position: "middle",
+      taskType: "repo_tool_gate_order",
+      expected: "validate args -> permissions -> cooldown -> risk/confirmation",
+      distractorAnswers: [
+        "risk/confirmation -> permissions -> validate args -> cooldown",
+        "candidate ranking -> memory write -> tool execution",
+        "prompt approval -> direct execution -> audit log",
+        "permissions -> cooldown -> no validation",
+      ],
+      targetLine:
+        "TOOL-PROTOCOL LONG_CONTEXT_REPO_LOOKUP_TOOL_GATE_ORDER: a tool call executes only after validate args -> permissions -> cooldown -> risk/confirmation. This order is enforced in code, not trusted to prompts.",
+      question:
+        "What is the enforced tool execution gate order? Return exactly the arrow-separated sequence.",
+    }),
   ];
 }
 
@@ -419,11 +499,26 @@ function makeRepoArtifactCase(input: {
 }
 
 async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongContextEvalCase[]> {
-  const [packageJson, readinessChecker, llmRouter, localLlmSetup] = await Promise.all([
+  const [
+    packageJson,
+    readinessChecker,
+    llmRouter,
+    localLlmSetup,
+    aiTrainingPlan,
+    projectScope,
+    trainingData,
+    promotionGate,
+    subqReadiness,
+  ] = await Promise.all([
     readRepoFile(workspaceRoot, "package.json"),
     readRepoFile(workspaceRoot, "src/training/quality/ProductionTrainingReadiness.ts"),
     readRepoFile(workspaceRoot, "src/ai/llm/LLMRouter.ts"),
     readRepoFile(workspaceRoot, "docs/LOCAL_LLM_SETUP.md"),
+    readRepoFile(workspaceRoot, "docs/AI_TRAINING_PLAN.md"),
+    readRepoFile(workspaceRoot, "docs/PROJECT_SCOPE_AND_ROADMAP.md"),
+    readRepoFile(workspaceRoot, "docs/TRAINING_DATA.md"),
+    readRepoFile(workspaceRoot, "src/training/eval/PromotionGate.ts"),
+    readRepoFile(workspaceRoot, "src/training/quality/SubquadraticArchitectureReadiness.ts"),
   ]);
 
   return [
@@ -527,6 +622,90 @@ async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongCon
         { path: "package.json", content: packageJson },
       ],
     }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-subq-architecture-chain",
+      targetKey: "REAL_REPO_MULTIFILE_SUBQ_ARCHITECTURE_CHAIN",
+      targetChars: 30_000,
+      position: "late",
+      taskType: "repo_subq_architecture_chain",
+      expected: "check:subq-architecture -> subquadratic-sparse-attention",
+      distractorAnswers: [
+        "eval:gate -> tool-routing",
+        "check:training-configs -> qlora",
+        "eval:long-context:gate -> dense-attention",
+        "check:production-readiness -> sft",
+      ],
+      question:
+        "Using the actual package.json, AI_TRAINING_PLAN.md, and SubquadraticArchitectureReadiness.ts snapshots together, which npm script and architecture target define the SubQ/SSA contract? Return exactly: <script> -> <architectureTarget>.",
+      files: [
+        { path: "package.json", content: packageJson },
+        { path: "docs/AI_TRAINING_PLAN.md", content: aiTrainingPlan },
+        { path: "src/training/quality/SubquadraticArchitectureReadiness.ts", content: subqReadiness },
+      ],
+    }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-tool-protocol-readiness-chain",
+      targetKey: "REAL_REPO_MULTIFILE_TOOL_PROTOCOL_READINESS_CHAIN",
+      targetChars: 28_000,
+      position: "middle",
+      taskType: "repo_tool_protocol_readiness_chain",
+      expected: "eval:gate -> tool-eval-harness -> 200",
+      distractorAnswers: [
+        "eval:knowledge:gate -> knowledge-eval-harness -> 200",
+        "eval:router:gate -> router-eval-harness -> 18",
+        "eval:behavior:gate -> behavior-eval-harness -> 11",
+        "eval:long-context:gate -> long-context-eval-harness -> 25",
+      ],
+      question:
+        "Using the actual package.json, PromotionGate.ts, and ProductionTrainingReadiness.ts snapshots together, what script, readiness check id, and minimum protocol case count define the tool protocol promotion gate? Return exactly: <script> -> <check-id> -> <count>.",
+      files: [
+        { path: "package.json", content: packageJson },
+        { path: "src/training/eval/PromotionGate.ts", content: promotionGate },
+        { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+      ],
+    }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-dataset-governance-chain",
+      targetKey: "REAL_REPO_MULTIFILE_DATASET_GOVERNANCE_CHAIN",
+      targetChars: 24_000,
+      position: "early",
+      taskType: "repo_dataset_governance_chain",
+      expected: "check:dataset-governance -> dataset-governance",
+      distractorAnswers: [
+        "check:contamination -> contamination",
+        "check:training-configs -> training-configs",
+        "check:production-readiness -> production-readiness",
+        "build:eval-suite -> tool-eval-harness",
+      ],
+      question:
+        "Using the actual package.json, TRAINING_DATA.md, and ProductionTrainingReadiness.ts snapshots together, which npm script and readiness check id prove dataset governance? Return exactly: <script> -> <check-id>.",
+      files: [
+        { path: "package.json", content: packageJson },
+        { path: "docs/TRAINING_DATA.md", content: trainingData },
+        { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+      ],
+    }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-parameter-growth-chain",
+      targetKey: "REAL_REPO_MULTIFILE_PARAMETER_GROWTH_CHAIN",
+      targetChars: 32_000,
+      position: "late",
+      taskType: "repo_parameter_growth_chain",
+      expected: "ParameterGrowthDatasetBuilder -> ParameterTrainerDispatchService -> ParameterModuleStagingGate",
+      distractorAnswers: [
+        "ParameterActivationService -> SkillRetrievalService -> MemoryPolicy",
+        "ParameterHotloadControlServer -> LLMRouter -> OpenAICompatibleProvider",
+        "ParameterGrowthPlanGate -> DatasetGovernance -> ToolRouter",
+        "ParameterModulePromotionGate -> AgentController -> ToolExecutor",
+      ],
+      question:
+        "Using PROJECT_SCOPE_AND_ROADMAP.md and TRAINING_DATA.md snapshots together, which ordered components build reviewed learning into training handoff, dispatch it, and gate staged module artifacts? Return exactly: <builder> -> <dispatch-service> -> <staging-gate>.",
+      files: [
+        { path: "docs/PROJECT_SCOPE_AND_ROADMAP.md", content: projectScope },
+        { path: "docs/TRAINING_DATA.md", content: trainingData },
+        { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+      ],
+    }),
   ];
 }
 
@@ -594,7 +773,15 @@ function makeRealRepoMultifileCase(input: {
   targetKey: string;
   targetChars: number;
   position: LongContextNeedlePosition;
-  taskType: Extract<LongContextTaskType, "repo_script_readiness_chain" | "repo_router_subq_chain">;
+  taskType: Extract<
+    LongContextTaskType,
+    | "repo_script_readiness_chain"
+    | "repo_router_subq_chain"
+    | "repo_subq_architecture_chain"
+    | "repo_tool_protocol_readiness_chain"
+    | "repo_dataset_governance_chain"
+    | "repo_parameter_growth_chain"
+  >;
   expected: string;
   distractorAnswers: string[];
   question: string;

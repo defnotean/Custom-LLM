@@ -65,6 +65,14 @@ const DEFAULT_REQUIRED_TASK_TYPES = [
   "repo_router_provider",
   "repo_script_readiness_chain",
   "repo_router_subq_chain",
+  "repo_subq_architecture_gate",
+  "repo_voice_retention_policy",
+  "repo_parameter_staging_gate",
+  "repo_tool_gate_order",
+  "repo_subq_architecture_chain",
+  "repo_tool_protocol_readiness_chain",
+  "repo_dataset_governance_chain",
+  "repo_parameter_growth_chain",
 ];
 
 const DEFAULTS = {
@@ -72,7 +80,7 @@ const DEFAULTS = {
   routerSourcePath: "src/ai/llm/LLMRouter.ts",
   trainerPath: "training/train_tiny_transformer_lm.py",
   evaluatorPath: "training/evaluate_tiny_transformer_lm.py",
-  minCases: 17,
+  minCases: 25,
 };
 
 const caseSchema = z.object({
