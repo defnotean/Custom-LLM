@@ -1,11 +1,12 @@
 import type { Logger } from "pino";
+import type { GuildRepository, GuildSettings } from "../database/repositories/GuildRepository";
 import type { BotMessageContext } from "../types/discord";
 import type { StatsPayload, HealthPayload } from "../types/common";
 import type { ToolRegistry } from "../tools/ToolRegistry";
 import type { ToolExecutor } from "../tools/ToolExecutor";
 import type { ToolExecutionContext, ToolMemoryAccess } from "../tools/ToolDefinition";
 import type { DiscordVoiceService } from "./voice/DiscordVoiceService";
-import { filterGuildDisabledTools, isToolDisabledByGuild } from "../guild/GuildPolicy";
+import { filterGuildDisabledTools, isToolDisabledByGuild, normalizeStringList } from "../guild/GuildPolicy";
 import { toErrorMessage } from "../utils/errors";
 
 /**
@@ -25,6 +26,7 @@ export interface CommandServices {
   buildToolContext: (ctx: BotMessageContext) => ToolExecutionContext;
   memory?: ToolMemoryAccess | null;
   voice?: DiscordVoiceService | null;
+  settingsStore?: Pick<GuildRepository, "getSettings" | "updateSettings"> | null;
   exporter?: { exportAll(outDir: string): Promise<ExportSummary> } | null;
   stats?: (() => Promise<StatsPayload>) | null;
   health?: (() => Promise<HealthPayload>) | null;
@@ -38,6 +40,7 @@ const HELP_TEXT = [
   "`!ai tool <name>` — show one tool's details",
   "`!ai memory recall <query>` — search stored memories",
   "`!ai memory remember <text>` — store a memory",
+  "`!ai settings show|allow-channel|disable-tool|enable-tool` - manage server policy (admin)",
   "`!ai voice status|policy|enable|disable|join|leave|say|stop-speaking` — manage opt-in voice presence",
   "`!ai export-training` — export training datasets (admin)",
   "`!ai stats` — runtime statistics",
@@ -145,6 +148,9 @@ export async function handleCommand(
         return "Usage: `!ai memory recall <query>` or `!ai memory remember <text>`";
       }
 
+      case "settings":
+        return handleSettingsCommand(ctx, services, rest);
+
       case "voice": {
         if (!services.voice) return "Voice service is unavailable.";
         const [sub = "status", ...voiceRest] = rest;
@@ -217,4 +223,120 @@ export async function handleCommand(
     services.logger.error({ err: toErrorMessage(err), command }, "command failed");
     return `Command failed: ${toErrorMessage(err)}`;
   }
+}
+
+async function handleSettingsCommand(
+  ctx: BotMessageContext,
+  services: CommandServices,
+  args: string[],
+): Promise<string> {
+  if (!ctx.guildId) return "Settings commands only work in servers.";
+  if (!canManageSettings(ctx)) return "Only administrators or server managers can change Irene settings.";
+  if (!services.settingsStore) return "Guild settings persistence is unavailable because the database is not connected.";
+
+  const [sub = "show", action = "", value = ""] = args;
+  const settings = await services.settingsStore.getSettings(ctx.guildId);
+
+  switch (sub.toLowerCase()) {
+    case "":
+    case "show":
+    case "status":
+      return formatGuildSettings(settings);
+
+    case "allow-channel":
+    case "allow-channels":
+      return updateAllowChannels(ctx, services, settings, action, value);
+
+    case "disable-tool":
+      return updateDisabledTool(ctx, services, settings, action, true);
+
+    case "enable-tool":
+      return updateDisabledTool(ctx, services, settings, action, false);
+
+    default:
+      return SETTINGS_USAGE;
+  }
+}
+
+const SETTINGS_USAGE =
+  "Usage: `!ai settings show`, `!ai settings allow-channel add|remove [channel]`, `!ai settings allow-channel clear`, `!ai settings disable-tool <name>`, or `!ai settings enable-tool <name>`";
+
+async function updateAllowChannels(
+  ctx: BotMessageContext,
+  services: CommandServices,
+  settings: GuildSettings,
+  action: string,
+  value: string,
+): Promise<string> {
+  const normalizedAction = action.toLowerCase();
+  if (!["add", "remove", "clear"].includes(normalizedAction)) return SETTINGS_USAGE;
+
+  if (normalizedAction === "clear") {
+    const next = { ...settings, allowChannels: [] };
+    await services.settingsStore?.updateSettings(ctx.guildId as string, next, ctx.guildName ?? undefined);
+    ctx.guildSettings = next;
+    return "Text allowlist cleared; Irene may respond in all text channels for this server.";
+  }
+
+  const channelId = parseChannelId(value || "current", ctx.channelId);
+  if (!channelId) return "Give a channel id, channel mention, or `current`.";
+
+  const current = normalizeStringList(settings.allowChannels);
+  const nextAllowChannels =
+    normalizedAction === "add" ? unique([...current, channelId]) : current.filter((id) => id !== channelId);
+  const next = { ...settings, allowChannels: nextAllowChannels };
+  await services.settingsStore?.updateSettings(ctx.guildId as string, next, ctx.guildName ?? undefined);
+  ctx.guildSettings = next;
+
+  return normalizedAction === "add"
+    ? `Text allowlist now includes <#${channelId}>.`
+    : `Text allowlist no longer includes <#${channelId}>.${nextAllowChannels.length === 0 ? " Irene may respond in all text channels." : ""}`;
+}
+
+async function updateDisabledTool(
+  ctx: BotMessageContext,
+  services: CommandServices,
+  settings: GuildSettings,
+  toolName: string,
+  disable: boolean,
+): Promise<string> {
+  const normalizedToolName = toolName.trim().toLowerCase();
+  if (!normalizedToolName) return SETTINGS_USAGE;
+  const tool = services.registry.getTool(normalizedToolName);
+  if (!tool) return `No tool named \`${normalizedToolName}\`.`;
+
+  const current = normalizeStringList(settings.disabledTools).map((name) => name.toLowerCase());
+  const nextDisabledTools = disable ? unique([...current, tool.name]) : current.filter((name) => name !== tool.name);
+  const next = { ...settings, disabledTools: nextDisabledTools };
+  await services.settingsStore?.updateSettings(ctx.guildId as string, next, ctx.guildName ?? undefined);
+  ctx.guildSettings = next;
+
+  return disable ? `\`${tool.name}\` is disabled for this server.` : `\`${tool.name}\` is enabled for this server.`;
+}
+
+function formatGuildSettings(settings: GuildSettings): string {
+  const allowChannels = normalizeStringList(settings.allowChannels);
+  const disabledTools = normalizeStringList(settings.disabledTools);
+  return [
+    "**Irene server settings**",
+    `Text channels: ${allowChannels.length > 0 ? allowChannels.map((id) => `<#${id}>`).join(", ") : "all channels"}`,
+    `Disabled tools: ${disabledTools.length > 0 ? disabledTools.map((name) => `\`${name}\``).join(", ") : "none"}`,
+  ].join("\n");
+}
+
+function parseChannelId(input: string, currentChannelId: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.toLowerCase() === "current") return currentChannelId;
+  const mention = /^<#(\d+)>$/.exec(trimmed);
+  if (mention?.[1]) return mention[1];
+  if (/^\d{2,32}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+function canManageSettings(ctx: BotMessageContext): boolean {
+  return ctx.memberPermissions.some((permission) => ["ADMINISTRATOR", "MANAGE_GUILD"].includes(permission));
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }

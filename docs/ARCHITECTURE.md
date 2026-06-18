@@ -106,7 +106,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | # | Decision | Rationale |
 |---|---|---|
 | 1 | TypeScript CommonJS (`module: commonjs`) | Avoids ESM `.js`-extension friction across ~80 files; all deps (discord.js 14, fastify 5, prisma 6, pino 9) are CJS-compatible; `node dist/` runs directly |
-| 2 | Engagement: mention / DM / reply / `!ai` prefix only | Spam + cost control; per-guild text-channel allowlists in `GuildProfile.settingsJson` are enforced before typing, command execution, LLM calls, or training capture |
+| 2 | Engagement: mention / DM / reply / `!ai` prefix only | Spam + cost control; per-guild text-channel allowlists in `GuildProfile.settingsJson` are enforced before typing, command execution, LLM calls, or training capture; admin `!ai settings` commands can still run from blocked channels for recovery |
 | 3 | Cooldowns/rate limits in-process behind store interfaces | Single-process correctness now; Redis store is a drop-in for multi-process (interfaces: `CooldownStore`, rate-limit map) |
 | 4 | In-process job queue (`InProcessJobQueue`) | Real scheduling semantics without infra; BullMQ/Redis is the documented production swap with the same `JobQueue` interface |
 | 5 | pgvector DDL at store init, not in Prisma migrations | Prisma lacks a vector type; runtime `CREATE EXTENSION/TABLE IF NOT EXISTS` keeps `migrate deploy` clean and lets missing pgvector degrade instead of block |
@@ -131,7 +131,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | `summarize_channel_recent_messages` | Returns raw transcript; the follow-up LLM turn summarizes. Dedicated summarization pass TODO |
 | `get_guild_stats` | Structural stats only; activity metrics (messages/day) TODO |
 | `warn_user` | Records to tool log + DMs; dedicated warnings table TODO |
-| Per-guild settings enforcement (channel allowlists, disabled tools) | **Implemented** - text allowlists are checked before typing/commands/LLM/training; disabled tools are removed from routing and commands, then denied again by `ToolExecutor` |
+| Per-guild settings enforcement (channel allowlists, disabled tools) | **Implemented** - admin `!ai settings` commands manage text allowlists and disabled tools; text allowlists are checked before typing/commands/LLM/training except settings recovery; disabled tools are removed from routing and commands, then denied again by `ToolExecutor` |
 | Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
 | Voice presence, STT, and TTS | **Speech output foundation implemented** - configurable bot presence, opt-in voice policy/session state, command-gated Discord Voice join/leave, provider-backed speech queue, HTTP TTS provider contract, and Discord playback adapter exist; STT/audio receive, visible listening indicators, and voice evals are TODO |

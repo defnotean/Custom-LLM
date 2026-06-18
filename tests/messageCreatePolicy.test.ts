@@ -62,4 +62,34 @@ describe("messageCreate guild policy", () => {
     expect(reply).not.toHaveBeenCalled();
     expect(agent.handleDiscordMessage).not.toHaveBeenCalled();
   });
+
+  it("allows administrator settings commands through the text allowlist for recovery", async () => {
+    const { message, reply, sendTyping } = makeMessage("!ai settings show");
+    const settingsStore = {
+      getSettings: async () => ({ allowChannels: ["allowed-channel"], disabledTools: ["ping"] }),
+      updateSettings: async () => undefined,
+    };
+    const handler = createMessageHandler({
+      client: { user: { id: "bot-1" } } as Client,
+      agent: { handleDiscordMessage: vi.fn() } as never,
+      commandServices: {
+        registry: null as never,
+        executor: null as never,
+        buildToolContext: null as never,
+        settingsStore,
+        logger: testLogger,
+      },
+      commandPrefix: "!ai",
+      settingsStore,
+      logger: testLogger,
+    });
+
+    await handler(message);
+
+    expect(sendTyping).toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledOnce();
+    expect(reply.mock.calls[0]?.[0]).toMatchObject({
+      content: expect.stringContaining("Irene server settings"),
+    });
+  });
 });

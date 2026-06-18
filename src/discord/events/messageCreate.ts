@@ -57,7 +57,8 @@ export function createMessageHandler(options: MessageHandlerOptions) {
       const ctx = buildMessageContext(message, stripped);
       const guildSettings = await readGuildSettings(options.settingsStore ?? null, ctx.guildId, logger);
       if (guildSettings) ctx.guildSettings = guildSettings;
-      if (!isTextChannelAllowed({ ...ctx, settings: guildSettings })) {
+      const allowedByTextPolicy = isTextChannelAllowed({ ...ctx, settings: guildSettings });
+      if (!allowedByTextPolicy && !isSettingsRecoveryCommand(isCommand, ctx)) {
         logger.debug(
           { guildId: ctx.guildId, channelId: ctx.channelId, allowChannels: guildSettings?.allowChannels ?? [] },
           "message ignored by guild channel allowlist",
@@ -83,6 +84,13 @@ export function createMessageHandler(options: MessageHandlerOptions) {
         .catch(() => undefined);
     }
   };
+}
+
+function isSettingsRecoveryCommand(isCommand: boolean, ctx: { content: string; memberPermissions: readonly string[] }): boolean {
+  if (!isCommand) return false;
+  const command = ctx.content.trim().split(/\s+/, 1)[0]?.toLowerCase();
+  if (command !== "settings") return false;
+  return ctx.memberPermissions.some((permission) => ["ADMINISTRATOR", "MANAGE_GUILD"].includes(permission));
 }
 
 async function readGuildSettings(

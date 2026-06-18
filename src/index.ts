@@ -267,6 +267,7 @@ async function main(): Promise<void> {
     }),
     memory: memoryService,
     voice: voiceService,
+    settingsStore: guildRepo,
     exporter,
     stats: getStats,
     health: getHealth,

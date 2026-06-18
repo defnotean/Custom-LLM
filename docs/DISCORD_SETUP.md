@@ -76,7 +76,22 @@ To enable Irene for the voice channel you are currently in:
 
 Only administrators, server managers, or voice moderators can use the voice control commands.
 
-## 6. Talk to the bot
+## 6. Server policy controls
+
+Administrators and server managers can manage text-channel access and per-server disabled tools without direct database edits:
+
+```text
+!ai settings show
+!ai settings allow-channel add current
+!ai settings allow-channel remove 123456789012345678
+!ai settings allow-channel clear
+!ai settings disable-tool send_message
+!ai settings enable-tool send_message
+```
+
+An empty text allowlist means Irene may respond in every text channel where she can see commands or mentions. If a channel allowlist blocks the current channel, admin `!ai settings ...` commands are still allowed through so the server can recover from a bad allowlist.
+
+## 7. Talk to the bot
 
 The bot responds to:
 

@@ -67,7 +67,7 @@ Rules every tool must follow:
 
 ## Permissions And Cooldowns
 
-`requiredDiscordPermissions` lists UPPER_SNAKE member permissions, such as `MODERATE_MEMBERS`. `ToolPermissionService` enforces them before execution; `ADMINISTRATOR` bypasses. The ToolRouter also pre-filters candidates by permission so the model is not offered tools the requester cannot run. Per-guild `disabledTools` are handled the same way: hidden from routing and deterministic command listings, then denied again inside `ToolExecutor`. The bot's own Discord permissions are a separate concern; handle failures in `execute`.
+`requiredDiscordPermissions` lists UPPER_SNAKE member permissions, such as `MODERATE_MEMBERS`. `ToolPermissionService` enforces them before execution; `ADMINISTRATOR` bypasses. The ToolRouter also pre-filters candidates by permission so the model is not offered tools the requester cannot run. Per-guild `disabledTools` are handled the same way: hidden from routing and deterministic command listings, then denied again inside `ToolExecutor`. Server managers can use `!ai settings disable-tool <name>` and `!ai settings enable-tool <name>` to manage those policy entries without editing the database. The bot's own Discord permissions are a separate concern; handle failures in `execute`.
 
 `cooldownSeconds` is per-user-per-tool through `ToolCooldownService`, currently backed by an in-memory store. Redis is the multi-process upgrade path.
 
