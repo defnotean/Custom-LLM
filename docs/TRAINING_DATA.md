@@ -84,7 +84,7 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 
 `apply:parameter-hotload` and `POST /learning/parameter-hotload/apply` run the same quality gate first. Dry runs return the exact `parameter-module-hotload-apply-v1` payload without calling a loader. Non-dry-run applies require `PARAMETER_HOTLOAD_ENDPOINT` or `--endpoint-url`; the service posts the checked manifest to that private model-server control endpoint and reports accepted/rejected module ids. If the manifest is blocked or hash-invalid, the loader is never called.
 
-`serve:parameter-hotload` starts the local compatible control endpoint used during development or serving-integration tests. It accepts `POST /parameter-hotload`, verifies the payload and artifact hashes again server-side, records loaded module state, exposes `GET /parameter-hotload/status`, and supports `POST /parameter-hotload/rollback`. This is the control-plane contract for hot-swapping; it tracks load state and rollback intent, but it does not yet attach LoRA adapters to a real vLLM/Ollama/LM Studio backend.
+`serve:parameter-hotload` starts the local compatible control endpoint used during development or serving-integration tests. It accepts `POST /parameter-hotload`, verifies the payload and artifact hashes again server-side, delegates accepted loads/rollbacks to a `ParameterHotloadBackend`, records loaded module state only after backend acceptance, exposes `GET /parameter-hotload/status`, and supports `POST /parameter-hotload/rollback`. The built-in backend is `state-only`: it exercises the control-plane contract and rollback bookkeeping, but it does not yet attach LoRA adapters to a real vLLM/Ollama/LM Studio backend.
 
 ## Export Formats
 

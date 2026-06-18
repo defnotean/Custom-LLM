@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   buildParameterHotloadControlServer,
   InMemoryParameterHotloadControlService,
+  type ParameterHotloadBackend,
+  type ParameterHotloadBackendLoadInput,
+  type ParameterHotloadBackendRollbackInput,
 } from "../src/serving/ParameterHotloadControlServer";
 
 describe("ParameterHotloadControlServer", () => {
@@ -120,7 +123,7 @@ describe("ParameterHotloadControlServer", () => {
     const status = await app.inject({ method: "GET", url: "/parameter-hotload/status" });
 
     expect(rollback.statusCode).toBe(200);
-    expect(rollback.json()).toEqual({
+    expect(rollback.json()).toMatchObject({
       status: "accepted",
       rolledBackModuleIds: ["expert-1"],
       missingModuleIds: [],
@@ -129,6 +132,122 @@ describe("ParameterHotloadControlServer", () => {
       loadedModules: [],
       history: expect.arrayContaining([
         expect.objectContaining({ type: "rollback", moduleIds: ["expert-1"] }),
+      ]),
+    });
+    await app.close();
+  });
+
+  it("does not mutate loaded state when the backend rejects a load", async () => {
+    const fixture = await writeFixture();
+    const backend: ParameterHotloadBackend = {
+      name: "rejecting-backend",
+      load: async () => ({ status: "rejected", message: "backend refused load" }),
+      rollback: async () => ({ status: "accepted" }),
+    };
+    const app = buildParameterHotloadControlServer({
+      service: new InMemoryParameterHotloadControlService({ backend }),
+    });
+
+    const applied = await app.inject({
+      method: "POST",
+      url: "/parameter-hotload",
+      payload: applyPayload(fixture.manifest, { requestId: "reject-load" }),
+    });
+    const status = await app.inject({ method: "GET", url: "/parameter-hotload/status" });
+
+    expect(applied.statusCode).toBe(409);
+    expect(applied.json()).toMatchObject({
+      status: "rejected",
+      loadedModuleIds: [],
+      message: "backend refused load",
+      details: { backend: "rejecting-backend" },
+    });
+    expect(status.json()).toMatchObject({
+      backend: "rejecting-backend",
+      loadedModules: [],
+      history: [{ type: "rejected", requestId: "reject-load" }],
+    });
+    await app.close();
+  });
+
+  it("delegates load and rollback to the configured backend before mutating state", async () => {
+    const fixture = await writeFixture();
+    const loadCalls: ParameterHotloadBackendLoadInput[] = [];
+    const rollbackCalls: ParameterHotloadBackendRollbackInput[] = [];
+    const backend: ParameterHotloadBackend = {
+      name: "recording-backend",
+      load: async (input) => {
+        loadCalls.push(input);
+        return { status: "accepted", loadedModuleIds: input.modules.map((item) => item.moduleId) };
+      },
+      rollback: async (input) => {
+        rollbackCalls.push(input);
+        return { status: "accepted", rolledBackModuleIds: input.modules.map((item) => item.moduleId) };
+      },
+    };
+    const app = buildParameterHotloadControlServer({
+      service: new InMemoryParameterHotloadControlService({ backend }),
+    });
+
+    await app.inject({
+      method: "POST",
+      url: "/parameter-hotload",
+      payload: applyPayload(fixture.manifest, { requestId: "backend-1" }),
+    });
+    const rollback = await app.inject({
+      method: "POST",
+      url: "/parameter-hotload/rollback",
+      payload: { requestId: "backend-1" },
+    });
+
+    expect(rollback.statusCode).toBe(200);
+    expect(loadCalls).toHaveLength(1);
+    expect(loadCalls[0]).toMatchObject({
+      requestId: "backend-1",
+      manifest: { id: "parameter-hotload-fixture" },
+      modules: [{ moduleId: "expert-1" }],
+    });
+    expect(rollbackCalls).toHaveLength(1);
+    expect(rollbackCalls[0]).toMatchObject({
+      requestId: "backend-1",
+      modules: [{ moduleId: "expert-1", requestId: "backend-1" }],
+    });
+    await app.close();
+  });
+
+  it("keeps modules loaded when the backend rejects rollback", async () => {
+    const fixture = await writeFixture();
+    const backend: ParameterHotloadBackend = {
+      name: "rollback-rejecting-backend",
+      load: async (input) => ({ status: "accepted", loadedModuleIds: input.modules.map((item) => item.moduleId) }),
+      rollback: async () => ({ status: "rejected", message: "backend refused rollback" }),
+    };
+    const app = buildParameterHotloadControlServer({
+      service: new InMemoryParameterHotloadControlService({ backend }),
+    });
+    await app.inject({
+      method: "POST",
+      url: "/parameter-hotload",
+      payload: applyPayload(fixture.manifest, { requestId: "rollback-reject" }),
+    });
+
+    const rollback = await app.inject({
+      method: "POST",
+      url: "/parameter-hotload/rollback",
+      payload: { requestId: "rollback-reject" },
+    });
+    const status = await app.inject({ method: "GET", url: "/parameter-hotload/status" });
+
+    expect(rollback.statusCode).toBe(409);
+    expect(rollback.json()).toMatchObject({
+      status: "rejected",
+      rolledBackModuleIds: [],
+      message: "backend refused rollback",
+    });
+    expect(status.json()).toMatchObject({
+      loadedModules: [{ moduleId: "expert-1" }],
+      history: expect.arrayContaining([
+        expect.objectContaining({ type: "rejected", requestId: "rollback-reject" }),
       ]),
     });
     await app.close();

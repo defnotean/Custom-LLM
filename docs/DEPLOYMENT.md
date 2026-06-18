@@ -26,7 +26,7 @@ Bare-metal alternative: `npm run build && node dist/src/index.js` under systemd/
 |---|---|
 | Secrets | Env only (`.env` is gitignored). Use your platform's secret store; never bake into images |
 | API exposure | The Fastify API is **unauthenticated** — keep `API_HOST` on a private interface or add auth/reverse-proxy before exposing |
-| Parameter hotload endpoint | `npm run serve:parameter-hotload` provides the private control contract with auth/status/rollback state; a real model-server backend adapter is still required before it actually attaches LoRA/specialist weights. Never expose this endpoint publicly |
+| Parameter hotload endpoint | `npm run serve:parameter-hotload` provides the private control contract with auth/status/rollback state and a `state-only` backend; a real model-server backend adapter is still required before it actually attaches LoRA/specialist weights. Never expose this endpoint publicly |
 | Database | Managed Postgres with pgvector available (or the bundled image); backups on; `prisma migrate deploy` in CI/CD |
 | Logs | pino JSON to stdout → your aggregator. `LOG_LEVEL=info` |
 | Cooldowns/rate limits | In-process today → fine for one replica. Before scaling replicas: implement the Redis `CooldownStore` + move rate limits/pending confirmations to Redis (interfaces ready) |

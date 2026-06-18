@@ -29,6 +29,37 @@ export interface ParameterHotloadLoadedModule {
   artifacts: ParameterModuleHotloadRequest["artifacts"];
 }
 
+export interface ParameterHotloadBackendLoadInput {
+  requestId: string;
+  manifest: ParameterModuleHotloadManifest;
+  modules: ParameterModuleHotloadRequest[];
+}
+
+export interface ParameterHotloadBackendLoadResult {
+  status: "accepted" | "rejected";
+  loadedModuleIds?: string[];
+  message?: string;
+  details?: JsonObject;
+}
+
+export interface ParameterHotloadBackendRollbackInput {
+  requestId: string;
+  modules: ParameterHotloadLoadedModule[];
+}
+
+export interface ParameterHotloadBackendRollbackResult {
+  status: "accepted" | "rejected";
+  rolledBackModuleIds?: string[];
+  message?: string;
+  details?: JsonObject;
+}
+
+export interface ParameterHotloadBackend {
+  name: string;
+  load(input: ParameterHotloadBackendLoadInput): Promise<ParameterHotloadBackendLoadResult>;
+  rollback(input: ParameterHotloadBackendRollbackInput): Promise<ParameterHotloadBackendRollbackResult>;
+}
+
 export interface ParameterHotloadEvent {
   id: string;
   type: "load" | "dry_run" | "empty" | "rejected" | "rollback";
@@ -41,6 +72,7 @@ export interface ParameterHotloadEvent {
 
 export interface ParameterHotloadStateSnapshot {
   generatedAt: string;
+  backend: string;
   loadedModules: ParameterHotloadLoadedModule[];
   history: ParameterHotloadEvent[];
 }
@@ -60,6 +92,7 @@ export interface ParameterHotloadRollbackResult {
 export interface ParameterHotloadControlServiceOptions {
   now?: () => string;
   maxHistory?: number;
+  backend?: ParameterHotloadBackend;
 }
 
 const applyRequestSchema = z
@@ -83,10 +116,12 @@ export class InMemoryParameterHotloadControlService {
   private readonly history: ParameterHotloadEvent[] = [];
   private readonly now: () => string;
   private readonly maxHistory: number;
+  private readonly backend: ParameterHotloadBackend;
 
   constructor(options: ParameterHotloadControlServiceOptions = {}) {
     this.now = options.now ?? (() => new Date().toISOString());
     this.maxHistory = options.maxHistory ?? 200;
+    this.backend = options.backend ?? new StateOnlyParameterHotloadBackend();
   }
 
   async apply(value: unknown): Promise<ParameterModuleHotloadLoaderResult> {
@@ -134,9 +169,38 @@ export class InMemoryParameterHotloadControlService {
       };
     }
 
+    const backendResult = await this.backend.load({
+      requestId: request.requestId,
+      manifest,
+      modules: manifest.requests,
+    });
+    if (backendResult.status !== "accepted") {
+      this.pushEvent({
+        type: "rejected",
+        requestId: request.requestId,
+        manifestId: manifest.id,
+        moduleIds: [],
+        message: backendResult.message ?? "hotload backend rejected load request",
+      });
+      return {
+        status: "rejected",
+        loadedModuleIds: [],
+        message: backendResult.message ?? "hotload backend rejected load request",
+        details: asJsonObject({
+          backend: this.backend.name,
+          qualityReport,
+          ...(backendResult.details ? { backendDetails: backendResult.details } : {}),
+        }),
+      };
+    }
+
     const loadedAt = this.now();
+    const backendLoadedIds = backendResult.loadedModuleIds?.length
+      ? new Set(backendResult.loadedModuleIds)
+      : new Set(manifest.requests.map((item) => item.moduleId));
     const loadedModuleIds: string[] = [];
     for (const hotloadRequest of manifest.requests) {
+      if (!backendLoadedIds.has(hotloadRequest.moduleId)) continue;
       loadedModuleIds.push(hotloadRequest.moduleId);
       this.loadedModules.set(hotloadRequest.moduleId, loadedModuleRecord(hotloadRequest, manifest, request.requestId, loadedAt));
     }
@@ -144,26 +208,80 @@ export class InMemoryParameterHotloadControlService {
     return {
       status: "accepted",
       loadedModuleIds,
-      message: `loaded ${loadedModuleIds.length} parameter module(s) into control state`,
-      details: asJsonObject({ qualityReport }),
+      message: backendResult.message ?? `loaded ${loadedModuleIds.length} parameter module(s) through ${this.backend.name}`,
+      details: asJsonObject({
+        backend: this.backend.name,
+        qualityReport,
+        ...(backendResult.details ? { backendDetails: backendResult.details } : {}),
+      }),
     };
   }
 
-  rollback(input: ParameterHotloadRollbackInput = {}): ParameterHotloadRollbackResult {
+  async rollback(input: ParameterHotloadRollbackInput = {}): Promise<ParameterHotloadRollbackResult> {
     const requestedIds = this.resolveRollbackModuleIds(input);
     if (requestedIds.length === 0) {
       return { status: "rejected", rolledBackModuleIds: [], missingModuleIds: [], message: "no loaded modules matched rollback request" };
     }
 
+    const existingModules = requestedIds
+      .map((moduleId) => this.loadedModules.get(moduleId))
+      .filter((module): module is ParameterHotloadLoadedModule => Boolean(module));
+    const missingModuleIds = requestedIds.filter((moduleId) => !this.loadedModules.has(moduleId));
+    if (existingModules.length === 0) {
+      return { status: "rejected", rolledBackModuleIds: [], missingModuleIds, message: "no requested modules were loaded" };
+    }
+
+    const rollbackRequestId = input.requestId ?? "manual-rollback";
+    const backendResult = this.backend.rollback({
+      requestId: rollbackRequestId,
+      modules: existingModules,
+    });
+    return this.finishRollback(rollbackRequestId, requestedIds, existingModules, missingModuleIds, backendResult);
+  }
+
+  snapshot(): ParameterHotloadStateSnapshot {
+    return {
+      generatedAt: this.now(),
+      backend: this.backend.name,
+      loadedModules: [...this.loadedModules.values()].sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
+      history: [...this.history],
+    };
+  }
+
+  private async finishRollback(
+    requestId: string,
+    requestedIds: string[],
+    existingModules: ParameterHotloadLoadedModule[],
+    missingModuleIds: string[],
+    backendResultPromise: Promise<ParameterHotloadBackendRollbackResult>,
+  ): Promise<ParameterHotloadRollbackResult> {
+    const backendResult = await backendResultPromise;
+    if (backendResult.status !== "accepted") {
+      this.pushEvent({
+        type: "rejected",
+        requestId,
+        moduleIds: existingModules.map((module) => module.moduleId),
+        message: backendResult.message ?? "hotload backend rejected rollback request",
+      });
+      return {
+        status: "rejected",
+        rolledBackModuleIds: [],
+        missingModuleIds,
+        message: backendResult.message ?? "hotload backend rejected rollback request",
+      };
+    }
+
+    const backendRolledBackIds = backendResult.rolledBackModuleIds?.length
+      ? new Set(backendResult.rolledBackModuleIds)
+      : new Set(existingModules.map((module) => module.moduleId));
     const rolledBackModuleIds: string[] = [];
-    const missingModuleIds: string[] = [];
     for (const moduleId of requestedIds) {
+      if (!backendRolledBackIds.has(moduleId)) continue;
       if (this.loadedModules.delete(moduleId)) rolledBackModuleIds.push(moduleId);
-      else missingModuleIds.push(moduleId);
     }
     this.pushEvent({
       type: "rollback",
-      requestId: input.requestId ?? "manual-rollback",
+      requestId,
       moduleIds: rolledBackModuleIds,
       message: missingModuleIds.length > 0 ? `missing modules: ${missingModuleIds.join(", ")}` : undefined,
     });
@@ -171,15 +289,11 @@ export class InMemoryParameterHotloadControlService {
       status: rolledBackModuleIds.length > 0 ? "accepted" : "rejected",
       rolledBackModuleIds,
       missingModuleIds,
-      ...(rolledBackModuleIds.length === 0 ? { message: "no requested modules were loaded" } : {}),
-    };
-  }
-
-  snapshot(): ParameterHotloadStateSnapshot {
-    return {
-      generatedAt: this.now(),
-      loadedModules: [...this.loadedModules.values()].sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
-      history: [...this.history],
+      ...(rolledBackModuleIds.length === 0
+        ? { message: backendResult.message ?? "no requested modules were rolled back" }
+        : backendResult.message
+          ? { message: backendResult.message }
+          : {}),
     };
   }
 
@@ -246,6 +360,26 @@ export class InMemoryParameterHotloadControlService {
   }
 }
 
+export class StateOnlyParameterHotloadBackend implements ParameterHotloadBackend {
+  readonly name = "state-only";
+
+  async load(input: ParameterHotloadBackendLoadInput): Promise<ParameterHotloadBackendLoadResult> {
+    return {
+      status: "accepted",
+      loadedModuleIds: input.modules.map((module) => module.moduleId),
+      message: "state-only backend accepted module load",
+    };
+  }
+
+  async rollback(input: ParameterHotloadBackendRollbackInput): Promise<ParameterHotloadBackendRollbackResult> {
+    return {
+      status: "accepted",
+      rolledBackModuleIds: input.modules.map((module) => module.moduleId),
+      message: "state-only backend accepted rollback",
+    };
+  }
+}
+
 export interface ParameterHotloadControlServerOptions {
   apiKey?: string;
   service?: InMemoryParameterHotloadControlService;
@@ -280,7 +414,7 @@ export function buildParameterHotloadControlServer(
     if (!parsed.success) {
       return reply.status(400).send({ error: "invalid rollback payload", details: parsed.error.flatten() });
     }
-    const result = service.rollback(parsed.data);
+    const result = await service.rollback(parsed.data);
     return reply.status(result.status === "accepted" ? 200 : 409).send(result);
   });
 
