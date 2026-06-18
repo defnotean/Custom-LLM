@@ -77,6 +77,35 @@ npm run check:training -- --metrics training/runs/tiny-transformer-subquadratic-
 
 Promotion criteria for this track are stricter than "it trains": the checkpoint must reload through the direct evaluators, preserve tool protocol behavior, and eventually beat dense attention on long-context retrieval/cost before any SSA model replaces the normal serving path.
 
+## Long-Context Retrieval Gate
+
+The SubQ/SSA path now has its own held-out gate. It builds deterministic synthetic needle-in-context prompts with early/middle/late answer positions, many similar distractor trace values, and increasing context sizes. Live predictions are sent through the normal LLM router with `metadata.longContext=true`; pass `--preferred-provider subq` when you want to pin the SubQ route instead of relying on automatic long-context routing.
+
+```bash
+npm run build:long-context-eval
+npm run eval:long-context:oracle
+npm run eval:long-context -- --predictions training/evals/long-context-oracle.predictions.jsonl --out training/evals/long-context-oracle.report.json
+npm run eval:long-context:gate -- --candidate training/evals/long-context-oracle.report.json --out training/evals/long-context-oracle.gate.json
+
+# Live configured long-context route, then score it
+npm run eval:long-context:llm -- --preferred-provider subq --max-cases 3
+npm run eval:long-context -- --predictions training/evals/long-context-llm.predictions.jsonl --out training/evals/long-context-llm.report.json
+npm run eval:long-context:gate -- --candidate training/evals/long-context-llm.report.json --baseline training/evals/current-production-long-context.report.json
+
+# Larger stress suite once SubQ or a real SSA checkpoint is available
+npm run build:long-context-eval -- --context-chars 16000,64000,262144
+```
+
+Metrics reported:
+
+- `answerRate`
+- `exactMatchRate`
+- `expectedContainRate`
+- `missingPredictions`
+- `falsePositiveRate`
+- latency stats when live predictions include `latencyMs`
+- breakdowns by needle position and context target
+
 Current measured Transformer runs:
 
 | Run | Params | Records | Tokens | Best validation loss | Final validation loss | Notes |
@@ -231,6 +260,7 @@ npm run build:eval-suite
 npm run build:knowledge-eval
 npm run build:behavior-eval
 npm run build:router-eval
+npm run build:long-context-eval
 npm run check:contamination
 npm run check:training-configs
 npm run check:production-readiness
@@ -287,7 +317,7 @@ npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, and tool/knowledge/behavior/router oracle eval reports. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, and tool/knowledge/behavior/router/long-context oracle eval reports. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -467,6 +497,7 @@ against:
 - `training/evals/tool-routing.eval.jsonl`
 - `training/evals/behavior.eval.jsonl`
 - `training/evals/specialist-routing.eval.jsonl`
+- `training/evals/long-context.eval.jsonl`
 
 It fails on exact eval ID leakage, exact normalized text leakage, or high 13-gram overlap above 0.8. This keeps benchmark examples out of the training input while still allowing validation files and oracle reports to exist locally as ignored artifacts.
 
@@ -517,6 +548,7 @@ Every model iteration must:
 - Pass `npm run eval:knowledge:gate` against the candidate knowledge report before promotion.
 - Pass `npm run eval:behavior:gate` against the candidate behavior report before promotion.
 - Pass `npm run eval:router:gate` against the candidate router report before promoting any specialist-router checkpoint.
+- Pass `npm run eval:long-context:gate` against long-context reports before promoting SubQ/SSA routes or any model advertised for repository-scale context.
 - Keep the held-out eval split out of the training set, and prove it with the contamination audit.
 
 ## Scale Path
@@ -525,5 +557,5 @@ Every model iteration must:
 2. Expand protocol, behavior, and router eval harnesses around valid JSON rate, correct tool selection, correct arguments, no-tool accuracy, persona consistency, social-cue accuracy, refusal accuracy, hallucinated-tool rate, route accuracy, expert accuracy, and latency.
 3. Compare keyword and `TOOL_ROUTER_STRATEGY=embedding` retrieval on the held-out protocol suite before enabling embedding retrieval in production.
 4. Run QLoRA SFT on a 3B-7B open-weight base once the reviewed dataset and eval harness exist.
-5. Promote a model only if evals improve tool behavior without regressing knowledge, social behavior, or latency.
+5. Promote a model only if evals improve tool behavior without regressing knowledge, social behavior, long-context retrieval, or latency.
 6. Add DPO/GRPO only after real preference pairs exist.

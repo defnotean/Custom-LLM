@@ -91,6 +91,16 @@ const routerEvalReportSchema = z.object({
   failures: z.array(z.unknown()),
 });
 
+const longContextEvalReportSchema = z.object({
+  total: z.number().int().nonnegative(),
+  answerRate: z.number().min(0).max(1),
+  exactMatchRate: z.number().min(0).max(1),
+  expectedContainRate: z.number().min(0).max(1),
+  missingPredictions: z.number().int().nonnegative(),
+  falsePositiveRate: z.number().min(0).max(1),
+  failures: z.array(z.unknown()),
+});
+
 export type ProductionTrainingStage = "sft" | "dpo" | "all";
 export type ReadinessStatus = "ready" | "not_ready";
 export type ReadinessCheckStatus = "pass" | "warn" | "fail";
@@ -103,6 +113,7 @@ export interface ProductionTrainingReadinessOptions {
   knowledgeEvalReportPath?: string;
   behaviorEvalReportPath?: string;
   routerEvalReportPath?: string;
+  longContextEvalReportPath?: string;
   axolotlSftConfigPath?: string;
   axolotlDpoConfigPath?: string;
   unslothSftConfigPath?: string;
@@ -154,6 +165,7 @@ type ToolEvalReport = z.infer<typeof toolEvalReportSchema>;
 type KnowledgeEvalReport = z.infer<typeof knowledgeEvalReportSchema>;
 type BehaviorEvalReport = z.infer<typeof behaviorEvalReportSchema>;
 type RouterEvalReport = z.infer<typeof routerEvalReportSchema>;
+type LongContextEvalReport = z.infer<typeof longContextEvalReportSchema>;
 
 const DEFAULTS = {
   stage: "sft" as ProductionTrainingStage,
@@ -163,6 +175,7 @@ const DEFAULTS = {
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
   behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
+  longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
   axolotlSftConfigPath: "training/configs/axolotl/qwen3-qlora-sft.yaml",
   axolotlDpoConfigPath: "training/configs/axolotl/qwen3-qlora-dpo.yaml",
   unslothSftConfigPath: "training/configs/unsloth/qwen3_qlora_sft.py",
@@ -194,11 +207,12 @@ export async function checkProductionTrainingReadiness(
     sequenceLength: config.sequenceLength,
     topLongest: 5,
   });
-  const [toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport] = await Promise.all([
+  const [toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport, longContextEvalReport] = await Promise.all([
     readJson(config.toolEvalReportPath, toolEvalReportSchema),
     readJson(config.knowledgeEvalReportPath, knowledgeEvalReportSchema),
     readJson(config.behaviorEvalReportPath, behaviorEvalReportSchema),
     readJson(config.routerEvalReportPath, routerEvalReportSchema),
+    readJson(config.longContextEvalReportPath, longContextEvalReportSchema),
   ]);
   const [axolotlSft, axolotlDpo, unslothSft, unslothDpo] = await Promise.all([
     readFile(config.axolotlSftConfigPath, "utf8"),
@@ -211,7 +225,9 @@ export async function checkProductionTrainingReadiness(
   checks.push(...(await sftChecks(sftReport, config)));
   checks.push(...sftSequenceChecks(sequenceReport, config));
   checks.push(...sftConfigChecks(axolotlSft, unslothSft));
-  checks.push(...evalHarnessChecks(toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport));
+  checks.push(
+    ...evalHarnessChecks(toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport, longContextEvalReport),
+  );
 
   if (config.stage === "dpo" || config.stage === "all") {
     checks.push(...dpoChecks(preferenceReport, config, true));
@@ -430,6 +446,7 @@ function evalHarnessChecks(
   knowledgeReport: KnowledgeEvalReport,
   behaviorReport: BehaviorEvalReport,
   routerReport: RouterEvalReport,
+  longContextReport: LongContextEvalReport,
 ): ReadinessCheck[] {
   return [
     toolReport.total >= 10 &&
@@ -496,6 +513,23 @@ function evalHarnessChecks(
           missingPredictions: routerReport.missingPredictions,
           invalidPredictions: routerReport.invalidPredictions,
           failures: routerReport.failures.length,
+        }),
+    longContextReport.total >= 9 &&
+    longContextReport.answerRate >= 0.95 &&
+    longContextReport.exactMatchRate >= 0.9 &&
+    longContextReport.expectedContainRate >= 0.95 &&
+    longContextReport.missingPredictions === 0 &&
+    longContextReport.falsePositiveRate === 0 &&
+    longContextReport.failures.length === 0
+      ? pass("long-context-eval-harness", `Long-context eval harness is healthy with ${longContextReport.total} oracle cases`)
+      : fail("long-context-eval-harness", "Long-context eval oracle report does not satisfy promotion-gate expectations", {
+          total: longContextReport.total,
+          answerRate: longContextReport.answerRate,
+          exactMatchRate: longContextReport.exactMatchRate,
+          expectedContainRate: longContextReport.expectedContainRate,
+          missingPredictions: longContextReport.missingPredictions,
+          falsePositiveRate: longContextReport.falsePositiveRate,
+          failures: longContextReport.failures.length,
         }),
   ];
 }

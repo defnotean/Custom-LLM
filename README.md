@@ -12,7 +12,7 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Tool routing**: top-10 candidate retrieval per message (never all tools in the prompt), with deterministic keyword routing or opt-in embedding retrieval
 - **Memory**: USER/GUILD/CHANNEL/GLOBAL scopes, policy-gated writes (no secrets, no one-offs), pgvector + Qdrant + in-process stores
 - **Live learning ledger**: memory writes, successful tool workflows, and eval failures are captured as learned items; approved skills and active parameter modules are retrieved into prompts for immediate reuse; queued learning can be planned, exported, trainer-dispatched to a private control endpoint, staged, promoted, checked, and applied to a hotload control endpoint
-- **Subquadratic sparse-attention path**: SubQ can be configured as a named long-context provider, and scratch training has an experimental local/log sparse-attention mode for SSA-style smoke tests
+- **Subquadratic sparse-attention path**: SubQ can be configured as a named long-context provider, scratch training has an experimental local/log sparse-attention mode for SSA-style smoke tests, and long-context retrieval has its own promotion gate
 - **Safety**: rate limiting, content screen (placeholder rules), mandatory confirmation for high-risk actions
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `/learning/status`, `/learning/items`, `/learning/parameter-modules`, `/learning/parameter-modules/stage-from-manifest`, `/learning/parameter-hotload/apply`, `/learning/parameter-snapshot`, `POST /training/export`, `POST /training/feedback/preference`
@@ -88,6 +88,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run build:behavior-eval` / `npm run eval:behavior:llm` / `npm run eval:behavior:tiny` / `npm run eval:behavior` / `npm run eval:behavior:gate` | Build held-out persona/social-cue evals, collect live or scratch-checkpoint JSON outputs, score behavior requirements, and enforce behavior gates |
 | `npm run build:router-eval` / `npm run eval:router:oracle` / `npm run eval:router:tiny` / `npm run eval:router` / `npm run eval:router:gate` | Build and gate held-out specialist routing evals for tool/knowledge/persona/casual/social/boundary routing |
 | `npm run build:skill-eval` / `npm run eval:skill` / `npm run eval:skill:gate` | Build and gate approved-skill retrieval evals so learned workflow hints stay precise and do not leak unapproved skills |
+| `npm run build:long-context-eval` / `npm run eval:long-context:oracle` / `npm run eval:long-context:llm` / `npm run eval:long-context` / `npm run eval:long-context:gate` | Build and gate synthetic needle-in-context retrieval evals for the SubQ/subquadratic sparse-attention path |
 | `npm run check:contamination` | Audit train JSONL against held-out eval suites for exact leakage and high n-gram overlap |
 | `npm run train:tiny-transformer` / `npm run train:tiny-char` | Run local from-scratch training smoke baselines, including assistant-loss masking experiments |
 | `npm run check:training` | Validate dataset splits, hashes, model artifacts, and training loss movement |
@@ -144,7 +145,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 1. Run the bot; every interaction is captured (`docs/TRAINING_DATA.md`).
 2. `npm run export:training` → ChatML / Alpaca / tool-calling / DPO JSONL.
 3. Review + redact + hold out an eval set.
-4. Build the first reproducible dataset/training iteration (`docs/AI_TRAINING_PLAN.md`), pass `npm run check:production-readiness`, then QLoRA-fine-tune the Qwen3 4B Instruct production profile (Unsloth/Axolotl), evaluate protocol, knowledge, router, persona/social behavior, dry-run `npm run dispatch:parameter-training`, and run `npm run check:parameter-module-staging` before shipping a trained module.
+4. Build the first reproducible dataset/training iteration (`docs/AI_TRAINING_PLAN.md`), pass `npm run check:production-readiness`, then QLoRA-fine-tune the Qwen3 4B Instruct production profile (Unsloth/Axolotl), evaluate protocol, knowledge, router, persona/social behavior, long-context retrieval if using SubQ/SSA, dry-run `npm run dispatch:parameter-training`, and run `npm run check:parameter-module-staging` before shipping a trained module.
 
 ⚠️ Use only consented data from servers you control — Discord's Developer Policy prohibits training on scraped message content.
 
@@ -165,7 +166,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/skill eval gates, ops API, docker compose, 235 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/skill/long-context eval gates, ops API, docker compose, 241 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 

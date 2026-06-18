@@ -32,6 +32,7 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
     else if (arg === "--knowledge-eval-report") options.knowledgeEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--behavior-eval-report") options.behaviorEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--router-eval-report") options.routerEvalReportPath = requireValue(argv[++index], arg);
+    else if (arg === "--long-context-eval-report") options.longContextEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--sft-train") options.sftTrainPath = requireValue(argv[++index], arg);
     else if (arg === "--sft-validation") options.sftValidationPath = requireValue(argv[++index], arg);
     else if (arg === "--sequence-len") options.sequenceLength = parsePositiveInt(argv[++index], arg);

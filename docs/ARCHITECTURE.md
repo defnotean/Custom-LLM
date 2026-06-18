@@ -85,7 +85,7 @@ LLM tool-selection accuracy collapses past ~30–50 in-context tools, so the reg
 
 The long-context architecture target is subquadratic sparse attention. `SUBQ_ENABLED=true` adds a named `subq` OpenAI-compatible provider, and `LLMRouter` prefers that provider for requests marked with `metadata.longContext=true` or `metadata.preferredProvider="subq"`. This is for full-repository, long-history, and large-artifact reasoning where dense attention is the wrong scaling target.
 
-The local scratch trainer also supports `--attention-mode local-log-sparse`, which attends to a local window plus logarithmically spaced historical anchors. That path is a smoke implementation for data, checkpoint, and eval plumbing; it is not a production optimized SSA kernel. A production SubQ/SSA model must still pass the same tool, behavior, memory, parameter-growth, latency, and long-context retrieval gates before promotion.
+The local scratch trainer also supports `--attention-mode local-log-sparse`, which attends to a local window plus logarithmically spaced historical anchors. That path is a smoke implementation for data, checkpoint, and eval plumbing; it is not a production optimized SSA kernel. `src/training/eval/LongContextEvalSuite.ts` adds the first long-context retrieval gate: synthetic needle-in-context prompts with distractor values, an oracle sanity path, live LLM predictions routed with `metadata.longContext=true`, and a promotion gate for exact retrieval, false positives, missing predictions, latency, and baseline regression. A production SubQ/SSA model must still pass the same tool, behavior, memory, parameter-growth, latency, and long-context retrieval gates before promotion.
 
 ### Ports & adapters
 
@@ -117,7 +117,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | 10 | `API_PORT`/`API_HOST` added beyond the spec env list | The API server needs a bind address; documented in `.env.example` |
 | 11 | discord.js permission names normalized to UPPER_SNAKE | Spec/tool definitions use `MODERATE_MEMBERS` style; conversion at the Discord boundary (`toUpperSnake`) |
 | 12 | Bot identity name "Irene" hardcoded at composition root | Product identity is intentionally fixed to Irene/she-her for consistency; per-guild style overrides can still live in `GuildProfile.settingsJson` later without changing identity |
-| 13 | SubQ/SSA is a named long-context architecture target, not a blanket replacement | Use subquadratic sparse attention for large-context work and smoke it locally; keep local/open-weight serving for ordinary turns until evals prove the SSA path improves quality/cost |
+| 13 | SubQ/SSA is a named long-context architecture target, not a blanket replacement | Use subquadratic sparse attention for large-context work, smoke it locally, and gate it with exact long-context retrieval before replacing ordinary local/open-weight serving |
 
 ## Placeholders & TODOs (honest status)
 

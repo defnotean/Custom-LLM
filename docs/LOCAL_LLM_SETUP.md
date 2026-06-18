@@ -65,7 +65,14 @@ SUBQ_MODEL=<your SubQ model id>
 SUBQ_TIMEOUT_MS=600000
 ```
 
-Do not hardcode guessed SubQ URLs or model ids. Use the values assigned to your account or private preview. Promotion still requires the same tool, behavior, memory, and parameter-growth eval gates; a longer context window does not by itself prove better tool-call reliability.
+Do not hardcode guessed SubQ URLs or model ids. Use the values assigned to your account or private preview. Promotion still requires the same tool, behavior, memory, parameter-growth, and long-context eval gates; a longer context window does not by itself prove better tool-call reliability. For the first SubQ route check, run:
+
+```bash
+npm run build:long-context-eval
+npm run eval:long-context:llm -- --preferred-provider subq --max-cases 3
+npm run eval:long-context -- --predictions training/evals/long-context-llm.predictions.jsonl --out training/evals/long-context-llm.report.json
+npm run eval:long-context:gate -- --candidate training/evals/long-context-llm.report.json
+```
 
 ## Testing the endpoint
 

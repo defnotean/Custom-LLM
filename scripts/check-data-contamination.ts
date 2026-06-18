@@ -22,6 +22,7 @@ const defaultEvalPaths = [
   "training/evals/tool-routing.eval.jsonl",
   "training/evals/behavior.eval.jsonl",
   "training/evals/specialist-routing.eval.jsonl",
+  "training/evals/long-context.eval.jsonl",
 ];
 
 async function main(): Promise<void> {

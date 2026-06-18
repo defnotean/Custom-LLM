@@ -1,0 +1,28 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "minTotalCases": 9,
+    "minAnswerRate": 0.95,
+    "minExactMatchRate": 0.9,
+    "minExpectedContainRate": 0.95,
+    "maxMissingPredictions": 0,
+    "maxFalsePositiveRate": 0,
+    "maxAccuracyRegression": 0.03,
+    "maxFalsePositiveRateIncrease": 0.02
+  },
+  "candidate": {
+    "suitePath": "training/evals/long-context.eval.jsonl",
+    "predictionsPath": "training/evals/long-context-oracle.predictions.jsonl",
+    "total": 9,
+    "answerRate": 1,
+    "exactMatchRate": 1,
+    "expectedContainRate": 1,
+    "missingPredictions": 0,
+    "falsePositiveRate": 0,
+    "latencyP95Ms": null
+  },
+  "failures": [],
+  "warnings": [
+    "candidate report has no latency samples; latency promotion checks were skipped"
+  ]
+}
