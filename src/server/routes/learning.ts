@@ -11,6 +11,14 @@ import type {
   ParameterModuleStatus,
   TrainingPromotionStatus,
 } from "../../learning/LiveLearningRegistry";
+import type {
+  StageParameterModuleFromManifestInput,
+  StageParameterModuleFromManifestResult,
+} from "../../learning/ParameterModuleStagingService";
+import {
+  PARAMETER_MODULE_STAGING_EVAL_KINDS,
+  type ParameterModuleStagingEvalKind,
+} from "../../training/parameter/ParameterModuleStagingGate";
 import { toJsonValue, type JsonObject, type LearningStatsPayload } from "../../types/common";
 
 export interface LearningRouteDeps {
@@ -53,6 +61,9 @@ export interface LearningRouteDeps {
     rollbackTargetId?: string;
     metadata?: JsonObject;
   }) => Promise<ParameterModule>) | null;
+  stageParameterModuleFromManifest?: ((
+    input: StageParameterModuleFromManifestInput,
+  ) => Promise<StageParameterModuleFromManifestResult>) | null;
   promoteParameterModule?: ((
     id: string,
     options: { gateStatus: "pass" | "fail" | "warn"; evalReport?: ParameterEvalReport },
@@ -84,6 +95,7 @@ const evalReportKindSchema = z.enum([
   "voice",
   "composite",
 ]);
+const stagingEvalKindSchema = z.enum(PARAMETER_MODULE_STAGING_EVAL_KINDS);
 
 const listQuerySchema = z.object({
   kind: kindSchema.optional(),
@@ -147,6 +159,19 @@ const createParameterModuleBodySchema = z
     evalReports: z.array(evalReportSchema).max(50).optional(),
     sourceLearningItemIds: z.array(z.string().trim().min(1).max(256)).max(500).optional(),
     rollbackTargetId: z.string().trim().min(1).max(256).optional(),
+    metadata: z.record(z.unknown()).optional(),
+  })
+  .strict();
+
+const stageParameterModuleBodySchema = z
+  .object({
+    id: z.string().trim().min(1).max(256).optional(),
+    manifestPath: z.string().trim().min(1).max(2_048),
+    maxParameters: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+    requiredEvalKinds: z.array(stagingEvalKindSchema).min(1).max(20).optional(),
+    requiredArtifactKinds: z.array(z.string().trim().min(1).max(128)).min(1).max(20).optional(),
+    requireEvalReportHashes: z.boolean().optional(),
+    verifyDatasetFiles: z.boolean().optional(),
     metadata: z.record(z.unknown()).optional(),
   })
   .strict();
@@ -281,6 +306,44 @@ export function registerLearningRoutes(app: FastifyInstance, deps: LearningRoute
     }
   });
 
+  app.post("/learning/parameter-modules/stage-from-manifest", async (request, reply) => {
+    if (!deps.stageParameterModuleFromManifest) {
+      return reply.status(503).send({ error: "live learning persistence disabled" });
+    }
+    const body = stageParameterModuleBodySchema.safeParse(request.body ?? {});
+    if (!body.success) {
+      return reply.status(400).send({ error: "invalid parameter module staging payload", details: body.error.flatten() });
+    }
+    try {
+      const {
+        id,
+        manifestPath,
+        maxParameters,
+        requiredEvalKinds,
+        requiredArtifactKinds,
+        requireEvalReportHashes,
+        verifyDatasetFiles,
+        metadata,
+      } = body.data;
+      const gateOptions = {
+        ...(maxParameters ? { maxParameters } : {}),
+        ...(requiredEvalKinds ? { requiredEvalKinds: requiredEvalKinds as ParameterModuleStagingEvalKind[] } : {}),
+        ...(requiredArtifactKinds ? { requiredArtifactKinds } : {}),
+        ...(requireEvalReportHashes !== undefined ? { requireEvalReportHashes } : {}),
+        ...(verifyDatasetFiles !== undefined ? { verifyDatasetFiles } : {}),
+      };
+      const result = await deps.stageParameterModuleFromManifest({
+        ...(id ? { id } : {}),
+        manifestPath,
+        ...(Object.keys(gateOptions).length > 0 ? { gateOptions } : {}),
+        ...(metadata ? { metadata: asJsonObject(metadata) } : {}),
+      });
+      return reply.status(201).send(result);
+    } catch (err) {
+      return parameterMutationError(reply, err);
+    }
+  });
+
   app.get("/learning/parameter-modules/:id", async (request, reply) => {
     if (!deps.getParameterModule) {
       return reply.status(503).send({ error: "live learning persistence disabled" });
@@ -341,7 +404,7 @@ function learningMutationError(reply: FastifyReply, err: unknown) {
 function parameterMutationError(reply: FastifyReply, err: unknown) {
   const message = err instanceof Error ? err.message : String(err);
   if (/not found/i.test(message)) return reply.status(404).send({ error: "parameter module not found" });
-  if (/already exists|not staged|cannot be promoted|passing gates/i.test(message)) {
+  if (/already exists|not staged|cannot be promoted|passing gates|staging gate failed|staging manifest/i.test(message)) {
     return reply.status(409).send({ error: "parameter module cannot be changed", reason: message });
   }
   throw err;

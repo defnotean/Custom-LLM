@@ -47,6 +47,10 @@ npm run build:parameter-growth-data -- --allow-risk-review
 npm run check:parameter-growth-data -- --manifest training/data/parameter-growth/<plan-id>/manifest.json
 npm run check:parameter-module-staging -- --manifest training/runs/parameter-modules/<run-id>/staging-manifest.json
 
+curl -X POST http://127.0.0.1:3000/learning/parameter-modules/stage-from-manifest \
+  -H "content-type: application/json" \
+  -d '{"manifestPath":"training/runs/parameter-modules/<run-id>/staging-manifest.json","metadata":{"operator":"admin"}}'
+
 curl -X POST http://127.0.0.1:3000/learning/parameter-modules \
   -H "content-type: application/json" \
   -d '{"name":"tool-expert-v1","kind":"expert","parameters":775358,"activeParameters":775358,"route":"ping","sourceLearningItemIds":["<learned-item-id>"],"metadata":{"toolName":"ping"}}'
@@ -66,7 +70,7 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 
 `check:parameter-growth-data` verifies the generated manifest and JSONL files after the build: recorded hashes and byte counts must match, record schemas must be valid, batch counts must line up, record ids must be unique, and obvious token/API-key patterns must be absent.
 
-`check:parameter-module-staging` verifies the trainer's output before registry creation/promotion: module parameter counts must be within budget, source learned-item ids must match the dataset records, dataset and artifact hashes must match the staging manifest, required eval reports must pass, eval report evidence must be hash-verified, and rollback metadata must exist. This is the handoff gate between "a trainer produced files" and "Irene may stage a new adapter/specialist/expert."
+`check:parameter-module-staging` verifies the trainer's output before registry creation/promotion: module parameter counts must be within budget, source learned-item ids must match the dataset records, dataset and artifact hashes must match the staging manifest, required eval reports must pass, eval report evidence must be hash-verified, and rollback metadata must exist. `POST /learning/parameter-modules/stage-from-manifest` runs the same gate, creates a staged module from the manifest, records runtime-compatible eval reports, and stores the full staging report in module metadata. This is the handoff gate between "a trainer produced files" and "Irene may stage a new adapter/specialist/expert."
 
 ## Export Formats
 

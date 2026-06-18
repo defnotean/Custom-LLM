@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { ParameterModuleStagingService } from "../src/learning/ParameterModuleStagingService";
+import type { ParameterModule } from "../src/learning/LiveLearningRegistry";
 import { checkParameterModuleStagingManifest } from "../src/training/parameter/ParameterModuleStagingGate";
 
 describe("ParameterModuleStagingGate", () => {
@@ -26,6 +28,54 @@ describe("ParameterModuleStagingGate", () => {
       sourceLearningItems: 2,
     });
     expect(report.checks.every((check) => check.status === "pass")).toBe(true);
+  });
+
+  it("creates a staged parameter module from a passing manifest", async () => {
+    const fixture = await writeFixture();
+    const createdInputs: unknown[] = [];
+    const service = new ParameterModuleStagingService({
+      createParameterModule: async (input) => {
+        createdInputs.push(input);
+        return parameterModule({ id: input.id ?? "module-created", ...input });
+      },
+    });
+
+    const result = await service.stageFromManifest({
+      id: "module-from-manifest",
+      manifestPath: fixture.stagingManifestPath,
+      metadata: { operator: "admin-1" },
+    });
+
+    expect(result.gateReport.status).toBe("pass");
+    expect(result.module).toMatchObject({
+      id: "module-from-manifest",
+      name: "ping_tool_expert",
+      kind: "expert",
+      status: "staged",
+      route: "ping",
+      rollbackTargetId: "active-module-before-ping-expert",
+    });
+    expect(createdInputs).toEqual([
+      expect.objectContaining({
+        id: "module-from-manifest",
+        name: "ping_tool_expert",
+        kind: "expert",
+        datasetHashes: expect.any(Array),
+        sourceLearningItemIds: ["skill-1", "skill-2"],
+        evalReports: expect.arrayContaining([
+          expect.objectContaining({ kind: "skill", status: "pass" }),
+          expect.objectContaining({ kind: "composite", status: "pass" }),
+        ]),
+        metadata: expect.objectContaining({
+          operator: "admin-1",
+          staging: expect.objectContaining({
+            manifestPath: fixture.stagingManifestPath,
+            trainer: "fixture-trainer",
+            gateReport: expect.objectContaining({ status: "pass" }),
+          }),
+        }),
+      }),
+    ]);
   });
 
   it("fails when rollback target is missing", async () => {
@@ -189,4 +239,22 @@ async function fileInfo(path: string): Promise<{ bytes: number; sha256: string }
 
 function hashText(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function parameterModule(overrides: Partial<ParameterModule> = {}): ParameterModule {
+  return {
+    id: "module-1",
+    name: "module",
+    kind: "adapter",
+    parameters: 12_000_000,
+    activeParameters: 12_000_000,
+    trainableParameters: 12_000_000,
+    status: "staged",
+    datasetHashes: [],
+    evalReports: [],
+    sourceLearningItemIds: [],
+    createdAt: "2026-06-18T15:00:00.000Z",
+    metadata: {},
+    ...overrides,
+  };
 }

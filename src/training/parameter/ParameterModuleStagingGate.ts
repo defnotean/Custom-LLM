@@ -127,7 +127,7 @@ const datasetRecordSourceSchema = z.object({
   itemId: z.string().min(1),
 });
 
-type StagingManifest = z.infer<typeof stagingManifestSchema>;
+export type ParameterModuleStagingManifest = z.infer<typeof stagingManifestSchema>;
 type DatasetManifest = z.infer<typeof datasetManifestSchema>;
 
 export async function checkParameterModuleStagingManifest(
@@ -135,7 +135,7 @@ export async function checkParameterModuleStagingManifest(
   options: ParameterModuleStagingGateOptions = {},
 ): Promise<ParameterModuleStagingGateReport> {
   const checks: ParameterModuleStagingCheck[] = [];
-  const manifest = stagingManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
+  const manifest = await readParameterModuleStagingManifest(manifestPath);
   const requiredEvalKinds = options.requiredEvalKinds ?? defaultRequiredEvalKinds(manifest);
   const requiredArtifactKinds = options.requiredArtifactKinds ?? defaultRequiredArtifactKinds(manifest.kind);
   const maxParameters = options.maxParameters ?? DEFAULT_PARAMETER_MODULE_STAGING_MAX_PARAMETERS;
@@ -190,7 +190,11 @@ export async function checkParameterModuleStagingManifest(
   };
 }
 
-function parameterChecks(manifest: StagingManifest, maxParameters: number): ParameterModuleStagingCheck[] {
+export async function readParameterModuleStagingManifest(manifestPath: string): Promise<ParameterModuleStagingManifest> {
+  return stagingManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
+}
+
+function parameterChecks(manifest: ParameterModuleStagingManifest, maxParameters: number): ParameterModuleStagingCheck[] {
   const failures: string[] = [];
   if (manifest.activeParameters > manifest.parameters) failures.push("activeParameters exceeds parameters");
   if (manifest.trainableParameters > manifest.parameters) failures.push("trainableParameters exceeds parameters");
@@ -204,7 +208,7 @@ function parameterChecks(manifest: StagingManifest, maxParameters: number): Para
   ];
 }
 
-function sourceChecks(manifest: StagingManifest): ParameterModuleStagingCheck[] {
+function sourceChecks(manifest: ParameterModuleStagingManifest): ParameterModuleStagingCheck[] {
   const duplicateSourceIds = duplicates(manifest.sourceLearningItemIds);
   return [
     manifest.sourceLearningItemIds.length > 0
@@ -220,7 +224,7 @@ function sourceChecks(manifest: StagingManifest): ParameterModuleStagingCheck[] 
 }
 
 async function readDatasetManifest(
-  manifest: StagingManifest,
+  manifest: ParameterModuleStagingManifest,
   manifestPath: string,
   checks: ParameterModuleStagingCheck[],
 ): Promise<DatasetManifest | null> {
@@ -257,7 +261,7 @@ async function readDatasetManifest(
   }
 }
 
-function datasetHashChecks(manifest: StagingManifest, dataset: DatasetManifest): ParameterModuleStagingCheck[] {
+function datasetHashChecks(manifest: ParameterModuleStagingManifest, dataset: DatasetManifest): ParameterModuleStagingCheck[] {
   const hashes = new Set(manifest.datasetHashes);
   const requiredHashes = [manifest.datasetManifestSha256, ...dataset.files.map((file) => file.sha256)];
   const missingHashes = requiredHashes.filter((hash) => !hashes.has(hash));
@@ -269,7 +273,7 @@ function datasetHashChecks(manifest: StagingManifest, dataset: DatasetManifest):
 }
 
 async function datasetFileChecks(
-  manifest: StagingManifest,
+  manifest: ParameterModuleStagingManifest,
   dataset: DatasetManifest,
   manifestPath: string,
 ): Promise<ParameterModuleStagingCheck[]> {
@@ -339,7 +343,7 @@ async function datasetFileChecks(
   return checks;
 }
 
-function artifactPresenceChecks(manifest: StagingManifest, requiredKinds: string[]): ParameterModuleStagingCheck[] {
+function artifactPresenceChecks(manifest: ParameterModuleStagingManifest, requiredKinds: string[]): ParameterModuleStagingCheck[] {
   const artifactKinds = new Set(manifest.artifacts.map((artifact) => artifact.kind));
   return requiredKinds.map((kind) =>
     artifactKinds.has(kind)
@@ -387,7 +391,10 @@ async function hashedEvidenceChecks(
   return checks;
 }
 
-function evalChecks(manifest: StagingManifest, requiredKinds: ParameterModuleStagingEvalKind[]): ParameterModuleStagingCheck[] {
+function evalChecks(
+  manifest: ParameterModuleStagingManifest,
+  requiredKinds: ParameterModuleStagingEvalKind[],
+): ParameterModuleStagingCheck[] {
   const checks: ParameterModuleStagingCheck[] = [];
   const reportsByKind = new Map<ParameterModuleStagingEvalKind, Array<{ status: "pass" | "fail" | "warn" }>>();
   for (const report of manifest.evalReports) {
@@ -415,7 +422,7 @@ function evalChecks(manifest: StagingManifest, requiredKinds: ParameterModuleSta
   return checks;
 }
 
-function defaultRequiredEvalKinds(manifest: StagingManifest): ParameterModuleStagingEvalKind[] {
+function defaultRequiredEvalKinds(manifest: ParameterModuleStagingManifest): ParameterModuleStagingEvalKind[] {
   const required: ParameterModuleStagingEvalKind[] = ["dataset_quality", "parameter_growth", "training_report", "contamination"];
   if (manifest.kind === "router") required.push("router", "protocol");
   else if (manifest.kind === "specialist" || manifest.kind === "expert") required.push("skill", "protocol");

@@ -260,6 +260,111 @@ describe("learning routes", () => {
     await app.close();
   });
 
+  it("stages parameter modules from a verified staging manifest", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      stageParameterModuleFromManifest: async (input) => {
+        calls.push(input);
+        return {
+          module: parameterModule({
+            id: input.id ?? "module-created",
+            name: "ping_tool_expert",
+            kind: "expert",
+            route: "ping",
+            status: "staged",
+            rollbackTargetId: "active-module-before-ping-expert",
+          }),
+          gateReport: {
+            status: "pass",
+            manifestPath: input.manifestPath,
+            generatedAt: "2026-06-18T21:00:00.000Z",
+            summary: {
+              moduleName: "ping_tool_expert",
+              kind: "expert",
+              route: "ping",
+              parameters: 2_000_000,
+              activeParameters: 500_000,
+              trainableParameters: 2_000_000,
+              artifacts: 2,
+              evalReports: 6,
+              sourceLearningItems: 2,
+              requiredEvalKinds: ["dataset_quality", "parameter_growth", "training_report", "contamination", "skill", "protocol"],
+              requiredArtifactKinds: ["checkpoint", "config"],
+              datasetManifestPath: "training/data/parameter-growth/plan-1/manifest.json",
+            },
+            checks: [],
+          },
+        };
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-modules/stage-from-manifest",
+      payload: {
+        id: "module-from-manifest",
+        manifestPath: "training/runs/parameter-modules/run-1/staging-manifest.json",
+        maxParameters: 5_000_000,
+        requiredEvalKinds: ["skill", "protocol"],
+        requiredArtifactKinds: ["checkpoint", "config"],
+        requireEvalReportHashes: true,
+        verifyDatasetFiles: true,
+        metadata: { operator: "admin-1" },
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      module: {
+        id: "module-from-manifest",
+        name: "ping_tool_expert",
+        kind: "expert",
+        status: "staged",
+      },
+      gateReport: { status: "pass" },
+    });
+    expect(calls).toEqual([
+      {
+        id: "module-from-manifest",
+        manifestPath: "training/runs/parameter-modules/run-1/staging-manifest.json",
+        gateOptions: {
+          maxParameters: 5_000_000,
+          requiredEvalKinds: ["skill", "protocol"],
+          requiredArtifactKinds: ["checkpoint", "config"],
+          requireEvalReportHashes: true,
+          verifyDatasetFiles: true,
+        },
+        metadata: { operator: "admin-1" },
+      },
+    ]);
+    await app.close();
+  });
+
+  it("reports staging gate failures without creating a parameter module", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, {
+      getStats: null,
+      stageParameterModuleFromManifest: async () => {
+        throw new Error("parameter module staging gate failed: required-eval:skill");
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-modules/stage-from-manifest",
+      payload: { manifestPath: "training/runs/parameter-modules/run-1/staging-manifest.json" },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: "parameter module cannot be changed",
+      reason: expect.stringContaining("staging gate failed"),
+    });
+    await app.close();
+  });
+
   it("reports parameter promotion gate failures without activating the module", async () => {
     const app = Fastify({ logger: false });
     registerLearningRoutes(app, {

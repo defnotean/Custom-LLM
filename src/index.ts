@@ -47,6 +47,7 @@ import { DatasetExporter } from "./training/DatasetExporter";
 import { InteractionLearningCapture } from "./learning/InteractionLearningCapture";
 import { SkillRetrievalService } from "./learning/SkillRetrievalService";
 import { ParameterActivationService } from "./learning/ParameterActivationService";
+import { ParameterModuleStagingService } from "./learning/ParameterModuleStagingService";
 import { ParameterGrowthPlanner } from "./training/parameter/ParameterGrowthPlanner";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
@@ -139,6 +140,7 @@ async function main(): Promise<void> {
   const learningCapture = learningRepo ? new InteractionLearningCapture(learningRepo, childLogger("learning-capture")) : null;
   const skillRetriever = learningRepo ? new SkillRetrievalService(learningRepo) : null;
   const parameterActivator = learningRepo ? new ParameterActivationService(learningRepo) : null;
+  const parameterModuleStaging = learningRepo ? new ParameterModuleStagingService(learningRepo) : null;
   const parameterGrowthPlanner = learningRepo ? new ParameterGrowthPlanner(learningRepo) : null;
 
   // ── Discord client + agent ─────────────────────────────────────────────
@@ -243,6 +245,9 @@ async function main(): Promise<void> {
     listParameterModules: learningRepo ? (filter) => learningRepo.listParameterModules(filter) : null,
     getParameterModule: learningRepo ? (id) => learningRepo.getParameterModule(id) : null,
     createParameterModule: learningRepo ? (input) => learningRepo.createParameterModule(input) : null,
+    stageParameterModuleFromManifest: parameterModuleStaging
+      ? (input) => parameterModuleStaging.stageFromManifest(input)
+      : null,
     promoteParameterModule: learningRepo ? (id, options) => learningRepo.promoteParameterModule(id, options) : null,
     retireParameterModule: learningRepo ? (id) => learningRepo.retireParameterModule(id) : null,
     getParameterSnapshot: learningRepo ? (options) => learningRepo.getParameterSnapshot(options) : null,
