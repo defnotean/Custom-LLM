@@ -28,6 +28,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "sft-first-party-signal")).toBe("warn");
     expect(checkStatus(report.checks, "sft-token-headroom")).toBe("pass");
     expect(checkStatus(report.checks, "behavior-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("warn");
   });
 
@@ -112,6 +113,7 @@ describe("ProductionTrainingReadiness", () => {
     const toolEvalReportPath = join(evalDir, "oracle.report.json");
     const knowledgeEvalReportPath = join(evalDir, "knowledge-oracle.report.json");
     const behaviorEvalReportPath = join(evalDir, "behavior-oracle.report.json");
+    const routerEvalReportPath = join(evalDir, "specialist-routing-oracle.report.json");
     await writeJson(toolEvalReportPath, {
       total: 35,
       validJsonRate: 1,
@@ -145,6 +147,15 @@ describe("ProductionTrainingReadiness", () => {
       missingPredictions: 0,
       failures: [],
     });
+    await writeJson(routerEvalReportPath, {
+      total: 18,
+      routeAccuracy: 1,
+      expertAccuracy: 1,
+      toolVsNonToolAccuracy: 1,
+      missingPredictions: 0,
+      invalidPredictions: 0,
+      failures: [],
+    });
 
     const axolotlSftConfigPath = join(configDir, "qwen3-qlora-sft.yaml");
     const axolotlDpoConfigPath = join(configDir, "qwen3-qlora-dpo.yaml");
@@ -162,6 +173,7 @@ describe("ProductionTrainingReadiness", () => {
         toolEvalReportPath,
         knowledgeEvalReportPath,
         behaviorEvalReportPath,
+        routerEvalReportPath,
         axolotlSftConfigPath,
         axolotlDpoConfigPath,
         unslothSftConfigPath,

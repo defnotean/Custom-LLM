@@ -1,0 +1,27 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "minTotalCases": 18,
+    "minRouteAccuracy": 0.95,
+    "minExpertAccuracy": 0.95,
+    "minToolVsNonToolAccuracy": 1,
+    "maxMissingPredictions": 0,
+    "maxInvalidPredictions": 0,
+    "maxRouteAccuracyRegression": 0.02,
+    "maxExpertAccuracyRegression": 0.02
+  },
+  "candidate": {
+    "suitePath": "training/evals/specialist-routing.eval.jsonl",
+    "predictionsPath": "training/evals/specialist-routing-oracle.predictions.jsonl",
+    "total": 18,
+    "routeAccuracy": 1,
+    "expertAccuracy": 1,
+    "toolVsNonToolAccuracy": 1,
+    "missingPredictions": 0,
+    "invalidPredictions": 0,
+    "failures": 0,
+    "latencyP95Ms": 8
+  },
+  "failures": [],
+  "warnings": []
+}

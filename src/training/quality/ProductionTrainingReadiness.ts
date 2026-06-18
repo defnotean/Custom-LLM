@@ -81,6 +81,16 @@ const behaviorEvalReportSchema = z.object({
   failures: z.array(z.unknown()),
 });
 
+const routerEvalReportSchema = z.object({
+  total: z.number().int().nonnegative(),
+  routeAccuracy: z.number().min(0).max(1),
+  expertAccuracy: z.number().min(0).max(1),
+  toolVsNonToolAccuracy: z.number().min(0).max(1),
+  missingPredictions: z.number().int().nonnegative(),
+  invalidPredictions: z.number().int().nonnegative(),
+  failures: z.array(z.unknown()),
+});
+
 export type ProductionTrainingStage = "sft" | "dpo" | "all";
 export type ReadinessStatus = "ready" | "not_ready";
 export type ReadinessCheckStatus = "pass" | "warn" | "fail";
@@ -92,6 +102,7 @@ export interface ProductionTrainingReadinessOptions {
   toolEvalReportPath?: string;
   knowledgeEvalReportPath?: string;
   behaviorEvalReportPath?: string;
+  routerEvalReportPath?: string;
   axolotlSftConfigPath?: string;
   axolotlDpoConfigPath?: string;
   unslothSftConfigPath?: string;
@@ -142,6 +153,7 @@ type PreferenceReport = z.infer<typeof preferenceReportSchema>;
 type ToolEvalReport = z.infer<typeof toolEvalReportSchema>;
 type KnowledgeEvalReport = z.infer<typeof knowledgeEvalReportSchema>;
 type BehaviorEvalReport = z.infer<typeof behaviorEvalReportSchema>;
+type RouterEvalReport = z.infer<typeof routerEvalReportSchema>;
 
 const DEFAULTS = {
   stage: "sft" as ProductionTrainingStage,
@@ -150,6 +162,7 @@ const DEFAULTS = {
   toolEvalReportPath: "training/evals/oracle.report.json",
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
   behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
+  routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
   axolotlSftConfigPath: "training/configs/axolotl/qwen3-qlora-sft.yaml",
   axolotlDpoConfigPath: "training/configs/axolotl/qwen3-qlora-dpo.yaml",
   unslothSftConfigPath: "training/configs/unsloth/qwen3_qlora_sft.py",
@@ -181,10 +194,11 @@ export async function checkProductionTrainingReadiness(
     sequenceLength: config.sequenceLength,
     topLongest: 5,
   });
-  const [toolEvalReport, knowledgeEvalReport, behaviorEvalReport] = await Promise.all([
+  const [toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport] = await Promise.all([
     readJson(config.toolEvalReportPath, toolEvalReportSchema),
     readJson(config.knowledgeEvalReportPath, knowledgeEvalReportSchema),
     readJson(config.behaviorEvalReportPath, behaviorEvalReportSchema),
+    readJson(config.routerEvalReportPath, routerEvalReportSchema),
   ]);
   const [axolotlSft, axolotlDpo, unslothSft, unslothDpo] = await Promise.all([
     readFile(config.axolotlSftConfigPath, "utf8"),
@@ -197,7 +211,7 @@ export async function checkProductionTrainingReadiness(
   checks.push(...(await sftChecks(sftReport, config)));
   checks.push(...sftSequenceChecks(sequenceReport, config));
   checks.push(...sftConfigChecks(axolotlSft, unslothSft));
-  checks.push(...evalHarnessChecks(toolEvalReport, knowledgeEvalReport, behaviorEvalReport));
+  checks.push(...evalHarnessChecks(toolEvalReport, knowledgeEvalReport, behaviorEvalReport, routerEvalReport));
 
   if (config.stage === "dpo" || config.stage === "all") {
     checks.push(...dpoChecks(preferenceReport, config, true));
@@ -415,6 +429,7 @@ function evalHarnessChecks(
   toolReport: ToolEvalReport,
   knowledgeReport: KnowledgeEvalReport,
   behaviorReport: BehaviorEvalReport,
+  routerReport: RouterEvalReport,
 ): ReadinessCheck[] {
   return [
     toolReport.total >= 10 &&
@@ -464,6 +479,23 @@ function evalHarnessChecks(
           boundaryAccuracy: behaviorReport.boundaryAccuracy,
           missingPredictions: behaviorReport.missingPredictions,
           failures: behaviorReport.failures.length,
+        }),
+    routerReport.total >= 18 &&
+    routerReport.routeAccuracy >= 0.95 &&
+    routerReport.expertAccuracy >= 0.95 &&
+    routerReport.toolVsNonToolAccuracy === 1 &&
+    routerReport.missingPredictions === 0 &&
+    routerReport.invalidPredictions === 0 &&
+    routerReport.failures.length === 0
+      ? pass("router-eval-harness", `Specialist router eval harness is healthy with ${routerReport.total} oracle cases`)
+      : fail("router-eval-harness", "Specialist router eval oracle report does not satisfy promotion-gate expectations", {
+          total: routerReport.total,
+          routeAccuracy: routerReport.routeAccuracy,
+          expertAccuracy: routerReport.expertAccuracy,
+          toolVsNonToolAccuracy: routerReport.toolVsNonToolAccuracy,
+          missingPredictions: routerReport.missingPredictions,
+          invalidPredictions: routerReport.invalidPredictions,
+          failures: routerReport.failures.length,
         }),
   ];
 }

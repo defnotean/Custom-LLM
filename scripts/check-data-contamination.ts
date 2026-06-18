@@ -14,12 +14,14 @@ interface Args {
 const defaultTrainPaths = [
   "training/data/processed/sft.train.jsonl",
   "training/data/mixtures/production-sft.train.jsonl",
+  "training/data/router/sft.train.jsonl",
 ];
 
 const defaultEvalPaths = [
   "training/evals/knowledge.eval.jsonl",
   "training/evals/tool-routing.eval.jsonl",
   "training/evals/behavior.eval.jsonl",
+  "training/evals/specialist-routing.eval.jsonl",
 ];
 
 async function main(): Promise<void> {

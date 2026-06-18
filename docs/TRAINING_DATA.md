@@ -101,6 +101,18 @@ npm run eval:behavior:gate -- --candidate training/evals/behavior-llm.report.jso
 
 The behavior suite is held out from training and checks the she/her persona contract, affective persona wording, Discord-native casual replies, no generic refusal/filter language for allowed prompts, social support/repair, direct safety boundaries, and tool abstention for no-tool prompts. It is deliberately small today so it can act as a fast CI gate; grow it with reviewed first-party examples before using DPO to tune persona.
 
+For the MoE-style specialist router path, run:
+
+```bash
+npm run build:router-eval
+npm run build:router-sft
+npm run eval:router:oracle
+npm run eval:router
+npm run eval:router:gate -- --out training/evals/specialist-routing-oracle.gate.json
+```
+
+This writes a separate router SFT set under `training/data/router/` and a held-out `training/evals/specialist-routing.eval.jsonl` suite. The router rows are not mixed into the main assistant SFT because their assistant output is route-label JSON, not a user-facing assistant action. The current routes are `tool_protocol`, `knowledge`, `persona`, `casual`, `social_cue`, and `boundary`, mapped onto tool, knowledge, conversation, and safety experts.
+
 ## Review Workflow
 
 1. Export and sample-read each file.

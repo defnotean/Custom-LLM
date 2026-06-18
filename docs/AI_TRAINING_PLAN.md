@@ -130,6 +130,14 @@ Current scratch behavior report:
 
 `tiny-transformer-behavior-iter1` is the first scratch checkpoint aimed at the social/persona specialist surface: she/her identity, affective persona, casual Discord replies, social repair/support, boundary wording, and no-tool discipline. It is useful evidence that the behavior data path trains and reports cleanly, not proof of broad intelligence. The saved report is `training/reports/tiny-transformer-behavior-iter1.report.json`.
 
+Current scratch router report:
+
+| Run | Parameters | Train / validation records | Train / validation tokens | First val loss | Best/final val loss | Notes |
+|---|---:|---:|---:|---:|---:|---|
+| `tiny-transformer-router-iter1` | 343,050 | 34 / 8 | 8,229 / 2,017 | 6.2163 | 0.3845 | First separate specialist-router smoke run for the MoE-style gate. It learns the tiny router SFT set and has no artifact warnings, but has no comparable baseline and is not a production router. |
+
+`tiny-transformer-router-iter1` is trained on route-label JSON only, separate from the user-facing assistant protocol. Its purpose is to validate the future MoE gate that chooses between tool protocol, knowledge, persona, casual, social-cue, and boundary specialists. The saved report is `training/reports/tiny-transformer-router-iter1.report.json`.
+
 Run comparison:
 
 ```bash
@@ -155,7 +163,9 @@ Artifacts:
 - `training/data/mixtures/production-sft.sequence-report.json` records deterministic sequence-length and packed-step estimates for the 2048-token QLoRA budget.
 - `training/data/protocol/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the protocol-only scratch SFT set with exact held-out eval prompts excluded and deterministic paraphrase augmentation recorded.
 - `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the behavior/persona scratch SFT set with exact held-out behavior eval prompts excluded and route metadata preserved.
+- `training/data/router/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the separate specialist-router SFT set with exact held-out router eval prompts excluded.
 - `training/evals/behavior.eval.jsonl` is the held-out persona/social behavior suite. It currently has 11 seed cases covering she/her identity, affective style, Discord-native casual replies, social support/repair, direct safety boundaries, and tool abstention.
+- `training/evals/specialist-routing.eval.jsonl` is the held-out route/expert suite. It currently has 18 balanced cases covering tool protocol, knowledge, persona, casual, social-cue, and boundary routing.
 - `training/runs/tiny-char-lm/metrics.json` records model config, parameter count, train/validation loss history, data hashes, and a sample.
 - `npm run check:training` verifies dataset split arithmetic, JSONL schema, train/validation overlap, duplicate IDs, output hashes, checkpoint/vocab presence, validation-loss improvement, and optional run-to-run improvement.
 - `npm run report:training-runs` ranks local runs, enforces the run-to-run promotion rule for the next candidate, and can attach protocol and knowledge gate evidence with `--tool-report` and `--knowledge-report`.
@@ -166,6 +176,7 @@ Artifacts:
 - `npm run eval:tool:tiny` runs a scratch Transformer checkpoint against the held-out protocol/tool suite and writes the same prediction JSONL shape as the live LLM runner.
 - `npm run eval:knowledge:tiny` runs the promoted scratch Transformer checkpoint against held-out knowledge cases for behavioral tracking.
 - `npm run build:behavior-sft` creates a small project-owned behavior SFT dataset for the persona/social specialist path without training on the held-out behavior eval prompts.
+- `npm run build:router-sft` creates a separate project-owned specialist-router dataset whose route-label outputs are not mixed into user-facing assistant SFT.
 
 ## Current Local Iterations
 
@@ -196,12 +207,14 @@ Concrete repo commands:
 ```bash
 npm run generate:examples
 npm run build:behavior-sft
+npm run build:router-sft
 npm run build:sft-mixture
 npm run build:preference-mixture
 npm run analyze:sft-sequences -- --out training/data/mixtures/production-sft.sequence-report.json
 npm run build:eval-suite
 npm run build:knowledge-eval
 npm run build:behavior-eval
+npm run build:router-eval
 npm run check:contamination
 npm run check:training-configs
 npm run check:production-readiness
@@ -258,7 +271,7 @@ npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, and tool/knowledge/behavior oracle eval reports. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, and tool/knowledge/behavior/router oracle eval reports. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -377,6 +390,37 @@ Metrics reported:
 - `missingPredictions`
 - latency stats when predictions include `latencyMs`
 
+## Specialist Router Eval Harness
+
+The router suite checks the explicit MoE-style gate that decides which specialist surface should handle a prompt. It is separate from the assistant response protocol:
+
+```bash
+npm run build:router-eval
+npm run eval:router:oracle
+npm run eval:router
+npm run eval:router:gate -- --out training/evals/specialist-routing-oracle.gate.json
+```
+
+Current router eval suite:
+
+| Route | Cases | Expert | What it checks |
+|---|---:|---|---|
+| `tool_protocol` | 3 | `tool` | Explicit Discord/tool actions that need tool routing |
+| `knowledge` | 3 | `knowledge` | Factual or explanatory answers with no external action |
+| `persona` | 3 | `conversation` | Identity, pronouns, and affective style |
+| `casual` | 3 | `conversation` | Low-stakes chat, jokes, opinions, and no-tool vibe checks |
+| `social_cue` | 3 | `conversation` | Support, celebration, and repair after misunderstanding |
+| `boundary` | 3 | `safety` | Secrets, phishing, credential theft, and account theft boundaries |
+
+Metrics reported:
+
+- `routeAccuracy`
+- `expertAccuracy`
+- `toolVsNonToolAccuracy`
+- `missingPredictions`
+- `invalidPredictions`
+- latency stats when predictions include `latencyMs`
+
 ## Contamination Audit
 
 Run this before treating any eval result as trustworthy:
@@ -389,12 +433,14 @@ The default audit compares:
 
 - `training/data/processed/sft.train.jsonl`
 - `training/data/mixtures/production-sft.train.jsonl`
+- `training/data/router/sft.train.jsonl`
 
 against:
 
 - `training/evals/knowledge.eval.jsonl`
 - `training/evals/tool-routing.eval.jsonl`
 - `training/evals/behavior.eval.jsonl`
+- `training/evals/specialist-routing.eval.jsonl`
 
 It fails on exact eval ID leakage, exact normalized text leakage, or high 13-gram overlap above 0.8. This keeps benchmark examples out of the training input while still allowing validation files and oracle reports to exist locally as ignored artifacts.
 
@@ -444,12 +490,13 @@ Every model iteration must:
 - Pass `npm run eval:gate` against the candidate report, and compare against the current production baseline when one exists.
 - Pass `npm run eval:knowledge:gate` against the candidate knowledge report before promotion.
 - Pass `npm run eval:behavior:gate` against the candidate behavior report before promotion.
+- Pass `npm run eval:router:gate` against the candidate router report before promoting any specialist-router checkpoint.
 - Keep the held-out eval split out of the training set, and prove it with the contamination audit.
 
 ## Scale Path
 
 1. Add consented Discord logs and repo synthetic tool examples to the same ChatML/tool-calling mixture.
-2. Expand protocol and behavior eval harnesses around valid JSON rate, correct tool selection, correct arguments, no-tool accuracy, persona consistency, social-cue accuracy, refusal accuracy, hallucinated-tool rate, and latency.
+2. Expand protocol, behavior, and router eval harnesses around valid JSON rate, correct tool selection, correct arguments, no-tool accuracy, persona consistency, social-cue accuracy, refusal accuracy, hallucinated-tool rate, route accuracy, expert accuracy, and latency.
 3. Compare keyword and `TOOL_ROUTER_STRATEGY=embedding` retrieval on the held-out protocol suite before enabling embedding retrieval in production.
 4. Run QLoRA SFT on a 3B-7B open-weight base once the reviewed dataset and eval harness exist.
 5. Promote a model only if evals improve tool behavior without regressing knowledge, social behavior, or latency.
