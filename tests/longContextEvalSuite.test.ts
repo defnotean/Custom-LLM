@@ -25,10 +25,13 @@ describe("LongContextEvalSuite", () => {
       outPath: suite,
       contextCharTargets: [1024, 2048],
       needlePositions: ["early", "late"],
+      includeRepoArtifacts: false,
     });
 
     expect(summary.cases).toBe(4);
     expect(summary.byNeedlePosition).toMatchObject({ early: 2, middle: 0, late: 2 });
+    expect(summary.bySource).toMatchObject({ "synthetic-needle-in-context": 4 });
+    expect(summary.byTaskType).toMatchObject({ needle_retrieval: 4 });
     const cases = await readJsonl<LongContextEvalCase>(suite);
     expect(cases[0]?.metadata.longContext).toBe(true);
     expect(cases[0]?.metadata.preferredProvider).toBe("subq");
@@ -46,6 +49,7 @@ describe("LongContextEvalSuite", () => {
       outPath: suite,
       contextCharTargets: [1024],
       needlePositions: ["early", "middle", "late"],
+      includeRepoArtifacts: false,
     });
 
     await makeLongContextOraclePredictions(suite, oraclePredictions);
@@ -70,6 +74,39 @@ describe("LongContextEvalSuite", () => {
     expect(weak.missingPredictions).toBe(1);
     expect(weak.latencyMs.p95).toBe(50);
     expect(weak.failures.length).toBeGreaterThan(0);
+  });
+
+  it("includes repository artifact reasoning cases in the default suite", async () => {
+    dir = await mkdtemp(join(tmpdir(), "long-context-repo-artifact-"));
+    const suite = join(dir, "long-context.eval.jsonl");
+    const oraclePredictions = join(dir, "oracle.predictions.jsonl");
+    const summary = await writeLongContextEvalSuite({
+      outPath: suite,
+      contextCharTargets: [1024],
+      needlePositions: ["middle"],
+    });
+
+    expect(summary.cases).toBe(4);
+    expect(summary.bySource).toMatchObject({
+      "synthetic-needle-in-context": 1,
+      "synthetic-repo-artifact": 3,
+    });
+    expect(summary.byTaskType).toMatchObject({
+      needle_retrieval: 1,
+      repo_file_lookup: 1,
+      repo_env_lookup: 1,
+      repo_routing_contract: 1,
+    });
+
+    const cases = await readJsonl<LongContextEvalCase>(suite);
+    const repoCase = cases.find((item) => item.source === "synthetic-repo-artifact");
+    expect(repoCase?.metadata.taskType).toMatch(/^repo_/);
+    expect(repoCase?.prompt).toContain("<repo_artifact_bundle>");
+
+    await makeLongContextOraclePredictions(suite, oraclePredictions);
+    const oracle = await evaluateLongContextPredictions({ suitePath: suite, predictionsPath: oraclePredictions });
+    expect(oracle.bySource["synthetic-repo-artifact"]?.exactMatchRate).toBe(1);
+    expect(oracle.byTaskType.repo_file_lookup?.expectedContainRate).toBe(1);
   });
 });
 

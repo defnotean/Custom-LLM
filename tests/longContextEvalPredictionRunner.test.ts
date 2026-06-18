@@ -23,6 +23,7 @@ describe("LongContextEvalPredictionRunner", () => {
       outPath: suite,
       contextCharTargets: [1024],
       needlePositions: ["middle"],
+      includeRepoArtifacts: false,
     });
     const [evalCase] = await readJsonl<LongContextEvalCase>(suite);
     if (!evalCase) throw new Error("expected generated eval case");
@@ -42,6 +43,8 @@ describe("LongContextEvalPredictionRunner", () => {
       preferredProvider: "subq",
       architectureTarget: "subquadratic-sparse-attention",
       needlePosition: "middle",
+      source: "synthetic-needle-in-context",
+      taskType: "needle_retrieval",
     });
     const predictions = await readJsonl(out);
     expect(predictions[0]).toMatchObject({ id: evalCase.id, output: evalCase.expected, model: "fake-subq" });

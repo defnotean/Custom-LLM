@@ -98,6 +98,16 @@ function makeReport(
       late: { total: 4, exactMatchRate: 0.875, expectedContainRate: 1 },
     },
     byContextTarget: {},
+    bySource: {
+      "synthetic-needle-in-context": { total: 9, exactMatchRate: 1, expectedContainRate: 1 },
+      "synthetic-repo-artifact": { total: 3, exactMatchRate: 1, expectedContainRate: 1 },
+    },
+    byTaskType: {
+      needle_retrieval: { total: 9, exactMatchRate: 1, expectedContainRate: 1 },
+      repo_file_lookup: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
+      repo_env_lookup: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
+      repo_routing_contract: { total: 1, exactMatchRate: 1, expectedContainRate: 1 },
+    },
     failures: [],
   };
 }

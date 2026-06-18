@@ -53,6 +53,8 @@ export async function runLongContextEvalPredictions(
       architectureTarget: "subquadratic-sparse-attention",
       contextChars: evalCase.metadata.contextChars,
       needlePosition: evalCase.metadata.needlePosition,
+      source: evalCase.source,
+      taskType: evalCase.metadata.taskType,
     };
     if (options.preferredProvider) metadata.preferredProvider = options.preferredProvider;
 

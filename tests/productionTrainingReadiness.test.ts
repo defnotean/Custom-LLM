@@ -159,7 +159,7 @@ describe("ProductionTrainingReadiness", () => {
       failures: [],
     });
     await writeJson(longContextEvalReportPath, {
-      total: 9,
+      total: 12,
       answerRate: 1,
       exactMatchRate: 1,
       expectedContainRate: 1,

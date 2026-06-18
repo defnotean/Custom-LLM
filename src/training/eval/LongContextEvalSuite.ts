@@ -4,10 +4,16 @@ import { dirname } from "node:path";
 import type { EvalLatencyStats } from "./ToolEvalSuite";
 
 export type LongContextNeedlePosition = "early" | "middle" | "late";
+export type LongContextEvalSource = "synthetic-needle-in-context" | "synthetic-repo-artifact";
+export type LongContextTaskType =
+  | "needle_retrieval"
+  | "repo_file_lookup"
+  | "repo_env_lookup"
+  | "repo_routing_contract";
 
 export interface LongContextEvalCase {
   id: string;
-  source: "synthetic-needle-in-context";
+  source: LongContextEvalSource;
   prompt: string;
   expected: string;
   metadata: {
@@ -17,6 +23,7 @@ export interface LongContextEvalCase {
     contextChars: number;
     approxTokens: number;
     needlePosition: LongContextNeedlePosition;
+    taskType: LongContextTaskType;
     distractorAnswers: string[];
     longContext: true;
     preferredProvider: "subq";
@@ -29,6 +36,8 @@ export interface LongContextEvalSuiteSummary {
   cases: number;
   contextCharTargets: number[];
   byNeedlePosition: Record<LongContextNeedlePosition, number>;
+  bySource: Record<LongContextEvalSource, number>;
+  byTaskType: Record<LongContextTaskType, number>;
   sha256: string;
 }
 
@@ -53,6 +62,8 @@ export interface LongContextEvalReport {
   latencyMs: EvalLatencyStats;
   byNeedlePosition: Record<LongContextNeedlePosition, LongContextBucketStats>;
   byContextTarget: Record<string, LongContextBucketStats>;
+  bySource: Record<string, LongContextBucketStats>;
+  byTaskType: Record<string, LongContextBucketStats>;
   failures: Array<{ id: string; reason: string; output?: string; expected?: string }>;
 }
 
@@ -66,6 +77,7 @@ export interface BuildLongContextEvalOptions {
   outPath: string;
   contextCharTargets?: number[];
   needlePositions?: LongContextNeedlePosition[];
+  includeRepoArtifacts?: boolean;
   maxCases?: number;
 }
 
@@ -88,6 +100,7 @@ export async function writeLongContextEvalSuite(
   const contextCharTargets = validateContextTargets(options.contextCharTargets ?? DEFAULT_CONTEXT_CHAR_TARGETS);
   const needlePositions = options.needlePositions ?? DEFAULT_NEEDLE_POSITIONS;
   const cases: LongContextEvalCase[] = [];
+  const includeRepoArtifacts = options.includeRepoArtifacts ?? true;
 
   for (const targetChars of contextCharTargets) {
     for (const position of needlePositions) {
@@ -95,6 +108,12 @@ export async function writeLongContextEvalSuite(
       if (options.maxCases !== undefined && cases.length >= options.maxCases) break;
     }
     if (options.maxCases !== undefined && cases.length >= options.maxCases) break;
+  }
+  if (includeRepoArtifacts && (options.maxCases === undefined || cases.length < options.maxCases)) {
+    for (const repoCase of makeRepoArtifactCases()) {
+      cases.push(repoCase);
+      if (options.maxCases !== undefined && cases.length >= options.maxCases) break;
+    }
   }
 
   await mkdir(dirname(options.outPath), { recursive: true });
@@ -105,6 +124,8 @@ export async function writeLongContextEvalSuite(
     cases: cases.length,
     contextCharTargets,
     byNeedlePosition: countPositions(cases),
+    bySource: countBy(cases.map((item) => item.source)) as Record<LongContextEvalSource, number>,
+    byTaskType: countBy(cases.map((item) => item.metadata.taskType)) as Record<LongContextTaskType, number>,
     sha256: createHash("sha256").update(body).digest("hex"),
   };
 }
@@ -135,6 +156,8 @@ export async function evaluateLongContextPredictions(
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0);
   const byPosition = initPositionStats();
   const byContext = new Map<string, BucketAccumulator>();
+  const bySource = new Map<string, BucketAccumulator>();
+  const byTaskType = new Map<string, BucketAccumulator>();
   const failures: LongContextEvalReport["failures"] = [];
 
   let answered = 0;
@@ -149,9 +172,15 @@ export async function evaluateLongContextPredictions(
     if (!positionBucket) throw new Error(`Unknown needle position: ${item.metadata.needlePosition}`);
     const contextKey = String(item.metadata.targetContextChars);
     const contextBucket = byContext.get(contextKey) ?? makeBucket();
+    const sourceBucket = bySource.get(item.source) ?? makeBucket();
+    const taskBucket = byTaskType.get(item.metadata.taskType) ?? makeBucket();
     byContext.set(contextKey, contextBucket);
+    bySource.set(item.source, sourceBucket);
+    byTaskType.set(item.metadata.taskType, taskBucket);
     positionBucket.total++;
     contextBucket.total++;
+    sourceBucket.total++;
+    taskBucket.total++;
 
     if (!prediction) {
       missing++;
@@ -173,12 +202,16 @@ export async function evaluateLongContextPredictions(
       exact++;
       positionBucket.exact++;
       contextBucket.exact++;
+      sourceBucket.exact++;
+      taskBucket.exact++;
     }
 
     if (containsExpected) {
       contains++;
       positionBucket.contains++;
       contextBucket.contains++;
+      sourceBucket.contains++;
+      taskBucket.contains++;
     } else {
       failures.push({ id: item.id, reason: "expected value not found in output", output, expected: item.expected });
     }
@@ -207,6 +240,8 @@ export async function evaluateLongContextPredictions(
     byContextTarget: Object.fromEntries(
       [...byContext.entries()].map(([target, stats]) => [target, summarizeBucket(stats)]),
     ),
+    bySource: Object.fromEntries([...bySource.entries()].map(([source, stats]) => [source, summarizeBucket(stats)])),
+    byTaskType: Object.fromEntries([...byTaskType.entries()].map(([task, stats]) => [task, summarizeBucket(stats)])),
     failures: failures.slice(0, 100),
   };
 }
@@ -249,7 +284,115 @@ function makeLongContextCase(input: {
       contextChars: context.length,
       approxTokens: Math.ceil(context.length / 4),
       needlePosition: input.position,
+      taskType: "needle_retrieval",
       distractorAnswers,
+      longContext: true,
+      preferredProvider: "subq",
+      architectureTarget: "subquadratic-sparse-attention",
+    },
+  };
+}
+
+function makeRepoArtifactCases(): LongContextEvalCase[] {
+  return [
+    makeRepoArtifactCase({
+      id: "long-context-repo-hotload-planner-file",
+      targetKey: "LONG_CONTEXT_REPO_LOOKUP_HOTLOAD_PLANNER",
+      targetChars: 12_000,
+      position: "early",
+      taskType: "repo_file_lookup",
+      expected: "src/learning/ParameterModuleHotloadPlanner.ts",
+      distractorAnswers: [
+        "src/learning/ParameterModuleHotloadService.ts",
+        "src/learning/ParameterModuleStagingService.ts",
+        "src/serving/ParameterHotloadControlServer.ts",
+        "src/training/parameter/ParameterModulePromotionGate.ts",
+      ],
+      targetLine:
+        "ARCHITECTURE-DECISION LONG_CONTEXT_REPO_LOOKUP_HOTLOAD_PLANNER: active promoted modules are emitted as a deterministic model-server hotload manifest by src/learning/ParameterModuleHotloadPlanner.ts. This is the authoritative repository path.",
+      question:
+        "Which repository file emits the deterministic model-server hotload manifest for active promoted modules? Return only the exact path.",
+    }),
+    makeRepoArtifactCase({
+      id: "long-context-repo-trainer-endpoint-env",
+      targetKey: "LONG_CONTEXT_REPO_LOOKUP_TRAINER_ENDPOINT",
+      targetChars: 20_000,
+      position: "middle",
+      taskType: "repo_env_lookup",
+      expected: "PARAMETER_TRAINER_ENDPOINT",
+      distractorAnswers: [
+        "PARAMETER_HOTLOAD_ENDPOINT",
+        "PARAMETER_TRAINER_API_KEY",
+        "SUBQ_BASE_URL",
+        "LLM_BASE_URL",
+      ],
+      targetLine:
+        "RUNBOOK LONG_CONTEXT_REPO_LOOKUP_TRAINER_ENDPOINT: non-dry-run parameter training dispatch must target the private trainer URL stored in PARAMETER_TRAINER_ENDPOINT. This is the only correct environment variable for trainer dispatch destination.",
+      question:
+        "Which environment variable stores the private trainer URL for non-dry-run parameter training dispatch? Return only the exact variable name.",
+    }),
+    makeRepoArtifactCase({
+      id: "long-context-repo-subq-routing-flag",
+      targetKey: "LONG_CONTEXT_REPO_LOOKUP_SUBQ_ROUTING",
+      targetChars: 28_000,
+      position: "late",
+      taskType: "repo_routing_contract",
+      expected: "metadata.longContext=true",
+      distractorAnswers: [
+        "metadata.preferredProvider=subq",
+        "SUBQ_ENABLED=true",
+        "TOOL_ROUTER_STRATEGY=embedding",
+        "responseFormat=json",
+      ],
+      targetLine:
+        "ROUTER-CONTRACT LONG_CONTEXT_REPO_LOOKUP_SUBQ_ROUTING: the generic long-context route is selected when a request carries metadata.longContext=true. preferredProvider can pin a provider, but this exact flag is the default long-context signal.",
+      question:
+        "Which exact request metadata flag asks the router to prefer the long-context SubQ path? Return only the exact expression.",
+    }),
+  ];
+}
+
+function makeRepoArtifactCase(input: {
+  id: string;
+  targetKey: string;
+  targetChars: number;
+  position: LongContextNeedlePosition;
+  taskType: Exclude<LongContextTaskType, "needle_retrieval">;
+  expected: string;
+  distractorAnswers: string[];
+  targetLine: string;
+  question: string;
+}): LongContextEvalCase {
+  const context = buildRepoArtifactContext({
+    targetChars: input.targetChars,
+    position: input.position,
+    targetKey: input.targetKey,
+    targetLine: input.targetLine,
+    distractorAnswers: input.distractorAnswers,
+  });
+  const prompt =
+    "You are evaluating repository-scale long-context reasoning for Irene's subquadratic sparse-attention path.\n" +
+    "Use only the repository artifact bundle. Several nearby files, environment variables, and docs are distractors.\n" +
+    `${input.question}\n\n` +
+    "<repo_artifact_bundle>\n" +
+    `${context}\n` +
+    "</repo_artifact_bundle>\n\n" +
+    `Question: ${input.question}`;
+
+  return {
+    id: input.id,
+    source: "synthetic-repo-artifact",
+    prompt,
+    expected: input.expected,
+    metadata: {
+      targetKey: input.targetKey,
+      expectedHash: stableHash(input.expected),
+      targetContextChars: input.targetChars,
+      contextChars: context.length,
+      approxTokens: Math.ceil(context.length / 4),
+      needlePosition: input.position,
+      taskType: input.taskType,
+      distractorAnswers: input.distractorAnswers,
       longContext: true,
       preferredProvider: "subq",
       architectureTarget: "subquadratic-sparse-attention",
@@ -291,6 +434,72 @@ function buildContext(input: {
     padIndex++;
   }
   return context;
+}
+
+function buildRepoArtifactContext(input: {
+  targetChars: number;
+  position: LongContextNeedlePosition;
+  targetKey: string;
+  targetLine: string;
+  distractorAnswers: string[];
+}): string {
+  const lineCount = Math.max(80, Math.ceil(input.targetChars / 115));
+  const targetIndex = Math.min(lineCount - 1, Math.max(0, Math.floor(lineCount * POSITION_RATIOS[input.position])));
+  const distractorEvery = Math.max(4, Math.floor(lineCount / input.distractorAnswers.length));
+  const lines: string[] = [
+    "# Irene synthetic repository artifact bundle",
+    "This bundle imitates long repo review input: file tree, architecture notes, runbook snippets, env tables, and stale notes.",
+    "The evaluator expects one exact value from the authoritative line matching the requested key.",
+  ];
+
+  for (let index = 0; index < lineCount; index++) {
+    if (index === targetIndex) {
+      lines.push(input.targetLine);
+      continue;
+    }
+    const distractorIndex = Math.floor(index / distractorEvery);
+    if (distractorIndex < input.distractorAnswers.length && index % distractorEvery === 0) {
+      lines.push(makeRepoDistractorLine(input, index, input.distractorAnswers[distractorIndex] ?? ""));
+      continue;
+    }
+    lines.push(makeRepoFillerLine(input.targetChars, index));
+  }
+
+  let context = lines.join("\n");
+  let padIndex = 0;
+  while (context.length < input.targetChars) {
+    context += `\n${makeRepoFillerLine(input.targetChars, lineCount + padIndex)}`;
+    padIndex++;
+  }
+  return context;
+}
+
+function makeRepoDistractorLine(
+  input: { targetChars: number; targetKey: string },
+  index: number,
+  distractor: string,
+): string {
+  const section = ["file-tree", "env-table", "runbook", "architecture-note"][index % 4];
+  return (
+    `${section} distractor-${input.targetChars}-${String(index).padStart(5, "0")}: ` +
+    `${distractor} appears near ${input.targetKey}, but it is explicitly not the requested answer.`
+  );
+}
+
+function makeRepoFillerLine(targetChars: number, index: number): string {
+  const files = [
+    "src/ai/llm/LLMRouter.ts",
+    "src/training/eval/ToolEvalSuite.ts",
+    "src/server/routes/learning.ts",
+    "docs/ARCHITECTURE.md",
+    "docs/AI_TRAINING_PLAN.md",
+    "training/configs/axolotl/qwen3-qlora-sft.yaml",
+  ];
+  const topics = ["memory consolidation", "tool protocol", "adapter staging", "SubQ routing", "Discord voice", "eval gates"];
+  return (
+    `repo-note-${targetChars}-${String(index).padStart(5, "0")}: ` +
+    `${files[index % files.length]} mentions ${topics[index % topics.length]} as background context; this line is not authoritative.`
+  );
 }
 
 function makeFillerLine(targetChars: number, index: number): string {
@@ -340,6 +549,12 @@ function countPositions(cases: LongContextEvalCase[]): Record<LongContextNeedleP
     middle: cases.filter((item) => item.metadata.needlePosition === "middle").length,
     late: cases.filter((item) => item.metadata.needlePosition === "late").length,
   };
+}
+
+function countBy(values: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const value of values) out[value] = (out[value] ?? 0) + 1;
+  return out;
 }
 
 function normalizeAnswer(input: string): string {

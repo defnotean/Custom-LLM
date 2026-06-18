@@ -1,7 +1,7 @@
 {
   "status": "pass",
   "thresholds": {
-    "minTotalCases": 9,
+    "minTotalCases": 12,
     "minAnswerRate": 0.95,
     "minExactMatchRate": 0.9,
     "minExpectedContainRate": 0.95,
@@ -13,7 +13,7 @@
   "candidate": {
     "suitePath": "training/evals/long-context.eval.jsonl",
     "predictionsPath": "training/evals/long-context-oracle.predictions.jsonl",
-    "total": 9,
+    "total": 12,
     "answerRate": 1,
     "exactMatchRate": 1,
     "expectedContainRate": 1,
