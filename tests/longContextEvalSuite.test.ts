@@ -125,15 +125,18 @@ describe("LongContextEvalSuite", () => {
       workspaceRoot: dir,
     });
 
-    expect(summary.cases).toBe(4);
+    expect(summary.cases).toBe(6);
     expect(summary.bySource).toMatchObject({
       "synthetic-needle-in-context": 1,
       "real-repo-snapshot": 3,
+      "real-repo-multifile": 2,
     });
     expect(summary.byTaskType).toMatchObject({
       repo_script_lookup: 1,
       repo_readiness_contract: 1,
       repo_router_provider: 1,
+      repo_script_readiness_chain: 1,
+      repo_router_subq_chain: 1,
     });
 
     const cases = await readJsonl<LongContextEvalCase>(suite);
@@ -144,7 +147,9 @@ describe("LongContextEvalSuite", () => {
     await makeLongContextOraclePredictions(suite, oraclePredictions);
     const oracle = await evaluateLongContextPredictions({ suitePath: suite, predictionsPath: oraclePredictions });
     expect(oracle.bySource["real-repo-snapshot"]?.exactMatchRate).toBe(1);
+    expect(oracle.bySource["real-repo-multifile"]?.exactMatchRate).toBe(1);
     expect(oracle.byTaskType.repo_router_provider?.expectedContainRate).toBe(1);
+    expect(oracle.byTaskType.repo_script_readiness_chain?.expectedContainRate).toBe(1);
   });
 });
 
@@ -156,6 +161,7 @@ async function writeJsonl(path: string, rows: unknown[]): Promise<void> {
 async function writeRepoFixture(root: string): Promise<void> {
   await mkdir(join(root, "src", "training", "quality"), { recursive: true });
   await mkdir(join(root, "src", "ai", "llm"), { recursive: true });
+  await mkdir(join(root, "docs"), { recursive: true });
   await writeFile(
     join(root, "package.json"),
     JSON.stringify(
@@ -178,6 +184,11 @@ async function writeRepoFixture(root: string): Promise<void> {
   await writeFile(
     join(root, "src", "ai", "llm", "LLMRouter.ts"),
     'const provider = request.metadata?.longContext === true ? "subq" : "openai-compatible";\n',
+    "utf8",
+  );
+  await writeFile(
+    join(root, "docs", "LOCAL_LLM_SETUP.md"),
+    "Long-context requests use metadata.longContext=true and route to subq when SubQ is configured.\n",
     "utf8",
   );
 }

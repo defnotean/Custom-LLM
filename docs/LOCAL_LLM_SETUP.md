@@ -69,7 +69,7 @@ Do not hardcode guessed SubQ URLs or model ids. Use the values assigned to your 
 
 ```bash
 npm run build:long-context-eval
-npm run eval:long-context:llm -- --preferred-provider subq --max-cases 15
+npm run eval:long-context:llm -- --preferred-provider subq --max-cases 17
 npm run eval:long-context -- --predictions training/evals/long-context-llm.predictions.jsonl --out training/evals/long-context-llm.report.json
 npm run eval:long-context:gate -- --candidate training/evals/long-context-llm.report.json
 ```

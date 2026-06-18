@@ -7,7 +7,8 @@ export type LongContextNeedlePosition = "early" | "middle" | "late";
 export type LongContextEvalSource =
   | "synthetic-needle-in-context"
   | "synthetic-repo-artifact"
-  | "real-repo-snapshot";
+  | "real-repo-snapshot"
+  | "real-repo-multifile";
 export type LongContextTaskType =
   | "needle_retrieval"
   | "repo_file_lookup"
@@ -15,7 +16,9 @@ export type LongContextTaskType =
   | "repo_routing_contract"
   | "repo_script_lookup"
   | "repo_readiness_contract"
-  | "repo_router_provider";
+  | "repo_router_provider"
+  | "repo_script_readiness_chain"
+  | "repo_router_subq_chain";
 
 export interface LongContextEvalCase {
   id: string;
@@ -416,10 +419,11 @@ function makeRepoArtifactCase(input: {
 }
 
 async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongContextEvalCase[]> {
-  const [packageJson, readinessChecker, llmRouter] = await Promise.all([
+  const [packageJson, readinessChecker, llmRouter, localLlmSetup] = await Promise.all([
     readRepoFile(workspaceRoot, "package.json"),
     readRepoFile(workspaceRoot, "src/training/quality/ProductionTrainingReadiness.ts"),
     readRepoFile(workspaceRoot, "src/ai/llm/LLMRouter.ts"),
+    readRepoFile(workspaceRoot, "docs/LOCAL_LLM_SETUP.md"),
   ]);
 
   return [
@@ -479,6 +483,48 @@ async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongCon
       supportFiles: [
         { path: "package.json", content: packageJson },
         { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+      ],
+    }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-script-readiness-chain",
+      targetKey: "REAL_REPO_MULTIFILE_SCRIPT_READINESS_CHAIN",
+      targetChars: 26_000,
+      position: "middle",
+      taskType: "repo_script_readiness_chain",
+      expected: "eval:long-context:gate -> long-context-eval-harness",
+      distractorAnswers: [
+        "eval:gate -> tool-eval-harness",
+        "eval:knowledge:gate -> knowledge-eval-harness",
+        "eval:router:gate -> router-eval-harness",
+        "eval:behavior:gate -> behavior-eval-harness",
+      ],
+      question:
+        "Using the actual package.json and ProductionTrainingReadiness.ts snapshots together, what is the npm script name and readiness check id for the long-context gate? Return exactly: <script> -> <check-id>.",
+      files: [
+        { path: "package.json", content: packageJson },
+        { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+        { path: "src/ai/llm/LLMRouter.ts", content: llmRouter },
+      ],
+    }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-router-subq-chain",
+      targetKey: "REAL_REPO_MULTIFILE_ROUTER_SUBQ_CHAIN",
+      targetChars: 22_000,
+      position: "late",
+      taskType: "repo_router_subq_chain",
+      expected: "metadata.longContext=true -> subq",
+      distractorAnswers: [
+        "metadata.preferredProvider=subq -> subq",
+        "SUBQ_ENABLED=true -> subq",
+        "LLM_PROVIDER=ollama -> ollama",
+        "responseFormat=json -> openai-compatible",
+      ],
+      question:
+        "Using the actual LLMRouter.ts and LOCAL_LLM_SETUP.md snapshots together, which metadata flag and provider name define automatic long-context routing? Return exactly: <metadata-flag> -> <provider>.",
+      files: [
+        { path: "src/ai/llm/LLMRouter.ts", content: llmRouter },
+        { path: "docs/LOCAL_LLM_SETUP.md", content: localLlmSetup },
+        { path: "package.json", content: packageJson },
       ],
     }),
   ];
@@ -541,6 +587,54 @@ function makeRealRepoSnapshotCase(input: {
 interface RepoSnapshotFile {
   path: string;
   content: string;
+}
+
+function makeRealRepoMultifileCase(input: {
+  id: string;
+  targetKey: string;
+  targetChars: number;
+  position: LongContextNeedlePosition;
+  taskType: Extract<LongContextTaskType, "repo_script_readiness_chain" | "repo_router_subq_chain">;
+  expected: string;
+  distractorAnswers: string[];
+  question: string;
+  files: RepoSnapshotFile[];
+}): LongContextEvalCase {
+  const context = buildRealRepoMultifileContext({
+    targetChars: input.targetChars,
+    position: input.position,
+    targetKey: input.targetKey,
+    files: input.files,
+    distractorAnswers: input.distractorAnswers,
+  });
+  const prompt =
+    "You are evaluating multi-file repository reasoning for Irene's subquadratic sparse-attention path.\n" +
+    "Use only the repository snapshot bundle. The answer requires connecting facts across multiple current files.\n" +
+    `${input.question}\n\n` +
+    "<real_repo_multifile_snapshot>\n" +
+    `${context}\n` +
+    "</real_repo_multifile_snapshot>\n\n" +
+    `Question: ${input.question}`;
+
+  return {
+    id: input.id,
+    source: "real-repo-multifile",
+    prompt,
+    expected: input.expected,
+    metadata: {
+      targetKey: input.targetKey,
+      expectedHash: stableHash(input.expected),
+      targetContextChars: input.targetChars,
+      contextChars: context.length,
+      approxTokens: Math.ceil(context.length / 4),
+      needlePosition: input.position,
+      taskType: input.taskType,
+      distractorAnswers: input.distractorAnswers,
+      longContext: true,
+      preferredProvider: "subq",
+      architectureTarget: "subquadratic-sparse-attention",
+    },
+  };
 }
 
 function buildContext(input: {
@@ -640,6 +734,36 @@ function buildRealRepoSnapshotContext(input: {
   for (const [index, file] of input.supportFiles.entries()) {
     context += `${makeRealRepoDistractorLine(input, index)}\n`;
     context += `${formatRepoSnapshotFile(file)}\n`;
+  }
+
+  while (context.length < input.targetChars) {
+    context += `${makeRealRepoFillerLine(input.targetChars, fillerIndex, input)}\n`;
+    fillerIndex++;
+  }
+  return context.trimEnd();
+}
+
+function buildRealRepoMultifileContext(input: {
+  targetChars: number;
+  position: LongContextNeedlePosition;
+  targetKey: string;
+  files: RepoSnapshotFile[];
+  distractorAnswers: string[];
+}): string {
+  const targetStart = Math.floor(input.targetChars * POSITION_RATIOS[input.position]);
+  let context =
+    "# Real multi-file repository snapshot bundle\n" +
+    `Target reasoning key: ${input.targetKey}\n` +
+    "The authoritative answer requires combining exact file contents from at least two files below.\n";
+  let fillerIndex = 0;
+  while (context.length < targetStart) {
+    context += `${makeRealRepoFillerLine(input.targetChars, fillerIndex, input)}\n`;
+    fillerIndex++;
+  }
+
+  for (const [index, file] of input.files.entries()) {
+    context += `${formatRepoSnapshotFile(file)}\n`;
+    context += `${makeRealRepoDistractorLine(input, index)}\n`;
   }
 
   while (context.length < input.targetChars) {

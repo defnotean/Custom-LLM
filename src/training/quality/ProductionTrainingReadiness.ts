@@ -514,7 +514,7 @@ function evalHarnessChecks(
           invalidPredictions: routerReport.invalidPredictions,
           failures: routerReport.failures.length,
         }),
-    longContextReport.total >= 15 &&
+    longContextReport.total >= 17 &&
     longContextReport.answerRate >= 0.95 &&
     longContextReport.exactMatchRate >= 0.9 &&
     longContextReport.expectedContainRate >= 0.95 &&
