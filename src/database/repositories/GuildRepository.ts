@@ -3,9 +3,9 @@ import type { JsonValue } from "../../types/common";
 import type { GuildVoiceSettings } from "../../discord/voice/VoiceSessionPolicy";
 
 export interface GuildSettings {
-  /** Channels where the bot may converse without being mentioned (TODO: enforcement). */
+  /** Text channels where Irene may respond in this guild. Empty means all channels. */
   allowChannels?: string[];
-  /** Per-guild disabled tool names (TODO: enforcement in ToolRouter/Executor). */
+  /** Per-guild disabled tool names enforced by routing, commands, and execution. */
   disabledTools?: string[];
   /** Opt-in voice policy for join/speak/listen/transcription behavior. */
   voice?: GuildVoiceSettings;

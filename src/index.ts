@@ -258,6 +258,7 @@ async function main(): Promise<void> {
       channelId: ctx.channelId,
       userId: ctx.userId,
       memberPermissions: ctx.memberPermissions,
+      disabledTools: ctx.guildSettings?.disabledTools,
       message: ctx.raw,
       discordClient,
       logger: childLogger("tool"),
@@ -279,6 +280,7 @@ async function main(): Promise<void> {
       agent,
       commandServices,
       commandPrefix,
+      settingsStore: guildRepo,
       logger: childLogger("discord"),
     }),
   );

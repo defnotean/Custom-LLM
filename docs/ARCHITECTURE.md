@@ -34,7 +34,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 
 | Layer | Location | Responsibility |
 |---|---|---|
-| Discord | `src/discord/` | Gateway events, context normalization, prefix commands, typing/splitting |
+| Discord | `src/discord/` | Gateway events, context normalization, per-guild text-channel allowlist enforcement, prefix commands, typing/splitting |
 | Voice & Presence | `src/discord/presence.ts`, `src/discord/voice/` | Bot identity/status config, opt-in voice policy, voice-session state, command-gated voice-channel join/leave, provider-backed speech queue, HTTP TTS provider contract, and Discord playback adapter; opt-in STT/transcription is next |
 | Orchestration | `src/ai/orchestration/` | AgentController + thin agents (conversation, tool-router, memory, safety, evaluation) |
 | LLM | `src/ai/llm/` | Provider abstraction, OpenAI-compatible + native Ollama, fallback router, optional SubQ long-context route |
@@ -54,7 +54,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 The LLM's output is **data, not authority**:
 
 1. Output must parse into one of four protocol shapes (`message`, `tool_call`, `confirmation_request`, `clarification`); anything else degrades to plain text and is logged as a format failure.
-2. A `tool_call` only executes after, in order: tool exists → tool enabled → Zod argument validation → member permission check → cooldown check → risk/confirmation gate. All in code (`ToolExecutor`), none delegated to the model.
+2. A `tool_call` only executes after, in order: tool exists → tool enabled → not disabled by guild settings → Zod argument validation → member permission check → cooldown check → risk/confirmation gate. All in code (`ToolExecutor`), none delegated to the model.
 3. High/critical-risk tools always require explicit user confirmation while safety is enabled.
 4. User content, tool output, and retrieved memory are all treated as untrusted prompt inputs (injection surface); the safety section + code gates assume hostile text.
 
@@ -79,7 +79,7 @@ Queued reviewed learning now has trainer handoff artifacts too. `ParameterGrowth
 
 ### Tool routing at 400+ tools
 
-LLM tool-selection accuracy collapses past ~30–50 in-context tools, so the registry is never rendered wholesale into a prompt. The `ToolRetrievalStrategy` interface isolates retrieval. The default implementation is deterministic keyword/category/example scoring with permission pre-filtering. `TOOL_ROUTER_STRATEGY=embedding` enables embedding retrieval over stable tool search documents, blends cosine similarity with the keyword score, and falls back to keyword routing if the embedding provider fails. No agent-layer changes are required. Tool descriptions/examples are deliberately written like search documents because they feed both strategies.
+LLM tool-selection accuracy collapses past ~30–50 in-context tools, so the registry is never rendered wholesale into a prompt. The `ToolRetrievalStrategy` interface isolates retrieval. The default implementation is deterministic keyword/category/example scoring with permission and per-guild disabled-tool pre-filtering. `TOOL_ROUTER_STRATEGY=embedding` enables embedding retrieval over stable tool search documents, blends cosine similarity with the keyword score, and falls back to keyword routing if the embedding provider fails. No agent-layer changes are required. Tool descriptions/examples are deliberately written like search documents because they feed both strategies. Disabled tools are also hidden from deterministic command listings and denied inside `ToolExecutor`, so prompt filtering is not the only guard.
 
 ### Subquadratic sparse-attention track
 
@@ -106,7 +106,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | # | Decision | Rationale |
 |---|---|---|
 | 1 | TypeScript CommonJS (`module: commonjs`) | Avoids ESM `.js`-extension friction across ~80 files; all deps (discord.js 14, fastify 5, prisma 6, pino 9) are CJS-compatible; `node dist/` runs directly |
-| 2 | Engagement: mention / DM / reply / `!ai` prefix only | Spam + cost control; per-guild channel allowlists reserved in `GuildProfile.settingsJson` (TODO: enforcement) |
+| 2 | Engagement: mention / DM / reply / `!ai` prefix only | Spam + cost control; per-guild text-channel allowlists in `GuildProfile.settingsJson` are enforced before typing, command execution, LLM calls, or training capture |
 | 3 | Cooldowns/rate limits in-process behind store interfaces | Single-process correctness now; Redis store is a drop-in for multi-process (interfaces: `CooldownStore`, rate-limit map) |
 | 4 | In-process job queue (`InProcessJobQueue`) | Real scheduling semantics without infra; BullMQ/Redis is the documented production swap with the same `JobQueue` interface |
 | 5 | pgvector DDL at store init, not in Prisma migrations | Prisma lacks a vector type; runtime `CREATE EXTENSION/TABLE IF NOT EXISTS` keeps `migrate deploy` clean and lets missing pgvector degrade instead of block |
@@ -131,7 +131,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | `summarize_channel_recent_messages` | Returns raw transcript; the follow-up LLM turn summarizes. Dedicated summarization pass TODO |
 | `get_guild_stats` | Structural stats only; activity metrics (messages/day) TODO |
 | `warn_user` | Records to tool log + DMs; dedicated warnings table TODO |
-| Per-guild settings enforcement (channel allowlists, disabled tools) | Schema + cache exist (`GuildRepository`); enforcement TODO |
+| Per-guild settings enforcement (channel allowlists, disabled tools) | **Implemented** - text allowlists are checked before typing/commands/LLM/training; disabled tools are removed from routing and commands, then denied again by `ToolExecutor` |
 | Redis usage | Provisioned in compose, not yet consumed (see decisions #3/#4) |
 | LLM-assisted memory extraction (Mem0-style ADD/UPDATE/DELETE/NOOP) | Heuristic policy shipping; LLM extraction slots behind `maybeExtractMemoryFromConversation` |
 | Voice presence, STT, and TTS | **Speech output foundation implemented** - configurable bot presence, opt-in voice policy/session state, command-gated Discord Voice join/leave, provider-backed speech queue, HTTP TTS provider contract, and Discord playback adapter exist; STT/audio receive, visible listening indicators, and voice evals are TODO |

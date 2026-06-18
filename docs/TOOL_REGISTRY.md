@@ -67,7 +67,7 @@ Rules every tool must follow:
 
 ## Permissions And Cooldowns
 
-`requiredDiscordPermissions` lists UPPER_SNAKE member permissions, such as `MODERATE_MEMBERS`. `ToolPermissionService` enforces them before execution; `ADMINISTRATOR` bypasses. The ToolRouter also pre-filters candidates by permission so the model is not offered tools the requester cannot run. The bot's own Discord permissions are a separate concern; handle failures in `execute`.
+`requiredDiscordPermissions` lists UPPER_SNAKE member permissions, such as `MODERATE_MEMBERS`. `ToolPermissionService` enforces them before execution; `ADMINISTRATOR` bypasses. The ToolRouter also pre-filters candidates by permission so the model is not offered tools the requester cannot run. Per-guild `disabledTools` are handled the same way: hidden from routing and deterministic command listings, then denied again inside `ToolExecutor`. The bot's own Discord permissions are a separate concern; handle failures in `execute`.
 
 `cooldownSeconds` is per-user-per-tool through `ToolCooldownService`, currently backed by an in-memory store. Redis is the multi-process upgrade path.
 
@@ -76,9 +76,10 @@ Rules every tool must follow:
 Tool-selection accuracy collapses when models see more than roughly 30-50 tool schemas at once, and 400 schemas would burn thousands of prompt tokens per message. So:
 
 1. `ToolRouter` retrieves the top ~10 candidates per message.
-2. Only those candidates are rendered into the prompt; `getToolDescriptionsForPrompt` takes a subset by design.
-3. If the router says `likelyNeedsTool: false`, the prompt has no tool section, which keeps casual chat fast.
-4. A hallucinated or off-list tool name fails validation and is refused, then logged as training signal.
+2. Permission-denied and guild-disabled tools are removed before prompt rendering.
+3. Only those candidates are rendered into the prompt; `getToolDescriptionsForPrompt` takes a subset by design.
+4. If the router says `likelyNeedsTool: false`, the prompt has no tool section, which keeps casual chat fast.
+5. A hallucinated, disabled, or off-list tool name fails code gates and is refused, then logged as training signal.
 
 The retrieval strategy is pluggable through `ToolRetrievalStrategy`:
 
@@ -99,4 +100,5 @@ Your investment that survives every strategy: rich descriptions, good examples, 
 - Keep categories meaningful; namespacing by category is the first narrowing layer.
 - Write descriptions/examples as if they are the only thing a search engine sees.
 - Watch `ToolLog` success rates; disable (`enabled: false`) tools that misbehave.
+- Use per-guild `disabledTools` for server-specific policy without removing tools globally.
 - When keyword routing starts missing, set `TOOL_ROUTER_STRATEGY=embedding`, use a real embedding model, and compare protocol eval metrics before promoting it.

@@ -1,6 +1,8 @@
 import { ChannelType, type Client, type Message } from "discord.js";
 import type { Logger } from "pino";
 import type { AgentController } from "../../ai/orchestration/AgentController";
+import type { GuildRepository, GuildSettings } from "../../database/repositories/GuildRepository";
+import { isTextChannelAllowed } from "../../guild/GuildPolicy";
 import { toErrorMessage } from "../../utils/errors";
 import { buildMessageContext, buildRecentTranscript } from "../utils/discordContext";
 import { splitMessage } from "../utils/messageSplitter";
@@ -11,6 +13,7 @@ export interface MessageHandlerOptions {
   agent: AgentController;
   commandServices: CommandServices;
   commandPrefix: string; // e.g. "!ai"
+  settingsStore?: Pick<GuildRepository, "getSettings"> | null;
   logger: Logger;
 }
 
@@ -22,8 +25,8 @@ export interface MessageHandlerOptions {
  *  - direct messages,
  *  - messages that @mention it,
  *  - replies to its own messages.
- * Per-guild channel allowlists live in GuildProfile.settingsJson (documented
- * TODO — see docs/ARCHITECTURE.md "Decisions").
+ * Per-guild channel allowlists live in GuildProfile.settingsJson and are
+ * enforced before typing, command execution, LLM calls, or training capture.
  */
 export function createMessageHandler(options: MessageHandlerOptions) {
   const { client, agent, commandServices, commandPrefix, logger } = options;
@@ -52,6 +55,15 @@ export function createMessageHandler(options: MessageHandlerOptions) {
       }
 
       const ctx = buildMessageContext(message, stripped);
+      const guildSettings = await readGuildSettings(options.settingsStore ?? null, ctx.guildId, logger);
+      if (guildSettings) ctx.guildSettings = guildSettings;
+      if (!isTextChannelAllowed({ ...ctx, settings: guildSettings })) {
+        logger.debug(
+          { guildId: ctx.guildId, channelId: ctx.channelId, allowChannels: guildSettings?.allowChannels ?? [] },
+          "message ignored by guild channel allowlist",
+        );
+        return;
+      }
 
       await withTyping(message, async () => {
         const reply = isCommand
@@ -71,6 +83,20 @@ export function createMessageHandler(options: MessageHandlerOptions) {
         .catch(() => undefined);
     }
   };
+}
+
+async function readGuildSettings(
+  store: Pick<GuildRepository, "getSettings"> | null,
+  guildId: string | null,
+  logger: Logger,
+): Promise<GuildSettings | null> {
+  if (!store || !guildId) return null;
+  try {
+    return await store.getSettings(guildId);
+  } catch (err) {
+    logger.warn({ guildId, err: toErrorMessage(err) }, "failed to read guild settings; continuing without");
+    return null;
+  }
 }
 
 /** Keep the typing indicator alive while the handler runs (refresh ~8s). */

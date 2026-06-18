@@ -8,7 +8,7 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 
 - **Discord bot** (discord.js v14): mention/DM/reply conversation, `!ai` command set, configurable Irene presence, opt-in voice join/leave plus speech queue commands, typing indicators, 2000-char splitting, graceful errors
 - **Local LLM first + SubQ/SSA-ready**: any OpenAI-compatible endpoint (Ollama `/v1`, vLLM, LM Studio, SubQ private API) + native Ollama, with provider fallback; long-context scaling is treated as a subquadratic sparse-attention path, not a dense-context default
-- **Tool system**: Zod-validated args, permission + cooldown + risk/confirmation gates enforced in code, execution logging — 16 starter tools across moderation/utility/memory/discord/example
+- **Tool system**: Zod-validated args, per-guild disabled-tool policy, permission + cooldown + risk/confirmation gates enforced in code, execution logging — 16 starter tools across moderation/utility/memory/discord/example
 - **Tool routing**: top-10 candidate retrieval per message (never all tools in the prompt), with deterministic keyword routing or opt-in embedding retrieval
 - **Memory**: USER/GUILD/CHANNEL/GLOBAL scopes, policy-gated writes (no secrets, no one-offs), pgvector + Qdrant + in-process stores
 - **Live learning ledger**: memory writes, successful tool workflows, and eval failures are captured as learned items; approved skills and active parameter modules are retrieved into prompts for immediate reuse; queued learning can be planned, exported, trainer-dispatched to a private control endpoint, staged, promoted, checked, and applied to a hotload control endpoint
@@ -17,7 +17,7 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Voice readiness**: opt-in guild/channel voice policy, session state, Discord Voice join/leave path, provider-backed speech queue, HTTP TTS endpoint contract, and Discord playback adapter; listen/STT stay off until explicit backends and retention policy are configured
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `/learning/status`, `/learning/items`, `/learning/parameter-modules`, `/learning/parameter-modules/stage-from-manifest`, `/learning/parameter-hotload/apply`, `/learning/parameter-snapshot`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 285 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 297 passing tests
 
 ## Quickstart
 
@@ -171,11 +171,11 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, configurable Irene presence, voice policy/session scaffold, opt-in voice join/leave command path, provider-backed voice speech queue with cooldown/depth/stop gates, HTTP TTS provider contract and Discord playback adapter, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, SubQ/SSA architecture contract check, dataset governance readiness check, adversarial no-tool, expanded multi-turn confirmation/correction, and prompt-injection protocol cases, ops API, docker compose, 285 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, per-guild text-channel allowlist enforcement, per-guild disabled-tool routing/command/executor enforcement, configurable Irene presence, voice policy/session scaffold, opt-in voice join/leave command path, provider-backed voice speech queue with cooldown/depth/stop gates, HTTP TTS provider contract and Discord playback adapter, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, SubQ/SSA architecture contract check, dataset governance readiness check, adversarial no-tool, expanded multi-turn confirmation/correction, and prompt-injection protocol cases, ops API, docker compose, 297 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 
-**Placeholders (interface real, body minimal - all tracked in ARCHITECTURE.md):** content moderation rules, slash commands, memory summarizer worker, STT/audio receive, per-guild text/tool settings enforcement, Redis-backed cooldowns/queue.
+**Placeholders (interface real, body minimal - all tracked in ARCHITECTURE.md):** content moderation rules, slash commands, memory summarizer worker, STT/audio receive, Redis-backed cooldowns/queue.
 
 ## License
 

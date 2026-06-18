@@ -67,6 +67,16 @@ describe("ToolRouter (keyword strategy)", () => {
     expect(result.likelyNeedsTool).toBe(true);
     expect(result.candidateTools.map((t) => t.name)).toContain("remember_fact");
   });
+
+  it("filters out tools disabled by guild settings", async () => {
+    const result = await router.route({
+      message: "remember that my timezone is CET",
+      guildId: "g1",
+      memberPermissions: [],
+      disabledTools: ["remember_fact"],
+    });
+    expect(result.candidateTools.map((t) => t.name)).not.toContain("remember_fact");
+  });
 });
 
 describe("ToolRouter (embedding strategy)", () => {
@@ -93,6 +103,21 @@ describe("ToolRouter (embedding strategy)", () => {
       maxTools: 10,
     });
     expect(denied.candidateTools.map((tool) => tool.name)).not.toContain("timeout_user");
+  });
+
+  it("keeps disabled tools out of embedding-ranked candidates", async () => {
+    const strategy = new EmbeddingToolRetrievalStrategy(registry, new HashingEmbeddingProvider(512));
+    const router = new ToolRouter(registry, { strategy });
+
+    const result = await router.route({
+      message: "remember that my timezone is CET",
+      guildId: "g1",
+      memberPermissions: [],
+      disabledTools: ["remember_fact"],
+      maxTools: 5,
+    });
+
+    expect(result.candidateTools.map((tool) => tool.name)).not.toContain("remember_fact");
   });
 
   it("falls back to keyword routing if embeddings fail", async () => {

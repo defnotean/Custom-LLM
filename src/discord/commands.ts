@@ -5,6 +5,7 @@ import type { ToolRegistry } from "../tools/ToolRegistry";
 import type { ToolExecutor } from "../tools/ToolExecutor";
 import type { ToolExecutionContext, ToolMemoryAccess } from "../tools/ToolDefinition";
 import type { DiscordVoiceService } from "./voice/DiscordVoiceService";
+import { filterGuildDisabledTools, isToolDisabledByGuild } from "../guild/GuildPolicy";
 import { toErrorMessage } from "../utils/errors";
 
 /**
@@ -75,7 +76,7 @@ export async function handleCommand(
       case "tools": {
         const categories = services.registry.categories();
         const lines = categories.map((cat) => {
-          const tools = services.registry.listByCategory(cat);
+          const tools = filterGuildDisabledTools(services.registry.listByCategory(cat), ctx.guildSettings?.disabledTools);
           return `**${cat}** (${tools.length}): ${tools.map((t) => `\`${t.name}\``).join(", ")}`;
         });
         return [`Registered tools: ${services.registry.size}`, ...lines].join("\n");
@@ -85,8 +86,14 @@ export async function handleCommand(
         if (!arg) return "Usage: `!ai tool <name>`";
         const tool = services.registry.getTool(arg);
         if (!tool) {
-          const near = services.registry.searchTools(arg, { limit: 3 });
+          const near = filterGuildDisabledTools(
+            services.registry.searchTools(arg, { limit: 3 }),
+            ctx.guildSettings?.disabledTools,
+          );
           return `No tool named \`${arg}\`.${near.length > 0 ? ` Did you mean: ${near.map((t) => `\`${t.name}\``).join(", ")}?` : ""}`;
+        }
+        if (isToolDisabledByGuild(tool.name, ctx.guildSettings?.disabledTools)) {
+          return `\`${tool.name}\` is disabled on this server.`;
         }
         const meta = services.registry
           .exportToolMetadata()

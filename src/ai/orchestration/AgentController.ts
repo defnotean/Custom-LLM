@@ -465,6 +465,7 @@ export class AgentController {
       channelId: ctx.channelId,
       userId: ctx.userId,
       memberPermissions: ctx.memberPermissions,
+      disabledTools: ctx.guildSettings?.disabledTools,
       message: ctx.raw,
       discordClient: this.toolContextExtras?.discordClient ?? ctx.raw?.client,
       logger: this.logger.child({ component: "tool" }),

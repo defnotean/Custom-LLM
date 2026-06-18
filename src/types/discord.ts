@@ -1,4 +1,5 @@
 import type { Message } from "discord.js";
+import type { GuildSettings } from "../database/repositories/GuildRepository";
 
 /**
  * Normalized view of an incoming Discord message — everything downstream
@@ -21,5 +22,6 @@ export interface BotMessageContext {
   /** Normalized UPPER_SNAKE Discord permission names for the member. */
   memberPermissions: readonly string[];
   /** Raw discord.js message — only the discord layer + tools should touch this. */
+  guildSettings?: GuildSettings;
   raw?: Message;
 }

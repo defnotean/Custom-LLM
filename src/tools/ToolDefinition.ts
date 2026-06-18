@@ -64,6 +64,7 @@ export interface ToolExecutionContext {
   /** Normalized UPPER_SNAKE Discord permission names of the invoking member. */
   memberPermissions: readonly string[];
   /** Raw Discord message — present for message-triggered executions. */
+  disabledTools?: readonly string[];
   message?: Message;
   discordClient?: Client;
   logger: Logger;

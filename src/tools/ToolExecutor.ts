@@ -1,4 +1,5 @@
 import type { Logger } from "pino";
+import { isToolDisabledByGuild } from "../guild/GuildPolicy";
 import { toErrorMessage, withTimeout } from "../utils/errors";
 import { toJsonValue, type JsonValue } from "../types/common";
 import type {
@@ -104,6 +105,24 @@ export class ToolExecutor {
     options?: ExecuteOptions,
   ): Promise<ToolExecutionOutcome> {
     const started = Date.now();
+    const registered = this.registry.getTool(name);
+    if (!registered) {
+      return this.deny(name, undefined, rawArgs, ctx, "not_found", `Unknown tool "${name}"`, started);
+    }
+    if (registered.enabled === false) {
+      return this.deny(name, registered, rawArgs, ctx, "disabled", `Tool "${name}" is disabled`, started);
+    }
+    if (isToolDisabledByGuild(registered.name, ctx.disabledTools)) {
+      return this.deny(
+        name,
+        registered,
+        rawArgs,
+        ctx,
+        "disabled",
+        `Tool "${registered.name}" is disabled in this server`,
+        started,
+      );
+    }
 
     const validation = this.registry.validateToolCall(name, rawArgs);
     if (!validation.ok) {

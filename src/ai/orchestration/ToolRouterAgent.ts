@@ -27,6 +27,7 @@ export class ToolRouterAgent {
       message: ctx.content,
       guildId: ctx.guildId,
       memberPermissions: ctx.memberPermissions,
+      disabledTools: ctx.guildSettings?.disabledTools,
       recentSummary: options?.recentSummary,
       maxTools: options?.maxTools ?? 10,
     });

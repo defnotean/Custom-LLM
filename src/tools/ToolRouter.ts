@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 import type { EmbeddingProvider } from "../memory/EmbeddingProvider";
 import { toErrorMessage } from "../utils/errors";
 import { cosineSimilarity } from "../utils/vectorMath";
+import { isToolDisabledByGuild } from "../guild/GuildPolicy";
 import { describeArgsSchema } from "./schemaIntrospect";
 import type { RegisteredTool } from "./ToolDefinition";
 import type { ToolRegistry } from "./ToolRegistry";
@@ -21,6 +22,7 @@ export interface ToolRoutingInput {
   message: string;
   guildId: string | null;
   memberPermissions: readonly string[];
+  disabledTools?: readonly string[];
   recentSummary?: string;
   maxTools?: number;
 }
@@ -178,7 +180,7 @@ export class KeywordToolRetrievalStrategy implements ToolRetrievalStrategy {
 
     const scored: ScoredTool[] = [];
 
-    for (const tool of filterPermittedTools(this.registry.listTools(), input.memberPermissions)) {
+    for (const tool of filterRunnableTools(this.registry.listTools(), input.memberPermissions, input.disabledTools)) {
       const { score, why } = scoreToolKeywords(tool, context);
       if (score > 0) scored.push({ tool, score, why });
     }
@@ -275,7 +277,7 @@ export class EmbeddingToolRetrievalStrategy implements ToolRetrievalStrategy {
       if (!queryEmbedding) return this.fallback.retrieve(input);
 
       const permitted = new Set(
-        filterPermittedTools(this.registry.listTools(), input.memberPermissions).map((tool) => tool.name),
+        filterRunnableTools(this.registry.listTools(), input.memberPermissions, input.disabledTools).map((tool) => tool.name),
       );
       const index = await this.getIndex();
       const scored: ScoredTool[] = [];
@@ -403,13 +405,15 @@ function hasToolAbstainHint(loweredMessage: string): boolean {
   );
 }
 
-function filterPermittedTools(
+function filterRunnableTools(
   tools: RegisteredTool[],
   memberPermissions: readonly string[],
+  disabledTools?: readonly string[],
 ): RegisteredTool[] {
   const held = new Set(memberPermissions.map((p) => p.toUpperCase()));
   const isAdmin = held.has("ADMINISTRATOR");
   return tools.filter((tool) => {
+    if (isToolDisabledByGuild(tool.name, disabledTools)) return false;
     // Permission pre-filter: do not offer tools the member cannot run.
     const required = tool.requiredDiscordPermissions ?? [];
     return isAdmin || required.every((p) => held.has(p.toUpperCase()));
