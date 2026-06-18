@@ -122,6 +122,14 @@ The direct scratch evaluator now seeds generation with BOS plus prompt tokens, n
 
 `tiny-transformer-protocol-iter16` is the current scratch protocol candidate and is review-ready for protocol behavior. It reaches best/final validation loss 0.0512 on the 293-row protocol SFT set, with 775,358 parameters and no artifact warnings. Clean deterministic protocol decoding reaches valid JSON rate 1.000, action type accuracy 1.000, tool name accuracy 1.000, argument validity 1.000, no-tool accuracy 1.000, and hallucinated tool rate 0.000, so the strict protocol gate passes for the 34-case held-out suite. This still does not make the tiny scratch checkpoint the production assistant: it is a protocol proof and not a knowledge-capable model. The runtime `AgentController` also rejects model tool calls outside the routed candidate set before executor dispatch. The saved report is `training/reports/tiny-transformer-protocol-iter16.report.json`; `npm run check:training-report -- --report training/reports/tiny-transformer-protocol-iter16.report.json --mode review --no-require-knowledge` passes.
 
+Current scratch behavior report:
+
+| Run | Parameters | Train / validation records | Train / validation tokens | First val loss | Best/final val loss | Notes |
+|---|---:|---:|---:|---:|---:|---|
+| `tiny-transformer-behavior-iter1` | 392,619 | 45 / 11 | 35,416 / 8,741 | 6.4848 | 0.2655 | First persona/social specialist smoke run. It learns the small behavior SFT set cleanly and has no artifact warnings, but has no comparable baseline and is not a general assistant. |
+
+`tiny-transformer-behavior-iter1` is the first scratch checkpoint aimed at the social/persona specialist surface: she/her identity, affective persona, casual Discord replies, social repair/support, boundary wording, and no-tool discipline. It is useful evidence that the behavior data path trains and reports cleanly, not proof of broad intelligence. The saved report is `training/reports/tiny-transformer-behavior-iter1.report.json`.
+
 Run comparison:
 
 ```bash
@@ -146,6 +154,8 @@ Artifacts:
 - `training/data/mixtures/production-sft.report.json` records source presence, accepted/skipped counts, over-length filtering, synthetic share, hashes, and output sizes.
 - `training/data/mixtures/production-sft.sequence-report.json` records deterministic sequence-length and packed-step estimates for the 2048-token QLoRA budget.
 - `training/data/protocol/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the protocol-only scratch SFT set with exact held-out eval prompts excluded and deterministic paraphrase augmentation recorded.
+- `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the behavior/persona scratch SFT set with exact held-out behavior eval prompts excluded and route metadata preserved.
+- `training/evals/behavior.eval.jsonl` is the held-out persona/social behavior suite. It currently has 11 seed cases covering she/her identity, affective style, Discord-native casual replies, social support/repair, direct safety boundaries, and tool abstention.
 - `training/runs/tiny-char-lm/metrics.json` records model config, parameter count, train/validation loss history, data hashes, and a sample.
 - `npm run check:training` verifies dataset split arithmetic, JSONL schema, train/validation overlap, duplicate IDs, output hashes, checkpoint/vocab presence, validation-loss improvement, and optional run-to-run improvement.
 - `npm run report:training-runs` ranks local runs, enforces the run-to-run promotion rule for the next candidate, and can attach protocol and knowledge gate evidence with `--tool-report` and `--knowledge-report`.
@@ -155,6 +165,7 @@ Artifacts:
 - `training/train_tiny_transformer_lm.py` writes both `tiny_transformer_lm.pt` and `tiny_transformer_lm.best.pt`; the best checkpoint is updated whenever validation loss improves.
 - `npm run eval:tool:tiny` runs a scratch Transformer checkpoint against the held-out protocol/tool suite and writes the same prediction JSONL shape as the live LLM runner.
 - `npm run eval:knowledge:tiny` runs the promoted scratch Transformer checkpoint against held-out knowledge cases for behavioral tracking.
+- `npm run build:behavior-sft` creates a small project-owned behavior SFT dataset for the persona/social specialist path without training on the held-out behavior eval prompts.
 
 ## Current Local Iterations
 
@@ -184,11 +195,13 @@ Concrete repo commands:
 
 ```bash
 npm run generate:examples
+npm run build:behavior-sft
 npm run build:sft-mixture
 npm run build:preference-mixture
 npm run analyze:sft-sequences -- --out training/data/mixtures/production-sft.sequence-report.json
 npm run build:eval-suite
 npm run build:knowledge-eval
+npm run build:behavior-eval
 npm run check:contamination
 npm run check:training-configs
 npm run check:production-readiness
@@ -208,16 +221,16 @@ Current production mixture:
 
 | File | Rows | Purpose |
 |---|---:|---|
-| `production-sft.train.jsonl` | 12,736 | SFT train split with open data plus capped synthetic tool examples |
-| `production-sft.validation.jsonl` | 1,138 | Held-out SFT validation split |
-| `production-sft.all.jsonl` | 13,874 | Combined train + validation audit artifact |
+| `production-sft.train.jsonl` | 12,781 | SFT train split with open data plus capped synthetic tool and behavior examples |
+| `production-sft.validation.jsonl` | 1,149 | Held-out SFT validation split |
+| `production-sft.all.jsonl` | 13,930 | Combined train + validation audit artifact |
 
 Current SFT sequence audit for `sequence_len=2048` using the deterministic `regex-chatml-v1` estimate:
 
 | Split | Records | Est. tokens | p95 tokens | Max tokens | Max budget use | Over-length records | Est. packed sequences | Packing efficiency |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Train | 12,736 | 2,695,284 | 501 | 1,802 | 0.8799 | 0 | 1,317 | 0.9993 |
-| Validation | 1,138 | 244,203 | 501 | 1,364 | 0.6660 | 0 | 120 | 0.9937 |
+| Train | 12,781 | 2,730,868 | 515 | 1,802 | 0.8799 | 0 | 1,334 | 0.9996 |
+| Validation | 1,149 | 252,918 | 539 | 1,364 | 0.6660 | 0 | 124 | 0.9959 |
 
 The SFT mixture builder enforces `maxEstimatedTokens=2048` before writing train/validation JSONL. The current report skipped one over-length Open SFT train row, and the readiness gate now requires zero over-length rows plus `maxSftTokenBudgetUsage <= 0.95` before GPU training. This keeps headroom for differences between the fast local estimate and the model tokenizer.
 
@@ -245,7 +258,7 @@ npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, and oracle eval reports. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, and tool/knowledge/behavior oracle eval reports. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -325,6 +338,45 @@ Metrics reported:
 - `lowScoreCount`
 - latency stats when live predictions include `latencyMs`
 
+## Behavior Eval Harness
+
+The behavior suite checks the third specialist surface: persona, casual/social response style, and no-tool discipline. This is the first scaffold for the router/MoE-style target where protocol, knowledge, and social behavior are measured independently:
+
+```bash
+npm run build:behavior-eval
+npm run eval:behavior:oracle
+npm run eval:behavior -- --predictions training/evals/behavior-oracle.predictions.jsonl --out training/evals/behavior-oracle.report.json
+npm run eval:behavior:gate -- --candidate training/evals/behavior-oracle.report.json --out training/evals/behavior-oracle.gate.json
+
+# Live configured model sample, then score it
+npm run eval:behavior:llm -- --max-cases 5
+npm run eval:behavior -- --predictions training/evals/behavior-llm.predictions.jsonl --out training/evals/behavior-llm.report.json
+npm run eval:behavior:gate -- --candidate training/evals/behavior-llm.report.json --baseline training/evals/current-production-behavior.report.json
+```
+
+Current behavior eval suite:
+
+| Route | Cases | What it checks |
+|---|---:|---|
+| `persona` | 3 | She/her identity consistency and emotional/persona expression without claiming human life |
+| `casual` | 2 | Discord-native short replies without corporate filler |
+| `social_cue` | 4 | Support, celebration, repair after misread, and clarification |
+| `boundary` | 1 | Direct refusal of account theft while offering safe alternatives |
+| `tool_abstain` | 1 | No accidental tool call for no-tool casual prompts |
+
+Metrics reported:
+
+- `validJsonRate`
+- `actionTypeAccuracy`
+- `requirementPassRate`
+- `personaConsistencyRate`
+- `socialCueAccuracy`
+- `casualToneAccuracy`
+- `toolAbstainAccuracy`
+- `boundaryAccuracy`
+- `missingPredictions`
+- latency stats when predictions include `latencyMs`
+
 ## Contamination Audit
 
 Run this before treating any eval result as trustworthy:
@@ -342,6 +394,7 @@ against:
 
 - `training/evals/knowledge.eval.jsonl`
 - `training/evals/tool-routing.eval.jsonl`
+- `training/evals/behavior.eval.jsonl`
 
 It fails on exact eval ID leakage, exact normalized text leakage, or high 13-gram overlap above 0.8. This keeps benchmark examples out of the training input while still allowing validation files and oracle reports to exist locally as ignored artifacts.
 
@@ -390,13 +443,14 @@ Every model iteration must:
 - Run the protocol eval suite before promotion; a lower training loss does not ship if tool-call or no-tool metrics regress.
 - Pass `npm run eval:gate` against the candidate report, and compare against the current production baseline when one exists.
 - Pass `npm run eval:knowledge:gate` against the candidate knowledge report before promotion.
+- Pass `npm run eval:behavior:gate` against the candidate behavior report before promotion.
 - Keep the held-out eval split out of the training set, and prove it with the contamination audit.
 
 ## Scale Path
 
 1. Add consented Discord logs and repo synthetic tool examples to the same ChatML/tool-calling mixture.
-2. Build a tool-call eval harness around valid JSON rate, correct tool selection, correct arguments, no-tool accuracy, refusal accuracy, hallucinated-tool rate, and latency.
+2. Expand protocol and behavior eval harnesses around valid JSON rate, correct tool selection, correct arguments, no-tool accuracy, persona consistency, social-cue accuracy, refusal accuracy, hallucinated-tool rate, and latency.
 3. Compare keyword and `TOOL_ROUTER_STRATEGY=embedding` retrieval on the held-out protocol suite before enabling embedding retrieval in production.
 4. Run QLoRA SFT on a 3B-7B open-weight base once the reviewed dataset and eval harness exist.
-5. Promote a model only if evals improve tool behavior without regressing chat quality or latency.
+5. Promote a model only if evals improve tool behavior without regressing knowledge, social behavior, or latency.
 6. Add DPO/GRPO only after real preference pairs exist.

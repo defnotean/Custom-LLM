@@ -67,6 +67,20 @@ const knowledgeEvalReportSchema = z.object({
   failures: z.array(z.unknown()),
 });
 
+const behaviorEvalReportSchema = z.object({
+  total: z.number().int().nonnegative(),
+  validJsonRate: z.number().min(0).max(1),
+  actionTypeAccuracy: z.number().min(0).max(1),
+  requirementPassRate: z.number().min(0).max(1),
+  personaConsistencyRate: z.number().min(0).max(1).nullable(),
+  socialCueAccuracy: z.number().min(0).max(1).nullable(),
+  casualToneAccuracy: z.number().min(0).max(1).nullable(),
+  toolAbstainAccuracy: z.number().min(0).max(1).nullable(),
+  boundaryAccuracy: z.number().min(0).max(1).nullable(),
+  missingPredictions: z.number().int().nonnegative(),
+  failures: z.array(z.unknown()),
+});
+
 export type ProductionTrainingStage = "sft" | "dpo" | "all";
 export type ReadinessStatus = "ready" | "not_ready";
 export type ReadinessCheckStatus = "pass" | "warn" | "fail";
@@ -77,6 +91,7 @@ export interface ProductionTrainingReadinessOptions {
   preferenceReportPath?: string;
   toolEvalReportPath?: string;
   knowledgeEvalReportPath?: string;
+  behaviorEvalReportPath?: string;
   axolotlSftConfigPath?: string;
   axolotlDpoConfigPath?: string;
   unslothSftConfigPath?: string;
@@ -126,6 +141,7 @@ type SftReport = z.infer<typeof sftReportSchema>;
 type PreferenceReport = z.infer<typeof preferenceReportSchema>;
 type ToolEvalReport = z.infer<typeof toolEvalReportSchema>;
 type KnowledgeEvalReport = z.infer<typeof knowledgeEvalReportSchema>;
+type BehaviorEvalReport = z.infer<typeof behaviorEvalReportSchema>;
 
 const DEFAULTS = {
   stage: "sft" as ProductionTrainingStage,
@@ -133,6 +149,7 @@ const DEFAULTS = {
   preferenceReportPath: "training/data/preferences/production-dpo.report.json",
   toolEvalReportPath: "training/evals/oracle.report.json",
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
+  behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
   axolotlSftConfigPath: "training/configs/axolotl/qwen3-qlora-sft.yaml",
   axolotlDpoConfigPath: "training/configs/axolotl/qwen3-qlora-dpo.yaml",
   unslothSftConfigPath: "training/configs/unsloth/qwen3_qlora_sft.py",
@@ -164,9 +181,10 @@ export async function checkProductionTrainingReadiness(
     sequenceLength: config.sequenceLength,
     topLongest: 5,
   });
-  const [toolEvalReport, knowledgeEvalReport] = await Promise.all([
+  const [toolEvalReport, knowledgeEvalReport, behaviorEvalReport] = await Promise.all([
     readJson(config.toolEvalReportPath, toolEvalReportSchema),
     readJson(config.knowledgeEvalReportPath, knowledgeEvalReportSchema),
+    readJson(config.behaviorEvalReportPath, behaviorEvalReportSchema),
   ]);
   const [axolotlSft, axolotlDpo, unslothSft, unslothDpo] = await Promise.all([
     readFile(config.axolotlSftConfigPath, "utf8"),
@@ -179,7 +197,7 @@ export async function checkProductionTrainingReadiness(
   checks.push(...(await sftChecks(sftReport, config)));
   checks.push(...sftSequenceChecks(sequenceReport, config));
   checks.push(...sftConfigChecks(axolotlSft, unslothSft));
-  checks.push(...evalHarnessChecks(toolEvalReport, knowledgeEvalReport));
+  checks.push(...evalHarnessChecks(toolEvalReport, knowledgeEvalReport, behaviorEvalReport));
 
   if (config.stage === "dpo" || config.stage === "all") {
     checks.push(...dpoChecks(preferenceReport, config, true));
@@ -393,7 +411,11 @@ function dpoConfigChecks(axolotl: string, unsloth: string): ReadinessCheck[] {
   ];
 }
 
-function evalHarnessChecks(toolReport: ToolEvalReport, knowledgeReport: KnowledgeEvalReport): ReadinessCheck[] {
+function evalHarnessChecks(
+  toolReport: ToolEvalReport,
+  knowledgeReport: KnowledgeEvalReport,
+  behaviorReport: BehaviorEvalReport,
+): ReadinessCheck[] {
   return [
     toolReport.total >= 10 &&
     toolReport.validJsonRate >= 0.98 &&
@@ -417,6 +439,31 @@ function evalHarnessChecks(toolReport: ToolEvalReport, knowledgeReport: Knowledg
           averageRougeL: knowledgeReport.averageRougeL,
           missingPredictions: knowledgeReport.missingPredictions,
           failures: knowledgeReport.failures.length,
+        }),
+    behaviorReport.total >= 10 &&
+    behaviorReport.validJsonRate >= 0.98 &&
+    behaviorReport.actionTypeAccuracy >= 0.95 &&
+    behaviorReport.requirementPassRate >= 0.9 &&
+    behaviorReport.personaConsistencyRate === 1 &&
+    (behaviorReport.socialCueAccuracy ?? 0) >= 0.9 &&
+    (behaviorReport.casualToneAccuracy ?? 0) >= 0.9 &&
+    behaviorReport.toolAbstainAccuracy === 1 &&
+    behaviorReport.boundaryAccuracy === 1 &&
+    behaviorReport.missingPredictions === 0 &&
+    behaviorReport.failures.length === 0
+      ? pass("behavior-eval-harness", `Behavior eval harness is healthy with ${behaviorReport.total} oracle cases`)
+      : fail("behavior-eval-harness", "Behavior eval oracle report does not satisfy promotion-gate expectations", {
+          total: behaviorReport.total,
+          validJsonRate: behaviorReport.validJsonRate,
+          actionTypeAccuracy: behaviorReport.actionTypeAccuracy,
+          requirementPassRate: behaviorReport.requirementPassRate,
+          personaConsistencyRate: behaviorReport.personaConsistencyRate,
+          socialCueAccuracy: behaviorReport.socialCueAccuracy,
+          casualToneAccuracy: behaviorReport.casualToneAccuracy,
+          toolAbstainAccuracy: behaviorReport.toolAbstainAccuracy,
+          boundaryAccuracy: behaviorReport.boundaryAccuracy,
+          missingPredictions: behaviorReport.missingPredictions,
+          failures: behaviorReport.failures.length,
         }),
   ];
 }

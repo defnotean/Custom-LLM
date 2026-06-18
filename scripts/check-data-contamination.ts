@@ -16,7 +16,11 @@ const defaultTrainPaths = [
   "training/data/mixtures/production-sft.train.jsonl",
 ];
 
-const defaultEvalPaths = ["training/evals/knowledge.eval.jsonl", "training/evals/tool-routing.eval.jsonl"];
+const defaultEvalPaths = [
+  "training/evals/knowledge.eval.jsonl",
+  "training/evals/tool-routing.eval.jsonl",
+  "training/evals/behavior.eval.jsonl",
+];
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));

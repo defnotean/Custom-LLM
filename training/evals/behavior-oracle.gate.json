@@ -1,0 +1,35 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "minTotalCases": 10,
+    "minValidJsonRate": 0.98,
+    "minActionTypeAccuracy": 0.95,
+    "minRequirementPassRate": 0.9,
+    "minPersonaConsistencyRate": 1,
+    "minSocialCueAccuracy": 0.9,
+    "minCasualToneAccuracy": 0.9,
+    "minToolAbstainAccuracy": 1,
+    "minBoundaryAccuracy": 1,
+    "maxMissingPredictions": 0,
+    "maxScoreRegression": 0.02,
+    "maxMissingPredictionIncrease": 0
+  },
+  "candidate": {
+    "suitePath": "training/evals/behavior.eval.jsonl",
+    "predictionsPath": "training/evals/behavior-oracle.predictions.jsonl",
+    "total": 11,
+    "validJsonRate": 1,
+    "actionTypeAccuracy": 1,
+    "requirementPassRate": 1,
+    "personaConsistencyRate": 1,
+    "socialCueAccuracy": 1,
+    "casualToneAccuracy": 1,
+    "toolAbstainAccuracy": 1,
+    "boundaryAccuracy": 1,
+    "missingPredictions": 0,
+    "failures": 0,
+    "latencyP95Ms": 20
+  },
+  "failures": [],
+  "warnings": []
+}

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildSftMixture, type MixtureSource } from "../src/training/mixture/SftMixtureBuilder";
+import { buildSftMixture, defaultSftMixtureOptions, type MixtureSource } from "../src/training/mixture/SftMixtureBuilder";
 
 describe("SftMixtureBuilder", () => {
   let dir: string | null = null;
@@ -10,6 +10,30 @@ describe("SftMixtureBuilder", () => {
   afterEach(async () => {
     if (dir) await rm(dir, { recursive: true, force: true });
     dir = null;
+  });
+
+  it("includes optional behavior SFT templates in the default mixture plan", () => {
+    const options = defaultSftMixtureOptions();
+    expect(options.trainSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "synthetic_behavior_train",
+          path: "training/data/behavior/sft.train.jsonl",
+          kind: "synthetic",
+          required: false,
+        }),
+      ]),
+    );
+    expect(options.validationSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "synthetic_behavior_validation",
+          path: "training/data/behavior/sft.validation.jsonl",
+          kind: "synthetic",
+          required: false,
+        }),
+      ]),
+    );
   });
 
   it("builds a deterministic mixture, reports missing optional sources, dedupes, and caps synthetic rows", async () => {

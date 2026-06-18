@@ -21,7 +21,7 @@ eventual fine-tune.
 
 | Piece | State |
 |---|---|
-| Bot code (Prisma → Postgres, tools, memory, training capture) | ✅ complete, 128 tests green |
+| Bot code (Prisma → Postgres, tools, memory, training capture) | ✅ complete, 140 tests green |
 | Bot deps + Prisma client | ✅ installed/generated locally |
 | Synthetic dataset (`exports/training/synthetic-tools.jsonl`) | ✅ 199 examples generated |
 | Substrate on the rack | ❌ **not stood up** (no PG17 / services / tunnel yet) |

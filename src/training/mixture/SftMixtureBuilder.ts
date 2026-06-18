@@ -138,6 +138,13 @@ export function defaultSftMixtureOptions(outDir = "training/data/mixtures"): Sft
         kind: "tool_calling",
       },
       {
+        name: "synthetic_behavior_train",
+        path: "training/data/behavior/sft.train.jsonl",
+        required: false,
+        kind: "synthetic",
+        maxRecords: 1_000,
+      },
+      {
         name: "synthetic_tool_train",
         path: "exports/training/synthetic-tools.jsonl",
         required: false,
@@ -157,6 +164,13 @@ export function defaultSftMixtureOptions(outDir = "training/data/mixtures"): Sft
         path: "training/data/processed/eval.seed.jsonl",
         required: false,
         kind: "bot_log",
+      },
+      {
+        name: "synthetic_behavior_validation",
+        path: "training/data/behavior/sft.validation.jsonl",
+        required: false,
+        kind: "synthetic",
+        maxRecords: 250,
       },
     ],
   };

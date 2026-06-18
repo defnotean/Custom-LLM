@@ -30,6 +30,7 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
     else if (arg === "--preference-report") options.preferenceReportPath = requireValue(argv[++index], arg);
     else if (arg === "--tool-eval-report") options.toolEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--knowledge-eval-report") options.knowledgeEvalReportPath = requireValue(argv[++index], arg);
+    else if (arg === "--behavior-eval-report") options.behaviorEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--sft-train") options.sftTrainPath = requireValue(argv[++index], arg);
     else if (arg === "--sft-validation") options.sftValidationPath = requireValue(argv[++index], arg);
     else if (arg === "--sequence-len") options.sequenceLength = parsePositiveInt(argv[++index], arg);

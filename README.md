@@ -14,7 +14,7 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Safety**: rate limiting, content screen (placeholder rules), mandatory confirmation for high-risk actions
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 122 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 140 passing tests
 
 ## Quickstart
 
@@ -65,11 +65,13 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run download:datasets` / `npm run prepare:datasets` | Acquire and prepare open SFT datasets with provenance + quality reports |
 | `npm run build:sft-mixture` / `npm run build:preference-mixture` | Build production SFT and DPO/preference train/validation mixtures |
 | `npm run build:protocol-sft` | Build a contamination-guarded protocol-only scratch SFT set from synthetic tool examples |
+| `npm run build:behavior-sft` | Build a held-out-safe persona/social behavior SFT set from project-owned templates |
 | `npm run analyze:sft-sequences` | Estimate SFT sequence lengths, packed steps, and truncation risk for the QLoRA context budget |
 | `npm run build:eval-suite` / `npm run eval:llm` / `npm run eval:predictions` / `npm run eval:gate` | Build held-out protocol/tool evals, collect live model outputs, score prediction JSONL, and enforce promotion gates |
 | `npm run eval:tool:tiny` | Run a local scratch Transformer checkpoint against the held-out protocol/tool suite |
 | `npm run build:knowledge-eval` / `npm run eval:knowledge:llm` / `npm run eval:knowledge` / `npm run eval:knowledge:gate` | Build held-out knowledge evals, collect live model answers, score reference overlap, and enforce knowledge gates |
 | `npm run eval:knowledge:tiny` | Run the promoted local scratch Transformer checkpoint against the held-out knowledge suite |
+| `npm run build:behavior-eval` / `npm run eval:behavior:llm` / `npm run eval:behavior` / `npm run eval:behavior:gate` | Build held-out persona/social-cue evals, collect live JSON outputs, score behavior requirements, and enforce behavior gates |
 | `npm run check:contamination` | Audit train JSONL against held-out eval suites for exact leakage and high n-gram overlap |
 | `npm run train:tiny-transformer` / `npm run train:tiny-char` | Run local from-scratch training smoke baselines, including assistant-loss masking experiments |
 | `npm run check:training` | Validate dataset splits, hashes, model artifacts, and training loss movement |
@@ -118,7 +120,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 1. Run the bot; every interaction is captured (`docs/TRAINING_DATA.md`).
 2. `npm run export:training` → ChatML / Alpaca / tool-calling / DPO JSONL.
 3. Review + redact + hold out an eval set.
-4. Build the first reproducible dataset/training iteration (`docs/AI_TRAINING_PLAN.md`), pass `npm run check:production-readiness`, then QLoRA-fine-tune the Qwen3 4B Instruct production profile (Unsloth/Axolotl) and evaluate tool-call accuracy before shipping — the full production plan is `docs/FINE_TUNING_PLAN.md`.
+4. Build the first reproducible dataset/training iteration (`docs/AI_TRAINING_PLAN.md`), pass `npm run check:production-readiness`, then QLoRA-fine-tune the Qwen3 4B Instruct production profile (Unsloth/Axolotl) and evaluate protocol, knowledge, and persona/social behavior before shipping.
 
 ⚠️ Use only consented data from servers you control — Discord's Developer Policy prohibits training on scraped message content.
 
@@ -138,7 +140,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, rate limiting, training capture, JSONL export, synthetic generation, ops API, docker compose, 128 tests.
+**Fully working:** boot/degraded modes, Discord conversation + commands, both LLM providers + fallback router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior eval gates, ops API, docker compose, 140 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 

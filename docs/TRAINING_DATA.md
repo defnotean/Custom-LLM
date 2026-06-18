@@ -77,6 +77,30 @@ npm run build:protocol-sft
 
 This writes `training/data/protocol/sft.train.jsonl`, `sft.validation.jsonl`, `sft.all.jsonl`, and `dataset_report.json`. The builder keeps synthetic provenance in metadata, strips synthetic tags from model-visible system prompts, excludes exact held-out protocol eval prompts, and adds deterministic paraphrases that stay outside the held-out prompt set. Protocol SFT rows also carry self-contained candidate-tool, exact candidate-tool-name, required-argument, provided-argument, missing-argument, no-tool, permission, and confirmation context when needed, so direct rows teach when required details are present, refusal rows teach "message, not tool_call or confirmation_request", no-tool rows teach that no candidate tool is available, and confirmed risky-tool rows teach that execution is allowed. Missing-argument examples are generated only for schema-required arguments, not optional/defaulted fields. The open-data preparer writes a source-balanced `eval.seed.jsonl` so the knowledge suite does not collapse to whichever source sorts first.
 
+For local scratch behavior/persona experiments, run:
+
+```bash
+npm run build:behavior-sft
+```
+
+This writes `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, `sft.all.jsonl`, and `dataset_report.json`. Rows are project-owned ChatML examples whose assistant messages are strict protocol JSON (`message` or `clarification`). The builder skips exact prompts from `training/evals/behavior.eval.jsonl`, records `source=synthetic_behavior`, and tags each row by `kind` and `route` so a future router/MoE-style training split can isolate persona, casual, social-cue, boundary, and tool-abstain behavior.
+
+For persona/social behavior regressions, run:
+
+```bash
+npm run build:behavior-eval
+npm run eval:behavior:oracle
+npm run eval:behavior -- --predictions training/evals/behavior-oracle.predictions.jsonl --out training/evals/behavior-oracle.report.json
+npm run eval:behavior:gate -- --candidate training/evals/behavior-oracle.report.json
+
+# Live configured model sample, then score it
+npm run eval:behavior:llm -- --max-cases 5
+npm run eval:behavior -- --predictions training/evals/behavior-llm.predictions.jsonl --out training/evals/behavior-llm.report.json
+npm run eval:behavior:gate -- --candidate training/evals/behavior-llm.report.json
+```
+
+The behavior suite is held out from training and checks the she/her persona contract, affective persona wording, Discord-native casual replies, no generic refusal/filter language for allowed prompts, social support/repair, direct safety boundaries, and tool abstention for no-tool prompts. It is deliberately small today so it can act as a fast CI gate; grow it with reviewed first-party examples before using DPO to tune persona.
+
 ## Review Workflow
 
 1. Export and sample-read each file.
