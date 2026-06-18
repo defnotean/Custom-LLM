@@ -204,8 +204,20 @@ describe("LiveLearningRepository", () => {
             activeParameters: 2_000_000n,
             trainableParameters: 2_000_000n,
             status: "STAGED",
+            rollbackTargetId: "active-module-before-skill-router",
+            datasetHashesJson: ["dataset-manifest-sha", "batch-sha"],
             sourceLearningItemIdsJson: ["learned-1"],
-            evalReportsJson: [],
+            evalReportsJson: [
+              { kind: "skill", path: "reports/skill.json", status: "pass" },
+              { kind: "protocol", path: "reports/protocol.json", status: "pass" },
+              { kind: "composite", path: "reports/staging.json", status: "pass" },
+            ],
+            metadataJson: {
+              staging: {
+                manifestPath: "training/runs/parameter-modules/run-1/staging-manifest.json",
+                gateReport: { status: "pass" },
+              },
+            },
           }),
         update: async (args: unknown) => {
           calls.moduleUpdate = args;

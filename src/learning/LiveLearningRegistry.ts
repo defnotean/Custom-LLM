@@ -1,4 +1,5 @@
 import type { JsonObject } from "../types/common";
+import { applyParameterModulePromotionGate } from "../training/parameter/ParameterModulePromotionGate";
 import { newId } from "../utils/ids";
 
 export type LearningKind =
@@ -288,11 +289,15 @@ export class LiveLearningRegistry {
 
   promoteParameterModule(id: string, options: { gateStatus: "pass" | "fail" | "warn"; evalReport?: ParameterEvalReport }): ParameterModule {
     const module = this.requireParameterModule(id);
-    if (module.status !== "staged") throw new Error(`parameter module ${id} is not staged`);
-    if (options.evalReport) module.evalReports.push(options.evalReport);
-    if (options.gateStatus !== "pass") {
-      throw new Error(`parameter module ${id} cannot be promoted without passing gates`);
+    const gate = applyParameterModulePromotionGate({ module: clone(module), ...options });
+    if (gate.status !== "pass") {
+      throw new Error(
+        `parameter module ${id} cannot be promoted without passing gates: ${gate.failures
+          .map((failure) => failure.code)
+          .join(", ")}`,
+      );
     }
+    if (options.evalReport) module.evalReports.push(options.evalReport);
     module.status = "active";
     module.promotedAt = this.now();
     for (const itemId of module.sourceLearningItemIds) {

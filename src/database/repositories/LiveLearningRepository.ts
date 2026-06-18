@@ -22,6 +22,7 @@ import {
   type ParameterModuleStatus,
   type TrainingPromotionStatus,
 } from "../../learning/LiveLearningRegistry";
+import { applyParameterModulePromotionGate } from "../../training/parameter/ParameterModulePromotionGate";
 import type { JsonObject, LearningStatsPayload } from "../../types/common";
 import { toJsonValue } from "../../types/common";
 
@@ -255,9 +256,13 @@ export class LiveLearningRepository {
     options: { gateStatus: "pass" | "fail" | "warn"; evalReport?: ParameterEvalReport },
   ): Promise<ParameterModule> {
     const existing = await this.getRequiredParameterModule(id);
-    if (existing.status !== "staged") throw new Error(`parameter module ${id} is not staged`);
-    if (options.gateStatus !== "pass") {
-      throw new Error(`parameter module ${id} cannot be promoted without passing gates`);
+    const gate = applyParameterModulePromotionGate({ module: existing, ...options });
+    if (gate.status !== "pass") {
+      throw new Error(
+        `parameter module ${id} cannot be promoted without passing gates: ${gate.failures
+          .map((failure) => failure.code)
+          .join(", ")}`,
+      );
     }
 
     const promotedAt = this.now();

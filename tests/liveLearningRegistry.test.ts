@@ -61,6 +61,14 @@ describe("LiveLearningRegistry", () => {
 
   it("tracks active, staged, total, and per-request parameter counts", () => {
     const registry = makeRegistry();
+    const item = registry.recordLearnedItem({
+      kind: "skill",
+      content: "Use the social specialist only for social cue handling.",
+      source: "tool_trace",
+      confidence: 0.95,
+      reviewStatus: "approved",
+      retention: { canTrain: true },
+    });
     const base = registry.registerParameterModule({
       name: "qwen3-4b",
       kind: "base_model",
@@ -68,7 +76,7 @@ describe("LiveLearningRegistry", () => {
       activeParameters: 4_000_000_000,
       status: "active",
     });
-    registry.registerParameterModule({
+    const adapter = registry.registerParameterModule({
       name: "irene-behavior-lora-v1",
       kind: "adapter",
       parameters: 12_000_000,
@@ -89,6 +97,7 @@ describe("LiveLearningRegistry", () => {
       parameters: 392_619,
       activeParameters: 392_619,
       status: "staged",
+      ...promotionReadyFields([item.id]),
     });
 
     const before = registry.getParameterSnapshot();
@@ -100,7 +109,7 @@ describe("LiveLearningRegistry", () => {
       totalSystemParams: 4_012_343_050,
       stagedParams: 392_619,
     });
-    expect(before.activeModuleIds).toEqual([base.id, "id-2", router.id]);
+    expect(before.activeModuleIds).toEqual([base.id, adapter.id, router.id]);
 
     registry.promoteParameterModule(specialist.id, { gateStatus: "pass" });
     const after = registry.getParameterSnapshot({ selectedModuleIds: [specialist.id] });
@@ -138,7 +147,7 @@ describe("LiveLearningRegistry", () => {
       name: "skill-router-v1",
       kind: "specialist",
       parameters: 2_000_000,
-      sourceLearningItemIds: [item.id],
+      ...promotionReadyFields([item.id]),
     });
     registry.promoteParameterModule(module.id, { gateStatus: "pass" });
 
@@ -159,4 +168,23 @@ function makeRegistry(): LiveLearningRegistry {
     idFactory: () => `id-${nextId++}`,
     now: () => `2026-06-18T00:00:${String(tick++).padStart(2, "0")}.000Z`,
   });
+}
+
+function promotionReadyFields(sourceLearningItemIds: string[]) {
+  return {
+    sourceLearningItemIds,
+    rollbackTargetId: "active-module-before-candidate",
+    datasetHashes: ["dataset-manifest-sha", "batch-sha"],
+    evalReports: [
+      { kind: "skill" as const, path: "reports/skill.json", status: "pass" as const },
+      { kind: "protocol" as const, path: "reports/protocol.json", status: "pass" as const },
+      { kind: "composite" as const, path: "reports/staging.json", status: "pass" as const },
+    ],
+    metadata: {
+      staging: {
+        manifestPath: "training/runs/parameter-modules/run-1/staging-manifest.json",
+        gateReport: { status: "pass" },
+      },
+    },
+  };
 }
