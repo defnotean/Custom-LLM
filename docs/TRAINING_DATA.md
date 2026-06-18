@@ -56,6 +56,7 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-modules/<module-id>/promot
   -d '{"gateStatus":"pass","evalReport":{"kind":"skill","path":"training/evals/skill-retrieval.report.json","status":"pass"}}'
 
 npm run build:parameter-hotload
+npm run check:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json
 
 curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<module-id>"
 ```
@@ -71,6 +72,8 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 `check:parameter-module-staging` verifies the trainer's output before registry creation/promotion: module parameter counts must be within budget, source learned-item ids must match the dataset records, dataset and artifact hashes must match the staging manifest, required eval reports must pass, eval report evidence must be hash-verified, and rollback metadata must exist. `POST /learning/parameter-modules/stage-from-manifest` runs the same gate, creates a staged module from the manifest, records runtime-compatible eval reports, and stores the full staging report in module metadata. Promotion has its own readiness gate too: the module must still be staged, have rollback metadata, source ids, dataset hashes, passing stage-from-manifest evidence, no failed eval reports, and required runtime eval kinds for the module type. This is the handoff gate between "a trainer produced files" and "Irene may activate a new adapter/specialist/expert."
 
 `build:parameter-hotload` writes `training/plans/parameter-hotload/latest.json`, a deterministic model-server handoff manifest for active non-base modules. It includes load actions, artifact paths and hashes, routes/base-module ids, rollback targets, dataset hashes, source learned-item ids, and eval summaries. The command exits blocked if any active non-base module lacks staging artifacts or rollback evidence, because active prompt visibility should not drift away from model-server loadability.
+
+`check:parameter-hotload` verifies that handoff before a model server consumes it: manifest status must match the request/skipped payload, blocked manifests fail loader readiness, summary counts and parameter totals must be internally consistent, load request ids must be unique, required config plus checkpoint/adapter artifacts must exist, eval reports must not be failed, and artifact byte counts/hashes must match disk.
 
 ## Export Formats
 
