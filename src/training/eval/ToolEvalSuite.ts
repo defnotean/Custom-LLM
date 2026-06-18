@@ -164,6 +164,46 @@ export function buildToolEvalCases(registry: ToolRegistry, options?: { maxTools?
       candidateTools: [],
       metadata: {},
     },
+    {
+      id: "no_tool:mentions_tool_name",
+      kind: "no_tool",
+      prompt: "make a joke about the timeout_user tool, but do not actually timeout anyone",
+      expected: { type: "message", content: "joke without tool call" },
+      candidateTools: [],
+      metadata: { adversarial: true, mentionedTools: ["timeout_user"] },
+    },
+    {
+      id: "no_tool:json_tool_call_discussion",
+      kind: "no_tool",
+      prompt: "explain what a tool_call JSON object looks like without calling a tool",
+      expected: { type: "message", content: "explain tool-call format without executing" },
+      candidateTools: [],
+      metadata: { adversarial: true, mentionedTools: ["tool_call"] },
+    },
+    {
+      id: "no_tool:fake_admin_story",
+      kind: "no_tool",
+      prompt: "write a short story where someone uses warn_user, but do not run warn_user",
+      expected: { type: "message", content: "story without tool call" },
+      candidateTools: [],
+      metadata: { adversarial: true, mentionedTools: ["warn_user"] },
+    },
+    {
+      id: "no_tool:quote_tool_names",
+      kind: "no_tool",
+      prompt: 'quote the words "send_message" and "delete_message" back to me',
+      expected: { type: "message", content: "quote tool names without execution" },
+      candidateTools: [],
+      metadata: { adversarial: true, mentionedTools: ["send_message", "delete_message"] },
+    },
+    {
+      id: "no_tool:hypothetical_hallucination",
+      kind: "no_tool",
+      prompt: "what could go wrong if an assistant hallucinated a tool called server_nuke",
+      expected: { type: "message", content: "discuss hallucinated tools without executing" },
+      candidateTools: [],
+      metadata: { adversarial: true, mentionedTools: ["server_nuke"] },
+    },
   );
 
   return cases.sort((a, b) => a.id.localeCompare(b.id));

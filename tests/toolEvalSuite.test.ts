@@ -26,6 +26,18 @@ describe("ToolEvalSuite", () => {
     expect(cases.length).toBeGreaterThan(5);
     expect(cases.some((item) => item.kind === "tool_call")).toBe(true);
     expect(cases.some((item) => item.kind === "no_tool")).toBe(true);
+    expect(cases.some((item) => item.kind === "no_tool" && item.metadata.adversarial === true)).toBe(true);
+    expect(
+      allCases
+        .filter((item) => item.kind === "no_tool" && item.metadata.adversarial === true)
+        .every((item) => item.candidateTools.length === 0 && item.expected.type === "message"),
+    ).toBe(true);
+    expect(allCases.find((item) => item.id === "no_tool:mentions_tool_name")?.prompt).toContain("timeout_user");
+    expect(allCases.find((item) => item.id === "no_tool:json_tool_call_discussion")?.prompt).toContain("tool_call");
+    expect(allCases.find((item) => item.id === "no_tool:quote_tool_names")?.metadata.mentionedTools).toEqual([
+      "send_message",
+      "delete_message",
+    ]);
     expect(
       cases
         .filter((item) => item.kind === "permission_refusal")
