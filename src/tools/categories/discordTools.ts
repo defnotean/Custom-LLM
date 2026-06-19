@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PrismaClient } from "@prisma/client";
 import type { RegisteredTool } from "../ToolDefinition";
 import { defineTool, toolFail, toolOk } from "../ToolDefinition";
 import { toErrorMessage } from "../../utils/errors";
@@ -81,7 +82,7 @@ const getGuildStats = defineTool({
   name: "get_guild_stats",
   category: "discord",
   description:
-    "Get basic statistics for the current server: members, channels, roles, emojis, boost count. NOTE: activity-based stats (messages/day, active users) are a documented TODO pending the analytics pipeline.",
+    "Get statistics for the current server: members, channels, roles, emojis, boost count, plus Irene-observed activity from the conversation log when persistence is available.",
   examples: ["server stats", "how active is this server?", "guild statistics"],
   riskLevel: "low",
   requiresConfirmation: false,
@@ -90,6 +91,7 @@ const getGuildStats = defineTool({
   execute: async (_args, ctx) => {
     const guild = ctx.message?.guild;
     if (!guild) return toolFail("get_guild_stats only works inside a server.");
+    const observedActivity = await readObservedGuildActivity(ctx.db, guild.id);
     return toolOk({
       name: guild.name,
       members: guild.memberCount,
@@ -98,7 +100,7 @@ const getGuildStats = defineTool({
       emojis: guild.emojis.cache.size,
       boosts: guild.premiumSubscriptionCount ?? 0,
       createdAt: guild.createdAt.toISOString(),
-      note: "Activity metrics (messages/day, active users) not yet implemented.",
+      observedActivity,
     });
   },
 });
@@ -108,3 +110,53 @@ export const discordTools: RegisteredTool[] = [
   summarizeChannelRecentMessages,
   getGuildStats,
 ];
+
+const ACTIVITY_WINDOW_HOURS = 24;
+
+async function readObservedGuildActivity(db: PrismaClient | null | undefined, guildId: string) {
+  if (!db) {
+    return {
+      available: false,
+      source: "conversation_log",
+      reason: "database unavailable; activity metrics require persisted conversation logs",
+      windowHours: ACTIVITY_WINDOW_HOURS,
+      observedConversations: null,
+      observedConversationsPerDay: null,
+      activeUsers: null,
+      activeChannels: null,
+      sampledConversationRows: null,
+      lastObservedAt: null,
+      note: "Activity reflects conversations Irene observed and logged, not total Discord server traffic.",
+    };
+  }
+
+  const since = new Date(Date.now() - ACTIVITY_WINDOW_HOURS * 60 * 60 * 1000);
+  const where = { guildId, createdAt: { gte: since } };
+  const [conversationCount, rows] = await Promise.all([
+    db.conversation.count({ where }),
+    db.conversation.findMany({
+      where,
+      select: { userId: true, channelId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 5_000,
+    }),
+  ]);
+
+  const activeUsers = new Set(rows.map((row) => row.userId)).size;
+  const activeChannels = new Set(rows.map((row) => row.channelId)).size;
+  const latest = rows[0]?.createdAt;
+
+  return {
+    available: true,
+    source: "conversation_log",
+    reason: null,
+    windowHours: ACTIVITY_WINDOW_HOURS,
+    observedConversations: conversationCount,
+    observedConversationsPerDay: conversationCount,
+    activeUsers,
+    activeChannels,
+    sampledConversationRows: rows.length,
+    lastObservedAt: latest ? latest.toISOString() : null,
+    note: "Activity reflects conversations Irene observed and logged, not total Discord server traffic.",
+  };
+}
