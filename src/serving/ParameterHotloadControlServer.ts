@@ -60,6 +60,28 @@ export interface ParameterHotloadBackend {
   rollback(input: ParameterHotloadBackendRollbackInput): Promise<ParameterHotloadBackendRollbackResult>;
 }
 
+export type ParameterHotloadBackendFetch = (
+  input: string,
+  init: {
+    method: "POST";
+    headers: Record<string, string>;
+    body: string;
+    signal: AbortSignal;
+  },
+) => Promise<{
+  ok: boolean;
+  status: number;
+  statusText: string;
+  text(): Promise<string>;
+}>;
+
+export interface HttpParameterHotloadBackendOptions {
+  endpointUrl: string;
+  apiKey?: string;
+  timeoutMs?: number;
+  fetchImpl?: ParameterHotloadBackendFetch;
+}
+
 export interface ParameterHotloadEvent {
   id: string;
   type: "load" | "dry_run" | "empty" | "rejected" | "rollback";
@@ -110,6 +132,16 @@ const rollbackBodySchema = z
     requestId: z.string().min(1).optional(),
   })
   .strict();
+
+const backendResponseSchema = z
+  .object({
+    status: z.enum(["accepted", "rejected"]).optional(),
+    loadedModuleIds: z.array(z.string().min(1)).optional(),
+    rolledBackModuleIds: z.array(z.string().min(1)).optional(),
+    message: z.string().optional(),
+    details: z.record(z.unknown()).optional(),
+  })
+  .passthrough();
 
 export class InMemoryParameterHotloadControlService {
   private readonly loadedModules = new Map<string, ParameterHotloadLoadedModule>();
@@ -380,6 +412,107 @@ export class StateOnlyParameterHotloadBackend implements ParameterHotloadBackend
   }
 }
 
+export class HttpParameterHotloadBackend implements ParameterHotloadBackend {
+  readonly name = "http-model-server";
+  private readonly endpointUrl: string;
+  private readonly apiKey?: string;
+  private readonly timeoutMs: number;
+  private readonly fetchImpl: ParameterHotloadBackendFetch;
+
+  constructor(options: HttpParameterHotloadBackendOptions) {
+    this.endpointUrl = options.endpointUrl;
+    this.apiKey = options.apiKey;
+    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
+  }
+
+  async load(input: ParameterHotloadBackendLoadInput): Promise<ParameterHotloadBackendLoadResult> {
+    const result = await this.post({
+      runtimeContract: "parameter-hotload-backend-v1",
+      action: "load",
+      requestId: input.requestId,
+      manifest: input.manifest,
+      modules: input.modules,
+    });
+    return {
+      status: result.status,
+      loadedModuleIds:
+        result.loadedModuleIds ?? (result.status === "accepted" ? input.modules.map((module) => module.moduleId) : []),
+      ...(result.message ? { message: result.message } : {}),
+      ...(result.details ? { details: result.details } : {}),
+    };
+  }
+
+  async rollback(input: ParameterHotloadBackendRollbackInput): Promise<ParameterHotloadBackendRollbackResult> {
+    const result = await this.post({
+      runtimeContract: "parameter-hotload-backend-v1",
+      action: "rollback",
+      requestId: input.requestId,
+      modules: input.modules,
+    });
+    return {
+      status: result.status,
+      rolledBackModuleIds:
+        result.rolledBackModuleIds ?? (result.status === "accepted" ? input.modules.map((module) => module.moduleId) : []),
+      ...(result.message ? { message: result.message } : {}),
+      ...(result.details ? { details: result.details } : {}),
+    };
+  }
+
+  private async post(payload: Record<string, unknown>): Promise<{
+    status: "accepted" | "rejected";
+    loadedModuleIds?: string[];
+    rolledBackModuleIds?: string[];
+    message?: string;
+    details?: JsonObject;
+  }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      if (this.apiKey) headers.authorization = `Bearer ${this.apiKey}`;
+      const response = await this.fetchImpl(this.endpointUrl, {
+        method: "POST",
+        headers,
+        body: `${JSON.stringify(payload)}\n`,
+        signal: controller.signal,
+      });
+      const bodyText = await response.text();
+      const body = parseJsonBody(bodyText);
+      if (!response.ok) {
+        return {
+          status: "rejected",
+          message: `model-server backend returned HTTP ${response.status} ${response.statusText}`,
+          details: asJsonObject({ response: body }),
+        };
+      }
+
+      const parsed = backendResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        return {
+          status: "accepted",
+          details: asJsonObject({ response: body }),
+        };
+      }
+
+      return {
+        status: parsed.data.status ?? "accepted",
+        ...(parsed.data.loadedModuleIds ? { loadedModuleIds: parsed.data.loadedModuleIds } : {}),
+        ...(parsed.data.rolledBackModuleIds ? { rolledBackModuleIds: parsed.data.rolledBackModuleIds } : {}),
+        ...(parsed.data.message ? { message: parsed.data.message } : {}),
+        ...(parsed.data.details ? { details: asJsonObject(parsed.data.details) } : {}),
+      };
+    } catch (err) {
+      return {
+        status: "rejected",
+        message: err instanceof Error ? err.message : String(err),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
 export interface ParameterHotloadControlServerOptions {
   apiKey?: string;
   service?: InMemoryParameterHotloadControlService;
@@ -452,6 +585,15 @@ function asJsonObject(value: unknown): JsonObject {
   const json = toJsonValue(value);
   if (json && typeof json === "object" && !Array.isArray(json)) return json as JsonObject;
   return { value: json };
+}
+
+function parseJsonBody(body: string): unknown {
+  if (body.trim().length === 0) return {};
+  try {
+    return JSON.parse(body);
+  } catch {
+    return { raw: body };
+  }
 }
 
 function unique(values: string[]): string[] {

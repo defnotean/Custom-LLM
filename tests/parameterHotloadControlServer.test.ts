@@ -5,8 +5,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildParameterHotloadControlServer,
+  HttpParameterHotloadBackend,
   InMemoryParameterHotloadControlService,
   type ParameterHotloadBackend,
+  type ParameterHotloadBackendFetch,
   type ParameterHotloadBackendLoadInput,
   type ParameterHotloadBackendRollbackInput,
 } from "../src/serving/ParameterHotloadControlServer";
@@ -253,6 +255,96 @@ describe("ParameterHotloadControlServer", () => {
     await app.close();
   });
 
+  it("posts load and rollback requests to an HTTP model-server backend", async () => {
+    const fixture = await writeFixture();
+    const manifest = fixture.manifest as ParameterHotloadBackendLoadInput["manifest"];
+    const modules = manifest.requests;
+    const calls: Array<{ input: string; headers: Record<string, string>; body: Record<string, unknown> }> = [];
+    const fetchImpl: ParameterHotloadBackendFetch = async (input, init) => {
+      calls.push({ input, headers: init.headers, body: JSON.parse(init.body) as Record<string, unknown> });
+      return responseJson({
+        status: "accepted",
+        loadedModuleIds: ["expert-1"],
+        rolledBackModuleIds: ["expert-1"],
+        message: "model server accepted adapter operation",
+        details: { backend: "adapter-sidecar" },
+      });
+    };
+    const backend = new HttpParameterHotloadBackend({
+      endpointUrl: "http://127.0.0.1:9911/parameter-modules",
+      apiKey: "model-secret",
+      timeoutMs: 5_000,
+      fetchImpl,
+    });
+
+    const loaded = await backend.load({ requestId: "http-load", manifest, modules });
+    const rolledBack = await backend.rollback({
+      requestId: "http-rollback",
+      modules: [
+        {
+          moduleId: "expert-1",
+          name: "ping-tool-expert",
+          kind: "expert",
+          rollbackTargetId: "active-before-expert",
+          manifestId: "parameter-hotload-fixture",
+          requestId: "http-load",
+          loadedAt: "2026-06-18T23:00:00.000Z",
+          parameters: 2_000_000,
+          activeParameters: 500_000,
+          trainableParameters: 2_000_000,
+          artifacts: modules[0]?.artifacts ?? [],
+        },
+      ],
+    });
+
+    expect(loaded).toMatchObject({
+      status: "accepted",
+      loadedModuleIds: ["expert-1"],
+      message: "model server accepted adapter operation",
+      details: { backend: "adapter-sidecar" },
+    });
+    expect(rolledBack).toMatchObject({
+      status: "accepted",
+      rolledBackModuleIds: ["expert-1"],
+      message: "model server accepted adapter operation",
+    });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      input: "http://127.0.0.1:9911/parameter-modules",
+      headers: { authorization: "Bearer model-secret", "content-type": "application/json" },
+      body: {
+        runtimeContract: "parameter-hotload-backend-v1",
+        action: "load",
+        requestId: "http-load",
+        modules: [{ moduleId: "expert-1" }],
+      },
+    });
+    expect(calls[1]?.body).toMatchObject({
+      runtimeContract: "parameter-hotload-backend-v1",
+      action: "rollback",
+      requestId: "http-rollback",
+      modules: [{ moduleId: "expert-1" }],
+    });
+  });
+
+  it("rejects HTTP model-server backend failures without defaulting loaded ids", async () => {
+    const fixture = await writeFixture();
+    const manifest = fixture.manifest as ParameterHotloadBackendLoadInput["manifest"];
+    const backend = new HttpParameterHotloadBackend({
+      endpointUrl: "http://127.0.0.1:9911/parameter-modules",
+      fetchImpl: async () => responseJson({ error: "adapter not found" }, { ok: false, status: 503, statusText: "Unavailable" }),
+    });
+
+    const result = await backend.load({ requestId: "http-fail", manifest, modules: manifest.requests });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      loadedModuleIds: [],
+      message: "model-server backend returned HTTP 503 Unavailable",
+      details: { response: { error: "adapter not found" } },
+    });
+  });
+
   it("protects hotload mutation routes with an optional bearer token", async () => {
     const fixture = await writeFixture();
     const app = buildParameterHotloadControlServer({ apiKey: "secret" });
@@ -340,6 +432,18 @@ function applyPayload(manifest: unknown, options: { requestId?: string; dryRun?:
     dryRun: options.dryRun ?? false,
     manifest,
   };
+}
+
+function responseJson(
+  body: unknown,
+  options: { ok?: boolean; status?: number; statusText?: string } = {},
+): ReturnType<ParameterHotloadBackendFetch> {
+  return Promise.resolve({
+    ok: options.ok ?? true,
+    status: options.status ?? 200,
+    statusText: options.statusText ?? "OK",
+    text: async () => JSON.stringify(body),
+  });
 }
 
 async function fileInfo(path: string): Promise<{ bytes: number; sha256: string }> {
