@@ -40,6 +40,9 @@ const envSchema = z.object({
   VOICE_STT_LANGUAGE: z.string().default("auto"),
   VOICE_STT_FORMAT: z.string().default("ogg-opus"),
   VOICE_RECEIVE_FORMAT: z.string().default("discord-opus-packets"),
+  VOICE_RECEIVE_PREPROCESS_ENDPOINT: z.string().default(""),
+  VOICE_RECEIVE_PREPROCESS_API_KEY: z.string().default(""),
+  VOICE_RECEIVE_PREPROCESS_TIMEOUT_MS: z.coerce.number().int().min(1).max(600_000).default(30_000),
   VOICE_STT_TIMEOUT_MS: z.coerce.number().int().min(1).max(600_000).default(30_000),
 
   // Data spine

@@ -69,6 +69,7 @@ import { createMessageHandler } from "./discord/events/messageCreate";
 import { createInteractionHandler } from "./discord/events/interactionCreate";
 import { DiscordVoiceService } from "./discord/voice/DiscordVoiceService";
 import { VoiceReceiveBridge } from "./discord/voice/VoiceReceiveBridge";
+import { HttpVoiceReceivePreprocessor } from "./discord/voice/VoiceReceivePreprocessor";
 import { VoiceSpeechQueue } from "./discord/voice/VoiceSpeechQueue";
 import { DiscordVoiceSpeechPlayer, HttpTtsProvider } from "./discord/voice/VoiceTtsPlayback";
 import { HttpSttProvider } from "./discord/voice/VoiceSttTranscription";
@@ -240,6 +241,14 @@ async function main(): Promise<void> {
       })
     : null;
   logger.info({ sttConfigured: Boolean(sttProvider) }, "voice transcription provider ready");
+  const voiceReceivePreprocessor = env.VOICE_RECEIVE_PREPROCESS_ENDPOINT
+    ? new HttpVoiceReceivePreprocessor({
+        endpointUrl: env.VOICE_RECEIVE_PREPROCESS_ENDPOINT,
+        ...(env.VOICE_RECEIVE_PREPROCESS_API_KEY ? { apiKey: env.VOICE_RECEIVE_PREPROCESS_API_KEY } : {}),
+        timeoutMs: env.VOICE_RECEIVE_PREPROCESS_TIMEOUT_MS,
+      })
+    : null;
+  logger.info({ configured: Boolean(voiceReceivePreprocessor) }, "voice receive preprocessing ready");
   const voiceService = new DiscordVoiceService({
     settingsStore: guildRepo,
     speechQueue: voiceSpeechQueue,
@@ -279,6 +288,7 @@ async function main(): Promise<void> {
       client: discordClient,
       logger: childLogger("voice-receive"),
       receiveFormat: env.VOICE_RECEIVE_FORMAT,
+      preprocessAudio: voiceReceivePreprocessor ? (input) => voiceReceivePreprocessor.call(input) : undefined,
     }),
   );
 
