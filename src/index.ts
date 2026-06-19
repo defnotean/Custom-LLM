@@ -65,6 +65,7 @@ import {
   HttpParameterTrainerBackend,
   ParameterTrainerDispatchService,
 } from "./training/parameter/ParameterTrainerDispatchService";
+import { buildIreneSystemStatusReport } from "./training/quality/IreneSystemStatusReport";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { VoiceListeningPresenceIndicator } from "./discord/presence";
@@ -436,6 +437,20 @@ async function main(): Promise<void> {
     promoteParameterModule: learningRepo ? (id, options) => learningRepo.promoteParameterModule(id, options) : null,
     retireParameterModule: learningRepo ? (id) => learningRepo.retireParameterModule(id) : null,
     getParameterSnapshot: learningRepo ? (options) => learningRepo.getParameterSnapshot(options) : null,
+    getIreneStatus: async (options) => {
+      const selectedOptions = options?.selectedModuleIds?.length
+        ? { selectedModuleIds: options.selectedModuleIds }
+        : undefined;
+      const [learningStats, parameterSnapshot] = await Promise.all([
+        learningRepo ? learningRepo.getStats() : Promise.resolve(null),
+        learningRepo ? learningRepo.getParameterSnapshot(selectedOptions) : Promise.resolve(null),
+      ]);
+      return buildIreneSystemStatusReport({
+        learningStats,
+        parameterSnapshot,
+        includeProductionReadiness: options?.includeProductionReadiness ?? false,
+      });
+    },
     exporter: exporter ? (outDir) => exporter.exportAll(outDir) : null,
     recordFeedbackPreference: feedbackRepo ? (input) => feedbackRepo.createPreferencePair(input) : null,
     getHealth,

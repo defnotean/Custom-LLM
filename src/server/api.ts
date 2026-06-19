@@ -35,6 +35,7 @@ export interface ApiDeps {
   promoteParameterModule?: LearningRouteDeps["promoteParameterModule"];
   retireParameterModule?: LearningRouteDeps["retireParameterModule"];
   getParameterSnapshot?: LearningRouteDeps["getParameterSnapshot"];
+  getIreneStatus?: LearningRouteDeps["getIreneStatus"];
   exporter: TrainingRouteDeps["exportAll"];
   recordFeedbackPreference?: TrainingRouteDeps["recordFeedbackPreference"];
   getHealth: () => Promise<HealthPayload>;
@@ -71,6 +72,7 @@ export function buildApiServer(deps: ApiDeps): FastifyInstance {
     promoteParameterModule: deps.promoteParameterModule ?? null,
     retireParameterModule: deps.retireParameterModule ?? null,
     getParameterSnapshot: deps.getParameterSnapshot ?? null,
+    getIreneStatus: deps.getIreneStatus ?? null,
   });
   registerTrainingRoutes(app, {
     exportAll: deps.exporter,

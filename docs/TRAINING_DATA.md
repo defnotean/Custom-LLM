@@ -112,6 +112,7 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-hotload/apply \
   -d '{"manifestPath":"training/plans/parameter-hotload/latest.json","dryRun":true}'
 
 curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<module-id>"
+curl "http://127.0.0.1:3000/learning/irene-status?selectedModuleIds=<module-id>&includeProductionReadiness=true"
 ```
 
 `GET /learning/review` serves a self-contained browser console for live-learning review. It lists filtered learned items, shows learning/parameter metrics, lets an operator approve, reject, queue, dry-run batch approve+queue, execute batch approve+queue, and dry-run parameter-growth planning through the same ops endpoints below. It adds no separate frontend build and still relies on the API's dry-run-first mutation rules.
@@ -123,6 +124,8 @@ curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<modul
 `POST /learning/parameter-growth/dataset` builds the next handoff artifact from a checked plan. Dry-run mode reads the plan and returns a `parameter-growth-dataset-build-v1` gate preflight without writing files. With `execute:true`, it writes per-batch JSONL plus `manifest.json`, immediately runs the dataset quality gate, and reports pass/fail before trainer dispatch. The builder still re-fetches learned items by id, verifies approval, queued status, retention, and content/metadata hashes, so stale or unreviewed learning cannot silently become training data.
 
 `POST /learning/parameter-training/dispatch` exposes `ParameterTrainerDispatchService` through the running ops API. It dry-runs by default, re-checks the dataset quality gate, and returns the exact `parameter-training-dispatch-v1` request with expected run/staging paths and next gates. With `execute:true`, it sends the checked request to `PARAMETER_TRAINER_ENDPOINT`; if no private trainer backend is configured, execution returns a 503 instead of pretending training happened.
+
+`GET /learning/irene-status` returns the same `irene-system-status-v1` accounting as `npm run report:irene-status`: active/system/request parameter totals, scratch checkpoint parameters, learning counts, and the capability scorecard. Pass `selectedModuleIds` to inspect a specific hotload/module combination and `includeProductionReadiness=true` when the operator wants the heavier production-readiness report, including the SubQ/SSA architecture contract for the subquadratic sparse-attention long-context path.
 
 The scheduled worker also writes parameter-growth plans to `training/plans/parameter-growth/` every six hours when the DB-backed learning repository is available. That directory is generated output and is intentionally ignored by Git.
 

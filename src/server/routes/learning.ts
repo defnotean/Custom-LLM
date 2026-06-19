@@ -28,6 +28,7 @@ import {
   type ParameterGrowthGateResult,
   type ParameterGrowthGateThresholds,
 } from "../../training/parameter/ParameterGrowthPlanGate";
+import type { IreneSystemStatusReport } from "../../training/quality/IreneSystemStatusReport";
 import type {
   BuildParameterGrowthDatasetInput,
   ParameterGrowthDatasetBuildReport,
@@ -107,6 +108,9 @@ export interface LearningRouteDeps {
   ) => Promise<ParameterModule>) | null;
   retireParameterModule?: ((id: string) => Promise<ParameterModule>) | null;
   getParameterSnapshot?: ((options?: { selectedModuleIds?: string[] }) => Promise<ParameterGrowthSnapshot>) | null;
+  getIreneStatus?: ((
+    options?: { selectedModuleIds?: string[]; includeProductionReadiness?: boolean },
+  ) => Promise<IreneSystemStatusReport>) | null;
 }
 
 const kindSchema = z.enum(["memory", "skill", "preference", "correction", "eval_failure", "voice_summary", "document"]);
@@ -166,6 +170,18 @@ const parameterModuleQuerySchema = z.object({
 
 const parameterSnapshotQuerySchema = z.object({
   selectedModuleIds: z.string().trim().optional(),
+});
+
+const booleanQueryFlagSchema = z
+  .preprocess(
+    (value) => (typeof value === "string" ? value.trim().toLowerCase() : value),
+    z.union([z.boolean(), z.enum(["true", "false", "1", "0"])]).optional(),
+  )
+  .transform((value) => value === true || value === "true" || value === "1");
+
+const ireneStatusQuerySchema = z.object({
+  selectedModuleIds: z.string().trim().optional(),
+  includeProductionReadiness: booleanQueryFlagSchema,
 });
 
 const idParamsSchema = z.object({
@@ -436,11 +452,23 @@ export function registerLearningRoutes(app: FastifyInstance, deps: LearningRoute
     if (!parsed.success) {
       return reply.status(400).send({ error: "invalid parameter snapshot query", details: parsed.error.flatten() });
     }
-    const selectedModuleIds = parsed.data.selectedModuleIds
-      ?.split(",")
-      .map((id) => id.trim())
-      .filter(Boolean);
-    return deps.getParameterSnapshot(selectedModuleIds?.length ? { selectedModuleIds } : undefined);
+    const selectedModuleIds = parseSelectedModuleIds(parsed.data.selectedModuleIds);
+    return deps.getParameterSnapshot(selectedModuleIds ? { selectedModuleIds } : undefined);
+  });
+
+  app.get("/learning/irene-status", async (request, reply) => {
+    if (!deps.getIreneStatus) {
+      return reply.status(503).send({ error: "irene status reporter disabled" });
+    }
+    const parsed = ireneStatusQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid irene status query", details: parsed.error.flatten() });
+    }
+    const selectedModuleIds = parseSelectedModuleIds(parsed.data.selectedModuleIds);
+    return deps.getIreneStatus({
+      ...(selectedModuleIds ? { selectedModuleIds } : {}),
+      includeProductionReadiness: parsed.data.includeProductionReadiness,
+    });
   });
 
   app.post("/learning/parameter-growth/plan", async (request, reply) => {
@@ -854,6 +882,14 @@ function queueSkipReasonFor(
     return "learning item is not approved or high-confidence enough for training";
   }
   return null;
+}
+
+function parseSelectedModuleIds(input?: string): string[] | undefined {
+  const ids = input
+    ?.split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return ids?.length ? ids : undefined;
 }
 
 type ParameterGrowthPlanBody = z.infer<typeof parameterGrowthPlanBodySchema>;

@@ -407,7 +407,7 @@ Tasks:
 - Add experts or router-controlled specialists when a single model starts mixing incompatible behaviors.
 - Expand the long-context gate beyond the current 28-case operational chain into broader task-level repository reasoning once SubQ or a production SSA checkpoint is available.
 - Evaluate larger bases or MoE models when current models plateau.
-- Track total system capability separately from raw parameter count through `npm run report:irene-status`: base model params, active params, adapter params, specialist params, memory corpus size, tool count, eval pass rate, latency, and cost.
+- Track total system capability separately from raw parameter count through `npm run report:irene-status` and `GET /learning/irene-status`: base model params, active params, adapter params, specialist params, memory corpus size, tool count, SubQ/SSA long-context readiness, eval pass rate, latency, and cost.
 
 Success criteria:
 

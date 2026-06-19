@@ -5,6 +5,7 @@ import type { LearnedItem, ParameterModule } from "../src/learning/LiveLearningR
 import type { ParameterGrowthPlan } from "../src/training/parameter/ParameterGrowthPlanner";
 import type { ParameterGrowthDatasetBuildReport } from "../src/training/parameter/ParameterGrowthDatasetBuildRunner";
 import type { ParameterTrainerDispatchReport } from "../src/training/parameter/ParameterTrainerDispatchService";
+import type { IreneSystemStatusReport } from "../src/training/quality/IreneSystemStatusReport";
 
 describe("learning routes", () => {
   it("returns live learning and parameter-growth status", async () => {
@@ -447,6 +448,70 @@ describe("learning routes", () => {
       },
       { method: "snapshot", options: { selectedModuleIds: ["module-1", "adapter-1"] } },
     ]);
+    await app.close();
+  });
+
+  it("returns Irene capability status through the ops API", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      getIreneStatus: async (options) => {
+        calls.push(options);
+        const report = ireneStatusReport();
+        return {
+          ...report,
+          parameterAccounting: {
+            ...report.parameterAccounting,
+            selectedModuleIds: options?.selectedModuleIds ?? [],
+          },
+          ...(options?.includeProductionReadiness
+            ? {
+                productionReadiness: {
+                  stage: "sft",
+                  status: "ready",
+                  passChecks: 29,
+                  warnChecks: 3,
+                  failChecks: 0,
+                  warnings: [],
+                  failures: [],
+                },
+              }
+            : {}),
+        };
+      },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/learning/irene-status?selectedModuleIds=module-1,adapter-1&includeProductionReadiness=true",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      runtimeContract: "irene-system-status-v1",
+      parameterAccounting: { selectedModuleIds: ["module-1", "adapter-1"] },
+      capabilityScorecard: [
+        {
+          id: "long_context_subq",
+          label: "SubQ/SSA long-context gate",
+          status: "pass",
+        },
+      ],
+      productionReadiness: { status: "ready", failChecks: 0 },
+    });
+    expect(calls).toEqual([{ selectedModuleIds: ["module-1", "adapter-1"], includeProductionReadiness: true }]);
+    await app.close();
+  });
+
+  it("returns unavailable when Irene status reporting is not configured", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, { getStats: null });
+
+    const response = await app.inject({ method: "GET", url: "/learning/irene-status" });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "irene status reporter disabled" });
     await app.close();
   });
 
@@ -1062,6 +1127,67 @@ describe("learning routes", () => {
     await app.close();
   });
 });
+
+function ireneStatusReport(overrides: Partial<IreneSystemStatusReport> = {}): IreneSystemStatusReport {
+  return {
+    runtimeContract: "irene-system-status-v1",
+    generatedAt: "2026-06-19T18:00:00.000Z",
+    overall: {
+      capabilityLevel: "tool_protocol_specialist_prototype",
+      summary: "fixture status",
+      criticalFailures: [],
+    },
+    parameterAccounting: {
+      source: "parameter_snapshot",
+      plannedProductionBaseParams: 4_000_000_000,
+      activeSystemParams: 4_012_000_000,
+      activeParamsPerRequest: 4_012_000_000,
+      stagedParams: 775_358,
+      activeModuleIds: ["base-1", "adapter-1"],
+      stagedModuleIds: ["module-1"],
+      selectedModuleIds: [],
+      largestScratchCheckpointParams: 3_394_428,
+      largestScratchCheckpointRun: "tiny-transformer-iter3",
+      bestProtocolScratchParams: 775_358,
+      bestProtocolScratchRun: "tiny-transformer-protocol-iter16",
+      behaviorScratchParams: 392_619,
+      routerScratchParams: 343_050,
+    },
+    learning: {
+      enabled: true,
+      learnedItems: 3,
+      candidateItems: 1,
+      approvedItems: 1,
+      queuedItems: 1,
+      trainedItems: 0,
+      parameterModules: 2,
+      activeParameterModules: 1,
+      stagedParameterModules: 1,
+    },
+    scratchRuns: {
+      totalRuns: 0,
+      largestCheckpoint: null,
+      bestProtocol: null,
+      behavior: null,
+      router: null,
+    },
+    capabilityScorecard: [
+      {
+        id: "long_context_subq",
+        label: "SubQ/SSA long-context gate",
+        status: "pass",
+        cases: 28,
+        params: null,
+        evidencePath: "training/evals/long-context-oracle.gate.json",
+        metrics: { exactMatchRate: 1 },
+        summary: "SubQ/SSA long-context oracle gate passes on the checked suite.",
+      },
+    ],
+    nextActions: [],
+    caveats: [],
+    ...overrides,
+  };
+}
 
 function learnedItem(overrides: Partial<LearnedItem> = {}): LearnedItem {
   return {
