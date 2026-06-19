@@ -79,6 +79,20 @@ npm run check:subq-architecture
 
 Promotion criteria for this track are stricter than "it trains": the checkpoint must reload through the direct evaluators, preserve tool protocol behavior, keep the `check:subq-architecture` contract passing, and eventually beat dense attention on long-context retrieval/cost before any SSA model replaces the normal serving path.
 
+## Parameter Trainer Runner
+
+Parameter-growth training starts from a checked `parameter-training-dispatch-v1` request. The repo-owned runner is safe by default: plan mode writes the run contract and SubQ/SSA expectations, while import mode only stages artifacts that an external Axolotl/Unsloth/custom trainer already produced.
+
+```bash
+npm run check:subq-architecture
+npm run run:parameter-trainer -- --request training/runs/parameter-modules/<run-id>/trainer-dispatch-request.json --mode plan --framework axolotl
+
+npm run run:parameter-trainer -- --request training/runs/parameter-modules/<run-id>/trainer-dispatch-request.json --mode import-artifacts --framework axolotl --artifact-dir training/runs/qwen3-qlora-sft --parameters <total-module-params> --active-parameters <active-module-params> --trainable-parameters <trainable-module-params> --rollback-target-id <previous-module-id> --eval-report kind=dataset_quality,path=<dataset-quality-report>,status=pass --eval-report kind=parameter_growth,path=<parameter-growth-report>,status=pass --eval-report kind=training_report,path=<training-report>,status=pass --eval-report kind=contamination,path=<contamination-report>,status=pass
+npm run check:parameter-module-staging -- --manifest training/runs/parameter-modules/<run-id>/staging-manifest.json
+```
+
+Attach every eval kind required by the staged module type before promotion. Adapters need protocol, knowledge, and behavior reports in addition to dataset quality, parameter growth, training report, and contamination evidence. Specialists/experts need skill and protocol reports. Router modules need router and protocol reports.
+
 ## Long-Context Retrieval Gate
 
 The SubQ/SSA path now has its own held-out gate. It builds deterministic synthetic needle-in-context prompts with early/middle/late answer positions, many similar distractor trace values, increasing context sizes, synthetic repository artifact bundles that ask for exact file paths, environment variables, routing contracts, tool-gate order, voice retention policy, and parameter staging gates, real repository snapshot lookups from `package.json`, `ProductionTrainingReadiness.ts`, and `LLMRouter.ts`, plus multi-file repo reasoning cases that connect package scripts, readiness checks, router behavior, setup docs, dataset governance, parameter-growth handoff, and the SubQ architecture contract. Live predictions are sent through the normal LLM router with `metadata.longContext=true`; pass `--preferred-provider subq` when you want to pin the SubQ route instead of relying on automatic long-context routing.
