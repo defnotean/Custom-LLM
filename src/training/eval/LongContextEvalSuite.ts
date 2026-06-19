@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import {
+  SUBQ_ARCHITECTURE_TARGET,
+  SUBQ_PROVIDER_ID,
+} from "../../ai/architecture/SubquadraticSparseAttentionContract";
 import type { EvalLatencyStats } from "./ToolEvalSuite";
 
 export type LongContextNeedlePosition = "early" | "middle" | "late";
@@ -46,8 +50,8 @@ export interface LongContextEvalCase {
     taskType: LongContextTaskType;
     distractorAnswers: string[];
     longContext: true;
-    preferredProvider: "subq";
-    architectureTarget: "subquadratic-sparse-attention";
+    preferredProvider: typeof SUBQ_PROVIDER_ID;
+    architectureTarget: typeof SUBQ_ARCHITECTURE_TARGET;
   };
 }
 
@@ -316,8 +320,8 @@ function makeLongContextCase(input: {
       taskType: "needle_retrieval",
       distractorAnswers,
       longContext: true,
-      preferredProvider: "subq",
-      architectureTarget: "subquadratic-sparse-attention",
+      preferredProvider: SUBQ_PROVIDER_ID,
+      architectureTarget: SUBQ_ARCHITECTURE_TARGET,
     },
   };
 }
@@ -495,8 +499,8 @@ function makeRepoArtifactCase(input: {
       taskType: input.taskType,
       distractorAnswers: input.distractorAnswers,
       longContext: true,
-      preferredProvider: "subq",
-      architectureTarget: "subquadratic-sparse-attention",
+      preferredProvider: SUBQ_PROVIDER_ID,
+      architectureTarget: SUBQ_ARCHITECTURE_TARGET,
     },
   };
 }
@@ -827,8 +831,8 @@ function makeRealRepoSnapshotCase(input: {
       taskType: input.taskType,
       distractorAnswers: input.distractorAnswers,
       longContext: true,
-      preferredProvider: "subq",
-      architectureTarget: "subquadratic-sparse-attention",
+      preferredProvider: SUBQ_PROVIDER_ID,
+      architectureTarget: SUBQ_ARCHITECTURE_TARGET,
     },
   };
 }
@@ -891,8 +895,8 @@ function makeRealRepoMultifileCase(input: {
       taskType: input.taskType,
       distractorAnswers: input.distractorAnswers,
       longContext: true,
-      preferredProvider: "subq",
-      architectureTarget: "subquadratic-sparse-attention",
+      preferredProvider: SUBQ_PROVIDER_ID,
+      architectureTarget: SUBQ_ARCHITECTURE_TARGET,
     },
   };
 }

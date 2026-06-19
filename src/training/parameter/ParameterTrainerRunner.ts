@@ -4,6 +4,15 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join } from "node:path";
 import type { ParameterModuleKind } from "../../learning/LiveLearningRegistry";
 import {
+  buildLocalLogSparseTrainerArgs,
+  DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE,
+  LOCAL_LOG_SPARSE_ATTENTION_MODE,
+  SUBQ_ARCHITECTURE_GATE_COMMAND,
+  SUBQ_ARCHITECTURE_GATE_SCRIPT,
+  SUBQ_ARCHITECTURE_TARGET,
+  SUBQ_PROVIDER_ID,
+} from "../../ai/architecture/SubquadraticSparseAttentionContract";
+import {
   PARAMETER_MODULE_STAGING_EVAL_KINDS,
   type ParameterModuleStagingEvalKind,
   type ParameterModuleStagingManifest,
@@ -87,7 +96,6 @@ export interface ParameterTrainerRunnerReport {
 }
 
 const DEFAULT_FRAMEWORK: ParameterTrainerRunnerFramework = "axolotl";
-const ARCHITECTURE_TARGET = "subquadratic-sparse-attention";
 const DEFAULT_TRAINING_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 
 interface ParameterTrainerRunnerCommandSpec {
@@ -305,10 +313,11 @@ function buildRunnerPlan(input: {
     stagingManifestPath: input.request.expectedOutput.stagingManifestPath,
     suggestedCommands: suggestedCommands(input.framework, input.request),
     architecture: {
-      target: ARCHITECTURE_TARGET,
-      requiredGate: "npm run check:subq-architecture",
-      longContextProvider: "subq",
-      sparseAttentionSmoke: "training/train_tiny_transformer_lm.py --attention-mode local-log-sparse",
+      target: SUBQ_ARCHITECTURE_TARGET,
+      requiredGate: SUBQ_ARCHITECTURE_GATE_COMMAND,
+      longContextProvider: SUBQ_PROVIDER_ID,
+      sparseAttentionSmoke: `training/train_tiny_transformer_lm.py ${buildLocalLogSparseTrainerArgs().join(" ")}`,
+      sparseAttentionProfile: DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE,
       note:
         "Long-context growth must stay compatible with the SubQ/SSA path. Dense-only runs are acceptable only for narrow non-long-context adapters/specialists.",
     },
@@ -323,7 +332,7 @@ function suggestedCommands(
 ): string[] {
   if (framework === "axolotl") {
     return [
-      "npm run check:subq-architecture",
+      SUBQ_ARCHITECTURE_GATE_COMMAND,
       "npm run check:production-readiness",
       `npm run run:parameter-trainer -- --request ${request.expectedOutput.runDir}/trainer-dispatch-request.json --mode execute-training --framework axolotl`,
       "axolotl train training/configs/axolotl/qwen3-qlora-sft.yaml",
@@ -332,7 +341,7 @@ function suggestedCommands(
   }
   if (framework === "unsloth") {
     return [
-      "npm run check:subq-architecture",
+      SUBQ_ARCHITECTURE_GATE_COMMAND,
       "npm run check:production-readiness",
       `npm run run:parameter-trainer -- --request ${request.expectedOutput.runDir}/trainer-dispatch-request.json --mode execute-training --framework unsloth`,
       "python training/configs/unsloth/qwen3_qlora_sft.py",
@@ -365,7 +374,10 @@ function buildTrainingCommand(input: {
       PARAMETER_TRAINER_RUN_DIR: input.request.expectedOutput.runDir,
       PARAMETER_TRAINER_STAGING_MANIFEST_PATH: input.request.expectedOutput.stagingManifestPath,
       PARAMETER_TRAINER_FRAMEWORK: input.framework,
-      PARAMETER_TRAINER_ARCHITECTURE_TARGET: ARCHITECTURE_TARGET,
+      PARAMETER_TRAINER_ARCHITECTURE_TARGET: SUBQ_ARCHITECTURE_TARGET,
+      PARAMETER_TRAINER_ATTENTION_MODE: LOCAL_LOG_SPARSE_ATTENTION_MODE,
+      PARAMETER_TRAINER_SPARSE_LOCAL_WINDOW: String(DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE.localWindow),
+      PARAMETER_TRAINER_SPARSE_LOG_BASE: String(DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE.logBase),
       ...(input.options.env ?? {}),
     },
   };
@@ -397,7 +409,8 @@ function buildTrainingExecutionPlan(input: {
     runDir: input.request.expectedOutput.runDir,
     stagingManifestPath: input.request.expectedOutput.stagingManifestPath,
     framework: input.framework,
-    architectureTarget: ARCHITECTURE_TARGET,
+    architectureTarget: SUBQ_ARCHITECTURE_TARGET,
+    attentionMode: LOCAL_LOG_SPARSE_ATTENTION_MODE,
     preflightReportPath: input.preflightReportPath,
     preflightStatus: input.preflightStatus,
     command: commandReport(input.command),
@@ -424,7 +437,8 @@ function buildTrainingExecutionReport(input: {
     runDir: input.request.expectedOutput.runDir,
     stagingManifestPath: input.request.expectedOutput.stagingManifestPath,
     framework: input.framework,
-    architectureTarget: ARCHITECTURE_TARGET,
+    architectureTarget: SUBQ_ARCHITECTURE_TARGET,
+    attentionMode: LOCAL_LOG_SPARSE_ATTENTION_MODE,
     preflightReportPath: input.preflightReportPath,
     preflightStatus: input.preflightStatus,
     command: commandReport(input.command),
@@ -564,8 +578,9 @@ async function buildStagingManifest(input: {
       trainerProfile: request.trainerProfile,
       framework: input.framework,
       mode: "import-artifacts",
-      architectureTarget: ARCHITECTURE_TARGET,
-      requiredArchitectureGate: "check:subq-architecture",
+      architectureTarget: SUBQ_ARCHITECTURE_TARGET,
+      requiredArchitectureGate: SUBQ_ARCHITECTURE_GATE_SCRIPT,
+      attentionMode: LOCAL_LOG_SPARSE_ATTENTION_MODE,
     },
   };
 }

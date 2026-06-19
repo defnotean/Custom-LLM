@@ -35,6 +35,7 @@ describe("SubquadraticArchitectureReadiness", () => {
       largestDenseEdgeRatio: expect.any(Number),
       growthExponent: expect.any(Number),
     });
+    expect(report.checks.map((check) => check.id)).toContain("subq-contract-constants");
     expect(report.checks.map((check) => check.id)).toContain("subq-router-contract");
     expect(report.checks.map((check) => check.id)).toContain("local-sparse-attention-budget");
     expect(report.checks.every((check) => check.status === "pass")).toBe(true);
@@ -88,23 +89,40 @@ describe("SubquadraticArchitectureReadiness", () => {
 
   async function writeFixture(overrides: {
     caseOverride?: Record<string, unknown>;
+    contractSource?: string;
     trainerSource?: string;
   } = {}): Promise<{
     suitePath: string;
+    contractSourcePath: string;
     routerSourcePath: string;
     trainerPath: string;
     evaluatorPath: string;
   }> {
     dir = await mkdtemp(join(tmpdir(), "subq-architecture-"));
     const suitePath = join(dir, "long-context.eval.jsonl");
+    const contractSourcePath = join(dir, "SubquadraticSparseAttentionContract.ts");
     const routerSourcePath = join(dir, "LLMRouter.ts");
     const trainerPath = join(dir, "train_tiny_transformer_lm.py");
     const evaluatorPath = join(dir, "evaluate_tiny_transformer_lm.py");
     await mkdir(dir, { recursive: true });
     await writeLongContextSuite(suitePath, overrides.caseOverride);
     await writeFile(
+      contractSourcePath,
+      overrides.contractSource ??
+        [
+          'export const SUBQ_PROVIDER_ID = "subq" as const;',
+          'export const SUBQ_ARCHITECTURE_TARGET = "subquadratic-sparse-attention" as const;',
+          'export const LOCAL_LOG_SPARSE_ATTENTION_MODE = "local-log-sparse" as const;',
+          "export const DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE = {};",
+          "export function isSubqLongContextMetadata(metadata: Record<string, unknown> | undefined): boolean {",
+          "  return metadata?.longContext === true || metadata?.preferredProvider === SUBQ_PROVIDER_ID || metadata?.architectureTarget === SUBQ_ARCHITECTURE_TARGET;",
+          "}",
+        ].join("\n") + "\n",
+      "utf8",
+    );
+    await writeFile(
       routerSourcePath,
-      'const preferredProvider = request.metadata?.preferredProvider;\nconst provider = request.metadata?.longContext === true ? "subq" : preferredProvider;\nconst allowDenseLongContextFallback = env.SUBQ_ALLOW_DENSE_FALLBACK;\n',
+      'const preferredProvider = isSubqLongContextMetadata(request.metadata) ? SUBQ_PROVIDER_ID : request.metadata?.preferredProvider;\nconst allowDenseLongContextFallback = env.SUBQ_ALLOW_DENSE_FALLBACK;\n',
       "utf8",
     );
     await writeFile(
@@ -118,7 +136,7 @@ describe("SubquadraticArchitectureReadiness", () => {
       'attention_mode=str(config.get("attention_mode", "dense"))\nsparse_local_window=int(config.get("sparse_local_window", 32))\nsparse_log_base=int(config.get("sparse_log_base", 2))\n',
       "utf8",
     );
-    return { suitePath, routerSourcePath, trainerPath, evaluatorPath };
+    return { suitePath, contractSourcePath, routerSourcePath, trainerPath, evaluatorPath };
   }
 });
 

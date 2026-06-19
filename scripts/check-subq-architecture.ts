@@ -24,6 +24,7 @@ function parseArgs(argv: string[]): SubquadraticArchitectureReadinessOptions {
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === "--suite") options.suitePath = requireValue(argv[++index], arg);
+    else if (arg === "--contract-source") options.contractSourcePath = requireValue(argv[++index], arg);
     else if (arg === "--router") options.routerSourcePath = requireValue(argv[++index], arg);
     else if (arg === "--trainer") options.trainerPath = requireValue(argv[++index], arg);
     else if (arg === "--evaluator") options.evaluatorPath = requireValue(argv[++index], arg);

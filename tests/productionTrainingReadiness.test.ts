@@ -487,6 +487,7 @@ describe("ProductionTrainingReadiness", () => {
     const axolotlDpoConfigPath = join(configDir, "qwen3-qlora-dpo.yaml");
     const unslothSftConfigPath = join(configDir, "qwen3_qlora_sft.py");
     const unslothDpoConfigPath = join(configDir, "qwen3_dpo.py");
+    const subqContractSourcePath = join(configDir, "SubquadraticSparseAttentionContract.ts");
     const llmRouterSourcePath = join(configDir, "LLMRouter.ts");
     const tinyTrainerPath = join(configDir, "train_tiny_transformer_lm.py");
     const tinyEvaluatorPath = join(configDir, "evaluate_tiny_transformer_lm.py");
@@ -496,8 +497,21 @@ describe("ProductionTrainingReadiness", () => {
     await writeFile(unslothSftConfigPath, overrides.unslothSft ?? goodUnslothSftConfig(), "utf8");
     await writeFile(unslothDpoConfigPath, overrides.unslothDpo ?? goodUnslothDpoConfig(), "utf8");
     await writeFile(
+      subqContractSourcePath,
+      [
+        'export const SUBQ_PROVIDER_ID = "subq" as const;',
+        'export const SUBQ_ARCHITECTURE_TARGET = "subquadratic-sparse-attention" as const;',
+        'export const LOCAL_LOG_SPARSE_ATTENTION_MODE = "local-log-sparse" as const;',
+        "export const DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE = {};",
+        "export function isSubqLongContextMetadata(metadata: Record<string, unknown> | undefined): boolean {",
+        "  return metadata?.longContext === true || metadata?.preferredProvider === SUBQ_PROVIDER_ID || metadata?.architectureTarget === SUBQ_ARCHITECTURE_TARGET;",
+        "}",
+      ].join("\n") + "\n",
+      "utf8",
+    );
+    await writeFile(
       llmRouterSourcePath,
-      'const preferredProvider = request.metadata?.preferredProvider;\nconst provider = request.metadata?.longContext === true ? "subq" : preferredProvider;\nconst allowDenseLongContextFallback = env.SUBQ_ALLOW_DENSE_FALLBACK;\n',
+      'const preferredProvider = isSubqLongContextMetadata(request.metadata) ? SUBQ_PROVIDER_ID : request.metadata?.preferredProvider;\nconst allowDenseLongContextFallback = env.SUBQ_ALLOW_DENSE_FALLBACK;\n',
       "utf8",
     );
     await writeFile(
@@ -539,6 +553,7 @@ describe("ProductionTrainingReadiness", () => {
         memoryContinuityGatePath,
         skillRetrievalGatePath,
         longContextSuitePath,
+        subqContractSourcePath,
         llmRouterSourcePath,
         tinyTrainerPath,
         tinyEvaluatorPath,

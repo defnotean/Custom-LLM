@@ -1,3 +1,5 @@
+import { LOCAL_LOG_SPARSE_ATTENTION_MODE } from "../../ai/architecture/SubquadraticSparseAttentionContract";
+
 export interface SparseAttentionBudgetOptions {
   sequenceLengths: number[];
   localWindow: number;
@@ -15,7 +17,7 @@ export interface SparseAttentionBudgetPoint {
 }
 
 export interface SparseAttentionBudgetReport {
-  mode: "local-log-sparse";
+  mode: typeof LOCAL_LOG_SPARSE_ATTENTION_MODE;
   localWindow: number;
   logBase: number;
   points: SparseAttentionBudgetPoint[];
@@ -42,7 +44,7 @@ export function analyzeLocalLogSparseAttentionBudget(
         Math.log(largest.sequenceLength / first.sequenceLength);
 
   return {
-    mode: "local-log-sparse",
+    mode: LOCAL_LOG_SPARSE_ATTENTION_MODE,
     localWindow: options.localWindow,
     logBase: options.logBase,
     points,

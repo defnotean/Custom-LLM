@@ -1,18 +1,28 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import {
+  DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE,
+  LOCAL_LOG_SPARSE_ATTENTION_MODE,
+  SUBQ_ARCHITECTURE_TARGET,
+  SUBQ_PROVIDER_ID,
+  type LocalLogSparseAttentionProfile,
+} from "../../ai/architecture/SubquadraticSparseAttentionContract";
+import {
   analyzeLocalLogSparseAttentionBudget,
   type SparseAttentionBudgetReport,
 } from "./SparseAttentionBudget";
 
-export const SUBQ_PROVIDER_ID = "subq" as const;
-export const SUBQ_ARCHITECTURE_TARGET = "subquadratic-sparse-attention" as const;
-export const LOCAL_LOG_SPARSE_ATTENTION_MODE = "local-log-sparse" as const;
+export {
+  LOCAL_LOG_SPARSE_ATTENTION_MODE,
+  SUBQ_ARCHITECTURE_TARGET,
+  SUBQ_PROVIDER_ID,
+} from "../../ai/architecture/SubquadraticSparseAttentionContract";
 
 export type SubquadraticArchitectureReadinessStatus = "pass" | "fail";
 
 export interface SubquadraticArchitectureReadinessOptions {
   suitePath?: string;
+  contractSourcePath?: string;
   routerSourcePath?: string;
   trainerPath?: string;
   evaluatorPath?: string;
@@ -38,6 +48,7 @@ export interface SubquadraticArchitectureReadinessReport {
   status: SubquadraticArchitectureReadinessStatus;
   generatedAt: string;
   suitePath: string;
+  contractSourcePath: string;
   routerSourcePath: string;
   trainerPath: string;
   evaluatorPath: string;
@@ -105,16 +116,17 @@ const DEFAULT_REQUIRED_TASK_TYPES = [
 
 const DEFAULTS = {
   suitePath: "training/evals/long-context.eval.jsonl",
+  contractSourcePath: "src/ai/architecture/SubquadraticSparseAttentionContract.ts",
   routerSourcePath: "src/ai/llm/LLMRouter.ts",
   trainerPath: "training/train_tiny_transformer_lm.py",
   evaluatorPath: "training/evaluate_tiny_transformer_lm.py",
   minCases: 28,
-  sparseSequenceLengths: [2048, 8192, 64000],
-  sparseLocalWindow: 32,
-  sparseLogBase: 2,
-  maxSparseGrowthExponent: 1.25,
-  maxSparseLargestDenseEdgeRatio: 0.01,
-  maxSparseAverageKeysPerToken: 96,
+  sparseSequenceLengths: DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE.sequenceLengths,
+  sparseLocalWindow: DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE.localWindow,
+  sparseLogBase: DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE.logBase,
+  maxSparseGrowthExponent: DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE.maxGrowthExponent,
+  maxSparseLargestDenseEdgeRatio: DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE.maxLargestDenseEdgeRatio,
+  maxSparseAverageKeysPerToken: DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE.maxAverageKeysPerToken,
 };
 
 const caseSchema = z.object({
@@ -135,8 +147,9 @@ export async function checkSubquadraticArchitectureReadiness(
   const config = { ...DEFAULTS, ...options };
   const requiredSources = options.requiredSources ?? DEFAULT_REQUIRED_SOURCES;
   const requiredTaskTypes = options.requiredTaskTypes ?? DEFAULT_REQUIRED_TASK_TYPES;
-  const [suiteRows, routerSource, trainerSource, evaluatorSource] = await Promise.all([
+  const [suiteRows, contractSource, routerSource, trainerSource, evaluatorSource] = await Promise.all([
     readJsonl(config.suitePath),
+    readFile(config.contractSourcePath, "utf8"),
     readFile(config.routerSourcePath, "utf8"),
     readFile(config.trainerPath, "utf8"),
     readFile(config.evaluatorPath, "utf8"),
@@ -196,9 +209,25 @@ export async function checkSubquadraticArchitectureReadiness(
           missing: missingKeys(taskTypes, requiredTaskTypes),
           taskTypes,
         }),
-    routerSource.includes("metadata?.longContext === true") &&
-    routerSource.includes('"subq"') &&
-    routerSource.includes("preferredProvider") &&
+    contractSource.includes(`SUBQ_PROVIDER_ID = "${SUBQ_PROVIDER_ID}"`) &&
+    contractSource.includes(`SUBQ_ARCHITECTURE_TARGET = "${SUBQ_ARCHITECTURE_TARGET}"`) &&
+    contractSource.includes(`LOCAL_LOG_SPARSE_ATTENTION_MODE = "${LOCAL_LOG_SPARSE_ATTENTION_MODE}"`) &&
+    contractSource.includes("DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE") &&
+    contractSource.includes("isSubqLongContextMetadata") &&
+    contractSource.includes("metadata?.longContext === true")
+      ? pass("subq-contract-constants", "Shared SubQ/SSA contract pins provider, architecture target, mode, and metadata predicate")
+      : fail("subq-contract-constants", "Shared SubQ/SSA contract no longer proves the required constants and metadata predicate", {
+          required: [
+            `SUBQ_PROVIDER_ID = "${SUBQ_PROVIDER_ID}"`,
+            `SUBQ_ARCHITECTURE_TARGET = "${SUBQ_ARCHITECTURE_TARGET}"`,
+            `LOCAL_LOG_SPARSE_ATTENTION_MODE = "${LOCAL_LOG_SPARSE_ATTENTION_MODE}"`,
+            "DEFAULT_LOCAL_LOG_SPARSE_ATTENTION_PROFILE",
+            "isSubqLongContextMetadata",
+            "metadata?.longContext === true",
+          ],
+        }),
+    routerSource.includes("isSubqLongContextMetadata") &&
+    routerSource.includes("SUBQ_PROVIDER_ID") &&
     routerSource.includes("allowDenseLongContextFallback") &&
     routerSource.includes("SUBQ_ALLOW_DENSE_FALLBACK")
       ? pass(
@@ -207,9 +236,8 @@ export async function checkSubquadraticArchitectureReadiness(
         )
       : fail("subq-router-contract", "LLMRouter no longer proves strict long-context SubQ routing", {
           required: [
-            "metadata?.longContext === true",
-            '"subq"',
-            "preferredProvider",
+            "isSubqLongContextMetadata",
+            "SUBQ_PROVIDER_ID",
             "allowDenseLongContextFallback",
             "SUBQ_ALLOW_DENSE_FALLBACK",
           ],
@@ -237,9 +265,9 @@ export async function checkSubquadraticArchitectureReadiness(
           required: ["attention_mode", "sparse_local_window", "sparse_log_base"],
         }),
     sparseAttentionBudgetCheck(sparseBudget, {
-      maxSparseGrowthExponent: config.maxSparseGrowthExponent,
-      maxSparseLargestDenseEdgeRatio: config.maxSparseLargestDenseEdgeRatio,
-      maxSparseAverageKeysPerToken: config.maxSparseAverageKeysPerToken,
+      maxGrowthExponent: config.maxSparseGrowthExponent,
+      maxLargestDenseEdgeRatio: config.maxSparseLargestDenseEdgeRatio,
+      maxAverageKeysPerToken: config.maxSparseAverageKeysPerToken,
     }),
   ];
 
@@ -247,6 +275,7 @@ export async function checkSubquadraticArchitectureReadiness(
     status: checks.every((check) => check.status === "pass") ? "pass" : "fail",
     generatedAt: new Date().toISOString(),
     suitePath: config.suitePath,
+    contractSourcePath: config.contractSourcePath,
     routerSourcePath: config.routerSourcePath,
     trainerPath: config.trainerPath,
     evaluatorPath: config.evaluatorPath,
@@ -273,16 +302,15 @@ export async function checkSubquadraticArchitectureReadiness(
 
 function sparseAttentionBudgetCheck(
   report: SparseAttentionBudgetReport,
-  thresholds: {
-    maxSparseGrowthExponent: number;
-    maxSparseLargestDenseEdgeRatio: number;
-    maxSparseAverageKeysPerToken: number;
-  },
+  thresholds: Pick<
+    LocalLogSparseAttentionProfile,
+    "maxGrowthExponent" | "maxLargestDenseEdgeRatio" | "maxAverageKeysPerToken"
+  >,
 ): SubquadraticArchitectureReadinessCheck {
   const passBudget =
-    report.growthExponent <= thresholds.maxSparseGrowthExponent &&
-    report.largest.denseEdgeRatio <= thresholds.maxSparseLargestDenseEdgeRatio &&
-    report.largest.averageKeysPerToken <= thresholds.maxSparseAverageKeysPerToken;
+    report.growthExponent <= thresholds.maxGrowthExponent &&
+    report.largest.denseEdgeRatio <= thresholds.maxLargestDenseEdgeRatio &&
+    report.largest.averageKeysPerToken <= thresholds.maxAverageKeysPerToken;
   const details = {
     localWindow: report.localWindow,
     logBase: report.logBase,

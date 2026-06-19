@@ -229,6 +229,7 @@ export interface ProductionTrainingReadinessOptions {
   processedDatasetReportPath?: string;
   datasetPreparerSourcePath?: string;
   longContextSuitePath?: string;
+  subqContractSourcePath?: string;
   llmRouterSourcePath?: string;
   tinyTrainerPath?: string;
   tinyEvaluatorPath?: string;
@@ -329,6 +330,7 @@ const DEFAULTS = {
   processedDatasetReportPath: "training/data/processed/dataset_report.json",
   datasetPreparerSourcePath: "src/training/external/OpenDatasetPreparer.ts",
   longContextSuitePath: "training/evals/long-context.eval.jsonl",
+  subqContractSourcePath: "src/ai/architecture/SubquadraticSparseAttentionContract.ts",
   llmRouterSourcePath: "src/ai/llm/LLMRouter.ts",
   tinyTrainerPath: "training/train_tiny_transformer_lm.py",
   tinyEvaluatorPath: "training/evaluate_tiny_transformer_lm.py",
@@ -436,6 +438,7 @@ export async function checkProductionTrainingReadiness(
       }),
       checkSubquadraticArchitectureReadiness({
         suitePath: config.longContextSuitePath,
+        contractSourcePath: config.subqContractSourcePath,
         routerSourcePath: config.llmRouterSourcePath,
         trainerPath: config.tinyTrainerPath,
         evaluatorPath: config.tinyEvaluatorPath,

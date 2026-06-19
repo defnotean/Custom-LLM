@@ -77,7 +77,12 @@ describe("ParameterTrainerRunner", () => {
       trainingCommand: {
         command: process.execPath,
         args: ["-e", "console.log('should not run')"],
-        envKeys: expect.arrayContaining(["PARAMETER_TRAINER_ARCHITECTURE_TARGET"]),
+        envKeys: expect.arrayContaining([
+          "PARAMETER_TRAINER_ARCHITECTURE_TARGET",
+          "PARAMETER_TRAINER_ATTENTION_MODE",
+          "PARAMETER_TRAINER_SPARSE_LOCAL_WINDOW",
+          "PARAMETER_TRAINER_SPARSE_LOG_BASE",
+        ]),
       },
     });
     expect(executionPlan).toMatchObject({
@@ -108,7 +113,10 @@ describe("ParameterTrainerRunner", () => {
       framework: "custom",
       execute: true,
       command: process.execPath,
-      commandArgs: ["-e", "console.log(process.env.PARAMETER_TRAINER_ARCHITECTURE_TARGET)"],
+      commandArgs: [
+        "-e",
+        "console.log([process.env.PARAMETER_TRAINER_ARCHITECTURE_TARGET,process.env.PARAMETER_TRAINER_ATTENTION_MODE,process.env.PARAMETER_TRAINER_SPARSE_LOCAL_WINDOW,process.env.PARAMETER_TRAINER_SPARSE_LOG_BASE].join('|'))",
+      ],
       timeoutMs: 10_000,
       preflight: { requireSubqArchitecture: false, requireProductionReadiness: false },
       now: () => "2026-06-19T00:18:00.000Z",
@@ -123,7 +131,7 @@ describe("ParameterTrainerRunner", () => {
       exitCode: 0,
       preflightStatus: "pass",
     });
-    expect(stdout.trim()).toBe("subquadratic-sparse-attention");
+    expect(stdout.trim()).toBe("subquadratic-sparse-attention|local-log-sparse|32|2");
     expect(executionReport).toMatchObject({
       runtimeContract: "parameter-trainer-execution-report-v1",
       status: "pass",

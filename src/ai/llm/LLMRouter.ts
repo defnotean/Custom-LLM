@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 import type { LLMChatRequest, LLMChatResponse, LLMProviderInfo } from "../../types/ai";
 import { LLMProviderError, toErrorMessage } from "../../utils/errors";
 import type { Env } from "../../config/env";
+import { isSubqLongContextMetadata, SUBQ_PROVIDER_ID } from "../architecture/SubquadraticSparseAttentionContract";
 import type { LLMProvider } from "./LLMProvider";
 import { OpenAICompatibleProvider } from "./OpenAICompatibleProvider";
 import { OllamaProvider } from "./OllamaProvider";
@@ -56,17 +57,14 @@ export class LLMRouter implements LLMProvider {
   private providersForRequest(request: LLMChatRequest): LLMProvider[] {
     const metadataPreferredProvider =
       typeof request.metadata?.preferredProvider === "string" ? request.metadata.preferredProvider : undefined;
-    const requiresSubqRoute =
-      request.metadata?.longContext === true ||
-      request.metadata?.architectureTarget === "subquadratic-sparse-attention";
-    const preferredProvider = requiresSubqRoute ? "subq" : metadataPreferredProvider;
+    const preferredProvider = isSubqLongContextMetadata(request.metadata) ? SUBQ_PROVIDER_ID : metadataPreferredProvider;
     if (!preferredProvider) return this.providers;
     const preferred = this.providers.find((provider) => provider.info.name === preferredProvider);
-    const isSubqRequest = preferredProvider === "subq";
+    const isSubqRequest = preferredProvider === SUBQ_PROVIDER_ID;
     if (!preferred) {
       if (isSubqRequest && !this.allowDenseLongContextFallback) {
         throw new LLMProviderError(
-          'SubQ/SSA long-context request requires a configured "subq" provider. Set SUBQ_ENABLED=true with SUBQ_BASE_URL and SUBQ_MODEL, or explicitly set SUBQ_ALLOW_DENSE_FALLBACK=true for development fallback.',
+          `SubQ/SSA long-context request requires a configured "${SUBQ_PROVIDER_ID}" provider. Set SUBQ_ENABLED=true with SUBQ_BASE_URL and SUBQ_MODEL, or explicitly set SUBQ_ALLOW_DENSE_FALLBACK=true for development fallback.`,
         );
       }
       this.logger?.warn(
@@ -109,7 +107,7 @@ export function buildLLMRouterFromEnv(env: Env, logger?: Logger): LLMRouter {
     } else {
       providers.push(
         new OpenAICompatibleProvider({
-          name: "subq",
+          name: SUBQ_PROVIDER_ID,
           baseUrl: env.SUBQ_BASE_URL,
           apiKey: env.SUBQ_API_KEY || env.LLM_API_KEY,
           model: env.SUBQ_MODEL,

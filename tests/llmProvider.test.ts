@@ -145,6 +145,21 @@ describe("LLMRouter", () => {
     expect(subq.requests).toHaveLength(1);
   });
 
+  it("prefers the SubQ provider for the subquadratic sparse-attention architecture target", async () => {
+    const local = new NamedMockProvider("openai-compatible", "local-model", "local response");
+    const subq = new NamedMockProvider("subq", "subq-model", "subq response");
+    const router = new LLMRouter([local, subq], testLogger);
+
+    const res = await router.generateChatCompletion({
+      messages: [{ role: "user", content: "reason over a huge memory bundle" }],
+      metadata: { architectureTarget: "subquadratic-sparse-attention" },
+    });
+
+    expect(res.content).toBe("subq response");
+    expect(local.requests).toHaveLength(0);
+    expect(subq.requests).toHaveLength(1);
+  });
+
   it("requires a configured SubQ provider for long-context requests by default", async () => {
     const local = new NamedMockProvider("openai-compatible", "local-model", "local response");
     const router = new LLMRouter([local], testLogger);
