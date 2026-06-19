@@ -28,6 +28,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "sft-first-party-signal")).toBe("warn");
     expect(checkStatus(report.checks, "sft-token-headroom")).toBe("pass");
     expect(checkStatus(report.checks, "behavior-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "voice-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
@@ -190,6 +191,7 @@ describe("ProductionTrainingReadiness", () => {
     const toolEvalReportPath = join(evalDir, "oracle.report.json");
     const knowledgeEvalReportPath = join(evalDir, "knowledge-oracle.report.json");
     const behaviorEvalReportPath = join(evalDir, "behavior-oracle.report.json");
+    const voiceEvalReportPath = join(evalDir, "voice-oracle.report.json");
     const routerEvalReportPath = join(evalDir, "specialist-routing-oracle.report.json");
     const toolRouterEvalReportPath = join(evalDir, "tool-router-keyword.report.json");
     const longContextEvalReportPath = join(evalDir, "long-context-oracle.report.json");
@@ -224,6 +226,18 @@ describe("ProductionTrainingReadiness", () => {
       casualToneAccuracy: 1,
       toolAbstainAccuracy: 1,
       boundaryAccuracy: 1,
+      missingPredictions: 0,
+      failures: [],
+    });
+    await writeJson(voiceEvalReportPath, {
+      total: 12,
+      transcriptExactRate: 1,
+      averageTranscriptTokenF1: 1,
+      speakerAttributionAccuracy: 1,
+      responseDecisionAccuracy: 1,
+      latencyPassRate: 1,
+      socialTimingPassRate: 1,
+      retentionPolicyPassRate: 1,
       missingPredictions: 0,
       failures: [],
     });
@@ -302,6 +316,7 @@ describe("ProductionTrainingReadiness", () => {
         toolEvalReportPath,
         knowledgeEvalReportPath,
         behaviorEvalReportPath,
+        voiceEvalReportPath,
         routerEvalReportPath,
         toolRouterEvalReportPath,
         longContextEvalReportPath,

@@ -1,0 +1,35 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "minTotalCases": 12,
+    "minTranscriptExactRate": 0.9,
+    "minAverageTranscriptTokenF1": 0.95,
+    "minSpeakerAttributionAccuracy": 1,
+    "minResponseDecisionAccuracy": 1,
+    "minLatencyPassRate": 1,
+    "minSocialTimingPassRate": 1,
+    "minRetentionPolicyPassRate": 1,
+    "maxMissingPredictions": 0,
+    "maxFailures": 0,
+    "maxScoreRegression": 0.02,
+    "maxMissingPredictionIncrease": 0
+  },
+  "candidate": {
+    "suitePath": "training/evals/voice.eval.jsonl",
+    "predictionsPath": "training/evals/voice-oracle.predictions.jsonl",
+    "total": 12,
+    "transcriptExactRate": 1,
+    "averageTranscriptTokenF1": 1,
+    "speakerAttributionAccuracy": 1,
+    "responseDecisionAccuracy": 1,
+    "latencyPassRate": 1,
+    "socialTimingPassRate": 1,
+    "retentionPolicyPassRate": 1,
+    "missingPredictions": 0,
+    "failures": 0,
+    "transcriptionP95Ms": 1107,
+    "responseP95Ms": 1469
+  },
+  "failures": [],
+  "warnings": []
+}

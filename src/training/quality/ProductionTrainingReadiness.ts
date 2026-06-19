@@ -89,6 +89,19 @@ const behaviorEvalReportSchema = z.object({
   failures: z.array(z.unknown()),
 });
 
+const voiceEvalReportSchema = z.object({
+  total: z.number().int().nonnegative(),
+  transcriptExactRate: z.number().min(0).max(1),
+  averageTranscriptTokenF1: z.number().min(0).max(1),
+  speakerAttributionAccuracy: z.number().min(0).max(1),
+  responseDecisionAccuracy: z.number().min(0).max(1),
+  latencyPassRate: z.number().min(0).max(1),
+  socialTimingPassRate: z.number().min(0).max(1),
+  retentionPolicyPassRate: z.number().min(0).max(1),
+  missingPredictions: z.number().int().nonnegative(),
+  failures: z.array(z.unknown()),
+});
+
 const routerEvalReportSchema = z.object({
   total: z.number().int().nonnegative(),
   routeAccuracy: z.number().min(0).max(1),
@@ -133,6 +146,7 @@ export interface ProductionTrainingReadinessOptions {
   toolEvalReportPath?: string;
   knowledgeEvalReportPath?: string;
   behaviorEvalReportPath?: string;
+  voiceEvalReportPath?: string;
   routerEvalReportPath?: string;
   toolRouterEvalReportPath?: string;
   longContextEvalReportPath?: string;
@@ -197,6 +211,7 @@ type PreferenceReport = z.infer<typeof preferenceReportSchema>;
 type ToolEvalReport = z.infer<typeof toolEvalReportSchema>;
 type KnowledgeEvalReport = z.infer<typeof knowledgeEvalReportSchema>;
 type BehaviorEvalReport = z.infer<typeof behaviorEvalReportSchema>;
+type VoiceEvalReport = z.infer<typeof voiceEvalReportSchema>;
 type RouterEvalReport = z.infer<typeof routerEvalReportSchema>;
 type ToolRouterEvalReport = z.infer<typeof toolRouterEvalReportSchema>;
 type LongContextEvalReport = z.infer<typeof longContextEvalReportSchema>;
@@ -208,6 +223,7 @@ const DEFAULTS = {
   toolEvalReportPath: "training/evals/oracle.report.json",
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
   behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
+  voiceEvalReportPath: "training/evals/voice-oracle.report.json",
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
   toolRouterEvalReportPath: "training/evals/tool-router-keyword.report.json",
   longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
@@ -257,6 +273,7 @@ export async function checkProductionTrainingReadiness(
     toolEvalReport,
     knowledgeEvalReport,
     behaviorEvalReport,
+    voiceEvalReport,
     routerEvalReport,
     toolRouterEvalReport,
     longContextEvalReport,
@@ -267,6 +284,7 @@ export async function checkProductionTrainingReadiness(
       readJson(config.toolEvalReportPath, toolEvalReportSchema),
       readJson(config.knowledgeEvalReportPath, knowledgeEvalReportSchema),
       readJson(config.behaviorEvalReportPath, behaviorEvalReportSchema),
+      readJson(config.voiceEvalReportPath, voiceEvalReportSchema),
       readJson(config.routerEvalReportPath, routerEvalReportSchema),
       readJson(config.toolRouterEvalReportPath, toolRouterEvalReportSchema),
       readJson(config.longContextEvalReportPath, longContextEvalReportSchema),
@@ -305,6 +323,7 @@ export async function checkProductionTrainingReadiness(
       toolEvalReport,
       knowledgeEvalReport,
       behaviorEvalReport,
+      voiceEvalReport,
       routerEvalReport,
       toolRouterEvalReport,
       longContextEvalReport,
@@ -548,6 +567,7 @@ function evalHarnessChecks(
   toolReport: ToolEvalReport,
   knowledgeReport: KnowledgeEvalReport,
   behaviorReport: BehaviorEvalReport,
+  voiceReport: VoiceEvalReport,
   routerReport: RouterEvalReport,
   toolRouterReport: ToolRouterEvalReport,
   longContextReport: LongContextEvalReport,
@@ -601,6 +621,29 @@ function evalHarnessChecks(
           boundaryAccuracy: behaviorReport.boundaryAccuracy,
           missingPredictions: behaviorReport.missingPredictions,
           failures: behaviorReport.failures.length,
+        }),
+    voiceReport.total >= 12 &&
+    voiceReport.transcriptExactRate >= 0.9 &&
+    voiceReport.averageTranscriptTokenF1 >= 0.95 &&
+    voiceReport.speakerAttributionAccuracy === 1 &&
+    voiceReport.responseDecisionAccuracy === 1 &&
+    voiceReport.latencyPassRate === 1 &&
+    voiceReport.socialTimingPassRate === 1 &&
+    voiceReport.retentionPolicyPassRate === 1 &&
+    voiceReport.missingPredictions === 0 &&
+    voiceReport.failures.length === 0
+      ? pass("voice-eval-harness", `Voice eval harness is healthy with ${voiceReport.total} oracle cases`)
+      : fail("voice-eval-harness", "Voice eval oracle report does not satisfy promotion-gate expectations", {
+          total: voiceReport.total,
+          transcriptExactRate: voiceReport.transcriptExactRate,
+          averageTranscriptTokenF1: voiceReport.averageTranscriptTokenF1,
+          speakerAttributionAccuracy: voiceReport.speakerAttributionAccuracy,
+          responseDecisionAccuracy: voiceReport.responseDecisionAccuracy,
+          latencyPassRate: voiceReport.latencyPassRate,
+          socialTimingPassRate: voiceReport.socialTimingPassRate,
+          retentionPolicyPassRate: voiceReport.retentionPolicyPassRate,
+          missingPredictions: voiceReport.missingPredictions,
+          failures: voiceReport.failures.length,
         }),
     routerReport.total >= 18 &&
     routerReport.routeAccuracy >= 0.95 &&

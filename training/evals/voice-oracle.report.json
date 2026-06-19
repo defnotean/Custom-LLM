@@ -1,0 +1,82 @@
+{
+  "suitePath": "training/evals/voice.eval.jsonl",
+  "predictionsPath": "training/evals/voice-oracle.predictions.jsonl",
+  "total": 12,
+  "transcriptExactRate": 1,
+  "averageTranscriptTokenF1": 1,
+  "speakerAttributionAccuracy": 1,
+  "responseDecisionAccuracy": 1,
+  "latencyPassRate": 1,
+  "socialTimingPassRate": 1,
+  "retentionPolicyPassRate": 1,
+  "missingPredictions": 0,
+  "transcriptionLatencyMs": {
+    "count": 12,
+    "average": 903.5,
+    "p95": 1107,
+    "max": 1107
+  },
+  "responseLatencyMs": {
+    "count": 10,
+    "average": 1284.5,
+    "p95": 1469,
+    "max": 1469
+  },
+  "byKind": {
+    "latency": {
+      "total": 2,
+      "transcriptExact": 2,
+      "speakerCorrect": 2,
+      "responseDecisionCorrect": 2,
+      "latencyPassed": 2,
+      "socialTimingPassed": 2,
+      "retentionPassed": 2
+    },
+    "retention_policy": {
+      "total": 2,
+      "transcriptExact": 2,
+      "speakerCorrect": 2,
+      "responseDecisionCorrect": 2,
+      "latencyPassed": 2,
+      "socialTimingPassed": 2,
+      "retentionPassed": 2
+    },
+    "social_timing": {
+      "total": 2,
+      "transcriptExact": 2,
+      "speakerCorrect": 2,
+      "responseDecisionCorrect": 2,
+      "latencyPassed": 2,
+      "socialTimingPassed": 2,
+      "retentionPassed": 2
+    },
+    "speaker_attribution": {
+      "total": 2,
+      "transcriptExact": 2,
+      "speakerCorrect": 2,
+      "responseDecisionCorrect": 2,
+      "latencyPassed": 2,
+      "socialTimingPassed": 2,
+      "retentionPassed": 2
+    },
+    "transcription_quality": {
+      "total": 2,
+      "transcriptExact": 2,
+      "speakerCorrect": 2,
+      "responseDecisionCorrect": 2,
+      "latencyPassed": 2,
+      "socialTimingPassed": 2,
+      "retentionPassed": 2
+    },
+    "turn_taking": {
+      "total": 2,
+      "transcriptExact": 2,
+      "speakerCorrect": 2,
+      "responseDecisionCorrect": 2,
+      "latencyPassed": 2,
+      "socialTimingPassed": 2,
+      "retentionPassed": 2
+    }
+  },
+  "failures": []
+}

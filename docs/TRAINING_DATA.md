@@ -194,6 +194,17 @@ npm run eval:behavior:gate -- --candidate training/evals/behavior-llm.report.jso
 
 The behavior suite is held out from training and checks the she/her persona contract, affective persona wording, Discord-native casual replies, no generic refusal/filter language for allowed prompts, social support/repair, direct safety boundaries, and tool abstention for no-tool prompts. It is deliberately small today so it can act as a fast CI gate; grow it with reviewed first-party examples before using DPO to tune persona.
 
+For voice-facing regressions, run:
+
+```bash
+npm run build:voice-eval
+npm run eval:voice:oracle
+npm run eval:voice -- --predictions training/evals/voice-oracle.predictions.jsonl --out training/evals/voice-oracle.report.json
+npm run eval:voice:gate -- --candidate training/evals/voice-oracle.report.json
+```
+
+The voice suite is held out from training and checks transcript exact/F1 quality, speaker attribution, no-reply turn-taking, response latency, social timing, and raw-audio/training retention defaults. Live Discord/STT validation is still required before treating voice as production quality.
+
 For the MoE-style specialist router path, run:
 
 ```bash

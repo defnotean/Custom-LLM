@@ -264,6 +264,7 @@ npm run check:dataset-governance
 npm run build:eval-suite
 npm run build:knowledge-eval
 npm run build:behavior-eval
+npm run build:voice-eval
 npm run build:router-eval
 npm run build:long-context-eval
 npm run check:contamination
@@ -465,6 +466,29 @@ Metrics reported:
 - `missingPredictions`
 - latency stats when predictions include `latencyMs`
 
+## Voice Eval Harness
+
+The voice suite is a deterministic gate for Irene's Discord voice path. It does not replace live Discord/STT validation; it defines the prediction contract and promotion metrics for transcript quality, speaker attribution, turn-taking, latency, social timing, and retention defaults:
+
+```bash
+npm run build:voice-eval
+npm run eval:voice:oracle
+npm run eval:voice -- --predictions training/evals/voice-oracle.predictions.jsonl --out training/evals/voice-oracle.report.json
+npm run eval:voice:gate -- --candidate training/evals/voice-oracle.report.json --out training/evals/voice-oracle.gate.json
+```
+
+Metrics reported:
+
+- `transcriptExactRate`
+- `averageTranscriptTokenF1`
+- `speakerAttributionAccuracy`
+- `responseDecisionAccuracy`
+- `latencyPassRate`
+- `socialTimingPassRate`
+- `retentionPolicyPassRate`
+- `missingPredictions`
+- transcription and response latency stats
+
 ## Specialist Router Eval Harness
 
 The router suite checks the explicit MoE-style gate that decides which specialist surface should handle a prompt. It is separate from the assistant response protocol:
@@ -572,6 +596,7 @@ Every model iteration must:
 - Pass `npm run eval:gate` against the candidate report, and compare against the current production baseline when one exists.
 - Pass `npm run eval:knowledge:gate` against the candidate knowledge report before promotion.
 - Pass `npm run eval:behavior:gate` against the candidate behavior report before promotion.
+- Pass `npm run eval:voice:gate` against the candidate voice report before promoting voice-facing changes.
 - Pass `npm run eval:router:gate` against the candidate router report before promoting any specialist-router checkpoint.
 - Pass `npm run eval:long-context:gate` against long-context reports before promoting SubQ/SSA routes or any model advertised for repository-scale context.
 - Keep the held-out eval split out of the training set, and prove it with the contamination audit.
