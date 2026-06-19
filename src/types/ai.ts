@@ -122,7 +122,7 @@ export interface SafetyPort {
     guildId: string | null;
     channelId: string;
     content: string;
-  }): SafetyVerdict;
+  }): Promise<SafetyVerdict>;
   /** Whether a tool execution must be confirmed by the user first. */
   toolRequiresConfirmation(input: {
     riskLevel: string;

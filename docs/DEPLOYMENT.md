@@ -31,7 +31,8 @@ Bare-metal alternative: `npm run build && node dist/src/index.js` under systemd/
 | Parameter hotload endpoint | `npm run serve:parameter-hotload` provides the private control contract with auth/status/rollback state. Keep the default `PARAMETER_HOTLOAD_BACKEND=state-only` for local contract tests, or set `PARAMETER_HOTLOAD_BACKEND=http` plus `PARAMETER_HOTLOAD_BACKEND_URL` to delegate checked load/rollback requests to `npm run serve:model-adapter-sidecar`. The sidecar supports vLLM runtime LoRA load/unload and Ollama adapter-model create/unload; live serving validation and any LM Studio-specific adapter semantics remain required before production promotion. Never expose either endpoint publicly |
 | Database | Managed Postgres with pgvector available (or the bundled image); backups on; `prisma migrate deploy` in CI/CD |
 | Logs | pino JSON to stdout → your aggregator. `LOG_LEVEL=info` |
-| Cooldowns/rate limits | In-process today → fine for one replica. Before scaling replicas: implement the Redis `CooldownStore` + move rate limits/pending confirmations to Redis (interfaces ready) |
+| Cooldowns/rate limits | In-process by default. Set `RUNTIME_STATE_STORE=redis` plus `REDIS_URL` to share tool cooldowns and message rate limits across replicas |
+| Pending confirmations | In-process today. Move pending high-risk tool confirmations to Redis before running multiple bot replicas |
 | Job queue | In-process today → swap `InProcessJobQueue` for BullMQ on the provisioned Redis for durability/retries |
 | Moderation | Regex placeholder — wire a real moderation model before opening to untrusted servers (see ARCHITECTURE.md) |
 | Sharding | Required at 2,500 guilds; do the Redis migration first, then discord.js sharding is straightforward |
@@ -41,6 +42,6 @@ Bare-metal alternative: `npm run build && node dist/src/index.js` under systemd/
 ## Scaling path (when it hurts)
 
 1. One process, one box (now) →
-2. Redis-backed cooldowns/limits/queue, same box →
+2. Redis-backed cooldowns/limits, then Redis-backed confirmations and queue, same box →
 3. Postgres read replica + Qdrant for vectors if pgvector filtered-search latency bites →
 4. Shard the gateway; keep the API/worker processes separate from gateway processes.

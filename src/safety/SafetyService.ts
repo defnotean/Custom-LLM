@@ -32,15 +32,15 @@ export class SafetyService implements SafetyPort {
     this.moderation = options?.moderation ?? new ModerationRules();
   }
 
-  precheckMessage(input: {
+  async precheckMessage(input: {
     userId: string;
     guildId: string | null;
     channelId: string;
     content: string;
-  }): SafetyVerdict {
+  }): Promise<SafetyVerdict> {
     if (!this.enabled) return { allowed: true };
 
-    const rate = this.rateLimit.check(`msg:${input.userId}`);
+    const rate = await this.rateLimit.check(`msg:${input.userId}`);
     if (!rate.allowed) {
       const seconds = Math.ceil(rate.retryAfterMs / 1000);
       this.logger.info({ userId: input.userId }, "rate limited");

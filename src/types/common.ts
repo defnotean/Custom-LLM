@@ -14,6 +14,7 @@ export interface HealthPayload {
   discord: { configured: boolean; connected: boolean };
   llm: { provider: string; model: string; baseUrl: string };
   database: { available: boolean };
+  runtimeState: { store: "memory" | "redis"; redisConnected: boolean };
   memory: { enabled: boolean; store: string };
 }
 

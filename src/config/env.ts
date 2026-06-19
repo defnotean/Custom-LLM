@@ -47,6 +47,9 @@ const envSchema = z.object({
     .string()
     .default("postgresql://postgres:postgres@localhost:5432/custom_discord_ai"),
   REDIS_URL: z.string().default("redis://localhost:6379"),
+  RUNTIME_STATE_STORE: z.enum(["memory", "redis"]).default("memory"),
+  REDIS_KEY_PREFIX: z.string().min(1).default("irene"),
+  REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(2_000),
 
   // LLM
   LLM_PROVIDER: z.enum(["openai-compatible", "ollama"]).default("openai-compatible"),

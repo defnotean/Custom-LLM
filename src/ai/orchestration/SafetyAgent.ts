@@ -8,7 +8,7 @@ import type { BotMessageContext } from "../../types/discord";
 export class SafetyAgent {
   constructor(private readonly safety: SafetyPort) {}
 
-  precheck(ctx: BotMessageContext): SafetyVerdict {
+  async precheck(ctx: BotMessageContext): Promise<SafetyVerdict> {
     return this.safety.precheckMessage({
       userId: ctx.userId,
       guildId: ctx.guildId,

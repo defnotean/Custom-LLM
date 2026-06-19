@@ -43,6 +43,8 @@ import {
 } from "./memory/EmbeddingProvider";
 
 import { SafetyService } from "./safety/SafetyService";
+import { RateLimitService } from "./safety/RateLimitService";
+import { connectRedisRuntimeState, type RedisRuntimeState } from "./state/RedisRuntimeState";
 import { TrainingDataLogger } from "./training/TrainingDataLogger";
 import { DatasetExporter } from "./training/DatasetExporter";
 import { InteractionLearningCapture } from "./learning/InteractionLearningCapture";
@@ -95,6 +97,7 @@ async function main(): Promise<void> {
   const feedbackRepo = prisma ? new UserFeedbackRepository(prisma) : null;
   const learningRepo = prisma ? new LiveLearningRepository(prisma) : null;
   const guildRepo = prisma ? new GuildRepository(prisma) : null;
+  const redisRuntimeState = await initRuntimeState();
 
   // ── LLM ────────────────────────────────────────────────────────────────
   const llm = buildLLMRouterFromEnv(env, childLogger("llm"));
@@ -123,6 +126,9 @@ async function main(): Promise<void> {
   // ── Safety ─────────────────────────────────────────────────────────────
   const safetyService = new SafetyService(childLogger("safety"), {
     enabled: env.SAFETY_ENABLED,
+    rateLimit: new RateLimitService({
+      ...(redisRuntimeState ? { store: redisRuntimeState.rateLimitStore } : {}),
+    }),
   });
 
   // ── Tools ──────────────────────────────────────────────────────────────
@@ -133,7 +139,7 @@ async function main(): Promise<void> {
   const executor = new ToolExecutor({
     registry,
     permissions: new ToolPermissionService(),
-    cooldowns: new ToolCooldownService(),
+    cooldowns: new ToolCooldownService(redisRuntimeState?.cooldownStore),
     logger: childLogger("tool-executor"),
     logSink: toolLogRepo,
     safetyEnabled: env.SAFETY_ENABLED,
@@ -270,6 +276,10 @@ async function main(): Promise<void> {
     discord: { configured: env.DISCORD_TOKEN.length > 0, connected: discordClient.isReady() },
     llm: { provider: llm.info.name, model: llm.info.model, baseUrl: llm.info.baseUrl },
     database: { available: prisma !== null },
+    runtimeState: {
+      store: redisRuntimeState ? "redis" : "memory",
+      redisConnected: redisRuntimeState !== null,
+    },
     memory: {
       enabled: memoryService !== null,
       store: memoryService ? memoryService.storeName : "disabled",
@@ -402,6 +412,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, "shutting down");
     queue.stop();
+    await redisRuntimeState?.close().catch(() => undefined);
     await api.close().catch(() => undefined);
     await discordClient.destroy().catch(() => undefined);
     await closeDatabase();
@@ -411,6 +422,30 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
   logger.info("startup complete");
+}
+
+async function initRuntimeState(): Promise<RedisRuntimeState | null> {
+  if (env.RUNTIME_STATE_STORE !== "redis") {
+    logger.info({ store: "memory" }, "runtime state configured");
+    return null;
+  }
+
+  try {
+    const state = await connectRedisRuntimeState({
+      url: env.REDIS_URL,
+      keyPrefix: env.REDIS_KEY_PREFIX,
+      connectTimeoutMs: env.REDIS_CONNECT_TIMEOUT_MS,
+      logger: childLogger("redis"),
+    });
+    logger.info({ store: "redis", url: env.REDIS_URL, keyPrefix: env.REDIS_KEY_PREFIX }, "runtime state configured");
+    return state;
+  } catch (err) {
+    logger.warn(
+      { err: toErrorMessage(err), url: env.REDIS_URL },
+      "redis runtime state unavailable; falling back to in-memory state",
+    );
+    return null;
+  }
 }
 
 async function selectMemoryStore(

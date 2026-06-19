@@ -151,7 +151,7 @@ export class AgentController {
 
       // 1. Safety precheck (rate limit, moderation).
       if (this.safetyAgent) {
-        const verdict = this.safetyAgent.precheck(ctx);
+        const verdict = await this.safetyAgent.precheck(ctx);
         if (!verdict.allowed) {
           trace.errors.push(`safety_block: ${verdict.reason ?? "blocked"}`);
           const reply = verdict.userReply ?? this.safetyAgent.refusal(verdict.reason ?? "blocked");
