@@ -188,7 +188,7 @@ Dataset quality gates:
 | Scratch smoke models | Verify data plumbing, loss masking, checkpointing, and direct evals cheaply on CPU. | Loss improves, artifacts validate, direct evals produce honest pass/fail reports |
 | Protocol specialist | Prove exact JSON/tool behavior on a narrow held-out suite. | Tool gate passes: valid JSON, action type, tool name, args, no-tool accuracy all at 1.000, hallucinated tools at 0 |
 | Subquadratic sparse-attention smoke | Validate SSA-style local/log sparse attention before spending real training compute. | Sparse checkpoint trains, reloads, reports attention mode/parameter count, and passes long-context retrieval smoke gates before it is considered for larger runs |
-| Behavior/router specialist iteration 2 | Fix current invalid JSON failure on held-out behavior/router suites. | Behavior valid JSON >= 0.98 and router invalid predictions = 0 before judging tone/route quality |
+| Behavior/router specialist iteration 2 | Fix current invalid JSON failure on held-out behavior/router suites. | `npm run check:behavior-router-iteration` passes before training; then behavior valid JSON >= 0.98 and router invalid predictions = 0 before judging tone/route quality |
 | Production SFT | Train QLoRA adapter on open data plus consented/project-owned data. | Pass protocol, knowledge, behavior, router gates without latency regressions |
 | Preference tuning | Use DPO after enough reviewed prompt/chosen/rejected rows exist. | DPO readiness passes with non-synthetic preference volume and no eval regression |
 | Optional verifiable RL | Use GRPO only for verifiable rewards such as tool JSON validity, route correctness, and executable task success. | Reward is automatic, auditable, and resistant to reward hacking |

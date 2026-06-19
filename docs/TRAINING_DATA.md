@@ -240,6 +240,7 @@ npm run build:behavior-eval
 npm run eval:behavior:oracle
 npm run eval:behavior -- --predictions training/evals/behavior-oracle.predictions.jsonl --out training/evals/behavior-oracle.report.json
 npm run eval:behavior:gate -- --candidate training/evals/behavior-oracle.report.json
+npm run check:behavior-router-iteration
 
 # Live configured model sample, then score it
 npm run eval:behavior:llm -- --max-cases 5
@@ -268,9 +269,12 @@ npm run build:router-sft
 npm run eval:router:oracle
 npm run eval:router
 npm run eval:router:gate -- --out training/evals/specialist-routing-oracle.gate.json
+npm run check:behavior-router-iteration
 ```
 
 This writes a separate router SFT set under `training/data/router/` and a held-out `training/evals/specialist-routing.eval.jsonl` suite. The router rows are not mixed into the main assistant SFT because their assistant output is route-label JSON, not a user-facing assistant action. The current routes are `tool_protocol`, `knowledge`, `persona`, `casual`, `social_cue`, and `boundary`, mapped onto tool, knowledge, conversation, and safety experts.
+
+`check:behavior-router-iteration` is the pre-training gate for the next behavior/router scratch cycle. It reads `training/data/behavior/sft.all.jsonl`, `training/data/router/sft.all.jsonl`, the held-out behavior/router eval suites, and the current failed direct gates (`tiny-transformer-behavior-iter1.gate.json`, `tiny-transformer-router-iter1.gate.json`). It blocks another iteration if the SFT rows are not strict JSON, overlap held-out eval prompts, miss route/kind/expert coverage, or are not tied to the current failed metrics. Use this before spending even local CPU training time on behavior/router iteration 2.
 
 For approved-skill retrieval regressions, run:
 

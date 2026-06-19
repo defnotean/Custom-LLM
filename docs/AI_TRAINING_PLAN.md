@@ -243,6 +243,7 @@ Artifacts:
 - `npm run eval:knowledge:tiny` runs the promoted scratch Transformer checkpoint against held-out knowledge cases for behavioral tracking.
 - `npm run build:behavior-sft` creates a small project-owned behavior SFT dataset for the persona/social specialist path without training on the held-out behavior eval prompts.
 - `npm run build:router-sft` creates a separate project-owned specialist-router dataset whose route-label outputs are not mixed into user-facing assistant SFT.
+- `npm run check:behavior-router-iteration` blocks behavior/router iteration 2 unless the SFT data is strict JSON, balanced across the target routes/kinds/experts, free of exact held-out prompt overlap, and tied to the current failed direct gates.
 
 ## Current Local Iterations
 
@@ -274,6 +275,7 @@ Concrete repo commands:
 npm run generate:examples
 npm run build:behavior-sft
 npm run build:router-sft
+npm run check:behavior-router-iteration
 npm run build:sft-mixture
 npm run build:preference-mixture
 npm run analyze:sft-sequences -- --out training/data/mixtures/production-sft.sequence-report.json
