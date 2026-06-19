@@ -29,6 +29,10 @@ import {
   type ParameterGrowthGateThresholds,
 } from "../../training/parameter/ParameterGrowthPlanGate";
 import type {
+  BuildParameterGrowthDatasetInput,
+  ParameterGrowthDatasetBuildReport,
+} from "../../training/parameter/ParameterGrowthDatasetBuildRunner";
+import type {
   ParameterGrowthPlan,
   ParameterGrowthPlannerOptions,
   WrittenParameterGrowthPlan,
@@ -83,6 +87,9 @@ export interface LearningRouteDeps {
     outDir: string,
     options?: ParameterGrowthPlannerOptions,
   ) => Promise<WrittenParameterGrowthPlan>) | null;
+  buildParameterGrowthDataset?: ((
+    input: BuildParameterGrowthDatasetInput,
+  ) => Promise<ParameterGrowthDatasetBuildReport>) | null;
   applyParameterHotloadManifest?: ((
     input: ApplyParameterModuleHotloadInput,
   ) => Promise<ParameterModuleHotloadApplyReport>) | null;
@@ -261,6 +268,24 @@ const parameterGrowthPlanBodySchema = z
   })
   .strict();
 
+const parameterGrowthDatasetBodySchema = z
+  .object({
+    planPath: z.string().trim().min(1).max(2_048).default("training/plans/parameter-growth/latest.json"),
+    outDir: z.string().trim().min(1).max(2_048).default("training/data/parameter-growth"),
+    gate: z
+      .object({
+        minReadyBatches: z.number().int().nonnegative().max(1_000).optional(),
+        minRecordsPerReadyBatch: z.number().int().nonnegative().max(10_000).optional(),
+        maxEstimatedNewParameters: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+        allowRiskReview: z.boolean().optional(),
+        requiredGates: z.array(z.string().trim().min(1).max(128)).min(1).max(50).optional(),
+      })
+      .strict()
+      .optional(),
+    execute: z.boolean().optional(),
+  })
+  .strict();
+
 const promoteParameterModuleBodySchema = z
   .object({
     gateStatus: z.enum(["pass", "fail", "warn"]),
@@ -425,6 +450,24 @@ export function registerLearningRoutes(app: FastifyInstance, deps: LearningRoute
       gateReport,
       nextActions: parameterGrowthPlanNextActions(plan, gateReport, Boolean(written)),
     };
+  });
+
+  app.post("/learning/parameter-growth/dataset", async (request, reply) => {
+    if (!deps.buildParameterGrowthDataset) {
+      return reply.status(503).send({ error: "parameter growth dataset builder disabled" });
+    }
+    const body = parameterGrowthDatasetBodySchema.safeParse(request.body ?? {});
+    if (!body.success) {
+      return reply.status(400).send({ error: "invalid parameter growth dataset payload", details: body.error.flatten() });
+    }
+    const report = await deps.buildParameterGrowthDataset({
+      planPath: body.data.planPath,
+      outDir: body.data.outDir,
+      execute: body.data.execute ?? false,
+      gateThresholds: toParameterGrowthGateThresholds(body.data.gate),
+    });
+    const statusCode = report.status === "blocked" || report.status === "failed" ? 409 : 200;
+    return reply.status(statusCode).send(report);
   });
 
   app.get("/learning/parameter-modules", async (request, reply) => {

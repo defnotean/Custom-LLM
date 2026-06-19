@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { registerLearningRoutes } from "../src/server/routes/learning";
 import type { LearnedItem, ParameterModule } from "../src/learning/LiveLearningRegistry";
 import type { ParameterGrowthPlan } from "../src/training/parameter/ParameterGrowthPlanner";
+import type { ParameterGrowthDatasetBuildReport } from "../src/training/parameter/ParameterGrowthDatasetBuildRunner";
 
 describe("learning routes", () => {
   it("returns live learning and parameter-growth status", async () => {
@@ -541,6 +542,125 @@ describe("learning routes", () => {
     await app.close();
   });
 
+  it("dry-runs parameter-growth dataset builds through the ops API", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      buildParameterGrowthDataset: async (input) => {
+        calls.push(input);
+        return parameterGrowthDatasetReport({
+          status: "dry_run",
+          dryRun: true,
+          planPath: input.planPath,
+          outDir: input.outDir,
+        });
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-growth/dataset",
+      payload: {
+        planPath: "training/plans/parameter-growth/latest.json",
+        outDir: "training/data/parameter-growth",
+        gate: { allowRiskReview: true },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      runtimeContract: "parameter-growth-dataset-build-v1",
+      status: "dry_run",
+      dryRun: true,
+      planPath: "training/plans/parameter-growth/latest.json",
+      outDir: "training/data/parameter-growth",
+    });
+    expect(calls).toEqual([
+      {
+        planPath: "training/plans/parameter-growth/latest.json",
+        outDir: "training/data/parameter-growth",
+        execute: false,
+        gateThresholds: { requireRiskReview: false },
+      },
+    ]);
+    await app.close();
+  });
+
+  it("executes parameter-growth dataset builds and returns manifest quality", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      buildParameterGrowthDataset: async (input) => {
+        calls.push(input);
+        return parameterGrowthDatasetReport({
+          status: "built",
+          dryRun: false,
+          planPath: input.planPath,
+          outDir: input.outDir,
+          manifestPath: "training/data/parameter-growth/plan-1/manifest.json",
+        });
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-growth/dataset",
+      payload: {
+        planPath: "training/plans/parameter-growth/latest.json",
+        outDir: "training/data/parameter-growth",
+        gate: { allowRiskReview: true, minReadyBatches: 1 },
+        execute: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "built",
+      dryRun: false,
+      manifestPath: "training/data/parameter-growth/plan-1/manifest.json",
+      qualityReport: { status: "pass" },
+    });
+    expect(calls).toEqual([
+      {
+        planPath: "training/plans/parameter-growth/latest.json",
+        outDir: "training/data/parameter-growth",
+        execute: true,
+        gateThresholds: { minReadyBatches: 1, requireRiskReview: false },
+      },
+    ]);
+    await app.close();
+  });
+
+  it("reports blocked parameter-growth dataset builds as conflicts", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, {
+      getStats: null,
+      buildParameterGrowthDataset: async (input) =>
+        parameterGrowthDatasetReport({
+          status: "blocked",
+          dryRun: !(input.execute ?? false),
+          planPath: input.planPath,
+          outDir: input.outDir,
+          gateReport: { ...parameterGrowthDatasetReport().gateReport!, status: "fail" },
+        }),
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-growth/dataset",
+      payload: { planPath: "training/plans/parameter-growth/latest.json", execute: true },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      status: "blocked",
+      gateReport: { status: "fail" },
+    });
+    await app.close();
+  });
+
   it("stages parameter modules from a verified staging manifest", async () => {
     const app = Fastify({ logger: false });
     const calls: unknown[] = [];
@@ -878,5 +998,51 @@ function planRecord(itemId: string, contentHash: string): ParameterGrowthPlan["b
     canRetrieve: true,
     canTrain: true,
     contentPreview: "use ping tool with checked arguments",
+  };
+}
+
+function parameterGrowthDatasetReport(
+  overrides: Partial<ParameterGrowthDatasetBuildReport> = {},
+): ParameterGrowthDatasetBuildReport {
+  return {
+    runtimeContract: "parameter-growth-dataset-build-v1",
+    status: "dry_run",
+    generatedAt: "2026-06-18T17:00:00.000Z",
+    dryRun: true,
+    planPath: "training/plans/parameter-growth/latest.json",
+    outDir: "training/data/parameter-growth",
+    planId: "parameter-growth-fixture",
+    gateReport: {
+      status: "pass",
+      thresholds: {
+        minReadyBatches: 1,
+        minRecordsPerReadyBatch: 2,
+        maxEstimatedNewParameters: 25_000_000,
+        requireRiskReview: false,
+        requiredGateRequirements: ["contamination", "parameter_growth", "training_report"],
+      },
+      summary: {
+        planId: "parameter-growth-fixture",
+        planStatus: "ready",
+        queuedCandidates: 2,
+        trainableCandidates: 2,
+        blockedCandidates: 0,
+        batches: 1,
+        readyBatches: 1,
+        estimatedNewParameters: 775_358,
+      },
+      failures: [],
+      warnings: [],
+    },
+    manifestPath: "training/data/parameter-growth/parameter-growth-fixture/manifest.json",
+    qualityReport: {
+      status: "pass",
+      manifestPath: "training/data/parameter-growth/parameter-growth-fixture/manifest.json",
+      generatedAt: "2026-06-18T17:00:00.000Z",
+      summary: { files: 1, records: 2, batches: 1, gateStatus: "pass" },
+      checks: [],
+    },
+    nextActions: ["next"],
+    ...overrides,
   };
 }

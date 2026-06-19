@@ -29,6 +29,7 @@ export interface ApiDeps {
   stageParameterModuleFromManifest?: LearningRouteDeps["stageParameterModuleFromManifest"];
   buildParameterGrowthPlan?: LearningRouteDeps["buildParameterGrowthPlan"];
   writeParameterGrowthPlan?: LearningRouteDeps["writeParameterGrowthPlan"];
+  buildParameterGrowthDataset?: LearningRouteDeps["buildParameterGrowthDataset"];
   applyParameterHotloadManifest?: LearningRouteDeps["applyParameterHotloadManifest"];
   promoteParameterModule?: LearningRouteDeps["promoteParameterModule"];
   retireParameterModule?: LearningRouteDeps["retireParameterModule"];
@@ -63,6 +64,7 @@ export function buildApiServer(deps: ApiDeps): FastifyInstance {
     stageParameterModuleFromManifest: deps.stageParameterModuleFromManifest ?? null,
     buildParameterGrowthPlan: deps.buildParameterGrowthPlan ?? null,
     writeParameterGrowthPlan: deps.writeParameterGrowthPlan ?? null,
+    buildParameterGrowthDataset: deps.buildParameterGrowthDataset ?? null,
     applyParameterHotloadManifest: deps.applyParameterHotloadManifest ?? null,
     promoteParameterModule: deps.promoteParameterModule ?? null,
     retireParameterModule: deps.retireParameterModule ?? null,

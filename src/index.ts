@@ -54,6 +54,8 @@ import {
   ParameterModuleHotloadService,
 } from "./learning/ParameterModuleHotloadService";
 import { ParameterGrowthPlanner } from "./training/parameter/ParameterGrowthPlanner";
+import { ParameterGrowthDatasetBuilder } from "./training/parameter/ParameterGrowthDatasetBuilder";
+import { ParameterGrowthDatasetBuildRunner } from "./training/parameter/ParameterGrowthDatasetBuildRunner";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { createMessageHandler } from "./discord/events/messageCreate";
@@ -162,6 +164,9 @@ async function main(): Promise<void> {
   const parameterHotloadService = new ParameterModuleHotloadService(parameterHotloadLoader);
   logger.info({ configured: Boolean(parameterHotloadLoader) }, "parameter hotload service ready");
   const parameterGrowthPlanner = learningRepo ? new ParameterGrowthPlanner(learningRepo) : null;
+  const parameterGrowthDatasetRunner = learningRepo
+    ? new ParameterGrowthDatasetBuildRunner(new ParameterGrowthDatasetBuilder(learningRepo))
+    : null;
 
   // ── Discord client + agent ─────────────────────────────────────────────
   const discordClient = createDiscordClient();
@@ -340,6 +345,7 @@ async function main(): Promise<void> {
     writeParameterGrowthPlan: parameterGrowthPlanner
       ? (outDir, options) => parameterGrowthPlanner.writePlan(outDir, options)
       : null,
+    buildParameterGrowthDataset: parameterGrowthDatasetRunner ? (input) => parameterGrowthDatasetRunner.run(input) : null,
     applyParameterHotloadManifest: (input) => parameterHotloadService.apply(input),
     promoteParameterModule: learningRepo ? (id, options) => learningRepo.promoteParameterModule(id, options) : null,
     retireParameterModule: learningRepo ? (id) => learningRepo.retireParameterModule(id) : null,

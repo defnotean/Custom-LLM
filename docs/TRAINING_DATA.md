@@ -58,6 +58,14 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-growth/plan \
   -H "content-type: application/json" \
   -d '{"limit":250,"minItems":2,"gate":{"allowRiskReview":true},"execute":true}'
 
+curl -X POST http://127.0.0.1:3000/learning/parameter-growth/dataset \
+  -H "content-type: application/json" \
+  -d '{"planPath":"training/plans/parameter-growth/latest.json","gate":{"allowRiskReview":true}}'
+
+curl -X POST http://127.0.0.1:3000/learning/parameter-growth/dataset \
+  -H "content-type: application/json" \
+  -d '{"planPath":"training/plans/parameter-growth/latest.json","gate":{"allowRiskReview":true},"execute":true}'
+
 npm run plan:parameter-growth
 npm run check:parameter-growth-plan -- --allow-risk-review
 npm run build:parameter-growth-data -- --allow-risk-review
@@ -100,6 +108,8 @@ curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<modul
 `POST /learning/items/batch-review` is the operator handoff between "Irene learned candidates while running" and "these items may feed parameter growth." It accepts explicit ids or a typed filter, dry-runs by default, and only mutates when `execute:true` is present. The response uses `learning-batch-review-v1` and lists matched ids, missing ids, reviewed items, queued items, skips, and per-item errors. Queueing still honors retention, rejection, approval, confidence, and `force` rules; a dry run never calls the review or queue mutators.
 
 `POST /learning/parameter-growth/plan` lets the running ops API produce the same parameter-growth handoff as `npm run plan:parameter-growth`. Without `execute:true`, it builds the plan in memory and returns a `parameter-growth-plan-run-v1` report with the plan, gate report, and next actions. With `execute:true`, it writes the timestamped plan plus `training/plans/parameter-growth/latest.json`. This still does not train weights; it closes the gap between reviewed live learning and a fresh trainer handoff artifact without waiting for the six-hour worker.
+
+`POST /learning/parameter-growth/dataset` builds the next handoff artifact from a checked plan. Dry-run mode reads the plan and returns a `parameter-growth-dataset-build-v1` gate preflight without writing files. With `execute:true`, it writes per-batch JSONL plus `manifest.json`, immediately runs the dataset quality gate, and reports pass/fail before trainer dispatch. The builder still re-fetches learned items by id, verifies approval, queued status, retention, and content/metadata hashes, so stale or unreviewed learning cannot silently become training data.
 
 The scheduled worker also writes parameter-growth plans to `training/plans/parameter-growth/` every six hours when the DB-backed learning repository is available. That directory is generated output and is intentionally ignored by Git.
 
