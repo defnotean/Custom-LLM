@@ -12,6 +12,7 @@ import {
   writeSpecialistRoutingEvalSuite,
   type SpecialistRoutingEvalCase,
 } from "../src/training/eval/SpecialistRoutingEvalSuite";
+import type { KnowledgeEvalCase } from "../src/training/eval/KnowledgeEvalSuite";
 
 describe("ProductionTrainingReadiness", () => {
   let dir: string | null = null;
@@ -36,6 +37,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "sft-first-party-signal")).toBe("warn");
     expect(checkStatus(report.checks, "sft-token-headroom")).toBe("pass");
     expect(checkStatus(report.checks, "behavior-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "knowledge-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "behavior-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "voice-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "voice-coverage")).toBe("pass");
@@ -150,6 +152,20 @@ describe("ProductionTrainingReadiness", () => {
 
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "behavior-coverage")).toBe("fail");
+  });
+
+  it("fails production readiness when knowledge coverage is incomplete", async () => {
+    const fixture = await writeFixture({
+      knowledgeEvalRows: buildKnowledgeEvalRows().filter((item) => item.source !== "dolly"),
+    });
+
+    const report = await checkProductionTrainingReadiness({
+      ...fixture.options,
+      knowledgeCoverageMinCases: 0,
+    });
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "knowledge-coverage")).toBe("fail");
   });
 
   it("fails production readiness when voice coverage is incomplete", async () => {
@@ -339,6 +355,7 @@ describe("ProductionTrainingReadiness", () => {
 
     const toolEvalReportPath = join(evalDir, "oracle.report.json");
     const toolEvalSuitePath = join(evalDir, "tool-routing.eval.jsonl");
+    const knowledgeEvalSuitePath = join(evalDir, "knowledge.eval.jsonl");
     const behaviorEvalSuitePath = join(evalDir, "behavior.eval.jsonl");
     const knowledgeEvalReportPath = join(evalDir, "knowledge-oracle.report.json");
     const behaviorEvalReportPath = join(evalDir, "behavior-oracle.report.json");
@@ -364,6 +381,7 @@ describe("ProductionTrainingReadiness", () => {
       failures: [],
     });
     await writeJsonl(toolEvalSuitePath, overrides.toolEvalRows ?? buildToolEvalCases(buildToolRegistry()));
+    await writeJsonl(knowledgeEvalSuitePath, overrides.knowledgeEvalRows ?? buildKnowledgeEvalRows());
     await writeJsonl(behaviorEvalSuitePath, overrides.behaviorEvalRows ?? buildBehaviorEvalCases());
     await writeJson(knowledgeEvalReportPath, {
       total: 200,
@@ -484,6 +502,7 @@ describe("ProductionTrainingReadiness", () => {
         processedDatasetReportPath,
         datasetPreparerSourcePath,
         toolEvalSuitePath,
+        knowledgeEvalSuitePath,
         behaviorEvalSuitePath,
         toolEvalReportPath,
         knowledgeEvalReportPath,
@@ -527,9 +546,48 @@ interface FixtureOverrides {
   skillRetrievalGate: Record<string, unknown>;
   contaminationEvalRows: unknown[];
   toolEvalRows: ToolEvalCase[];
+  knowledgeEvalRows: KnowledgeEvalCase[];
   behaviorEvalRows: BehaviorEvalCase[];
   voiceEvalRows: VoiceEvalCase[];
   routerEvalRows: SpecialistRoutingEvalCase[];
+}
+
+function buildKnowledgeEvalRows(): KnowledgeEvalCase[] {
+  return Array.from({ length: 200 }, (_, index) => {
+    const source = index % 2 === 0 ? "dolly" : "oasst1_ready";
+    let prompt = `General knowledge question ${index}?`;
+    let expected = `General reference answer ${index} with enough detail for overlap scoring.`;
+
+    if (index < 30) {
+      prompt = `Use the supplied evidence for case ${index}.\n\nContext: ${"verified project fact ".repeat(35)}\n\nWhat is the answer for case ${index}?`;
+      expected = `The answer for context-grounded case ${index} comes from the supplied context.`;
+    } else if (index < 55) {
+      prompt = `Write Python code for case ${index} that parses JSON from an API response.`;
+      expected = `Use Python code with json.loads for case ${index}, then validate the parsed API fields.`;
+    } else if (index < 90) {
+      prompt = `${"Long background sentence for prompt reasoning. ".repeat(18)}What conclusion follows for case ${index}?`;
+      expected = `The long-prompt conclusion for case ${index} should preserve the relevant detail.`;
+    } else if (index < 150) {
+      expected = `${"This long-form reference explains the first part of the answer. ".repeat(10)}\n\n${"The second paragraph adds detail that a knowledge model should retain. ".repeat(10)}Case ${index}.`;
+    } else if (index < 180) {
+      expected = `Short answer ${index}`;
+    }
+
+    return knowledgeCase(`knowledge:${index}`, source, prompt, expected);
+  });
+}
+
+function knowledgeCase(id: string, source: string, prompt: string, expected: string): KnowledgeEvalCase {
+  return {
+    id,
+    source,
+    prompt,
+    expected,
+    metadata: {
+      source,
+      expectedHash: createHash("sha256").update(expected).digest("hex"),
+    },
+  };
 }
 
 function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {

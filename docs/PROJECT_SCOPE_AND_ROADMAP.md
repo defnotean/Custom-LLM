@@ -206,6 +206,7 @@ Promotion requires all relevant gates, not just lower validation loss.
 | Protocol/tool gate | Valid JSON, correct action type, correct tool, correct args, no-tool behavior, hallucinated-tool rate |
 | Tool protocol coverage gate | BFCL-style held-out coverage for required args, missing args, permission refusals, risky confirmations, multi-turn changes, adversarial no-tool prompts, large-registry surfaces, and prompt injection |
 | Knowledge gate | Held-out answer quality and regression tracking |
+| Knowledge coverage gate | Structural source and answer-shape coverage across Dolly/OpenAssistant seed data, context-grounded prompts, technical/code questions, long prompts, long-form references, concise answers, unique rows, and expected-answer hashes |
 | Behavior gate | Irene identity, she/her consistency, social support, repair, casual tone, boundary wording, tool abstention |
 | Behavior coverage gate | Structural coverage for Irene/she-her identity, affective expression, Discord-native slang/opinion, social support/repair, ambiguous-reference clarification, candid account-theft boundaries, tool abstention, and anti-corporate filler bans |
 | Router gate | Exact specialist route, broad expert family, tool vs non-tool separation |
@@ -258,6 +259,7 @@ Success criteria:
 - `npm test`
 - `npm run build`
 - `npm run check:contamination`
+- `npm run check:knowledge-coverage`
 - `npm run check:behavior-coverage`
 - `npm run check:voice-coverage`
 - `npm run check:router-coverage`

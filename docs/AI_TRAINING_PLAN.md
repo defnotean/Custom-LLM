@@ -229,6 +229,7 @@ Artifacts:
 - `training/data/protocol/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the protocol-only scratch SFT set with exact held-out eval prompts excluded and deterministic paraphrase augmentation recorded.
 - `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the behavior/persona scratch SFT set with exact held-out behavior eval prompts excluded and route metadata preserved.
 - `training/data/router/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the separate specialist-router SFT set with exact held-out router eval prompts excluded.
+- `training/evals/knowledge.eval.jsonl` is the held-out knowledge suite. It currently has 200 balanced cases from Dolly and OpenAssistant, including context-grounded, technical/code, long-prompt, long-form, and concise-answer coverage protected by `npm run check:knowledge-coverage`.
 - `training/evals/behavior.eval.jsonl` is the held-out persona/social behavior suite. It currently has 11 seed cases covering she/her identity, affective style, Discord-native casual replies, social support/repair, direct safety boundaries, and tool abstention.
 - `training/evals/specialist-routing.eval.jsonl` is the held-out route/expert suite. It currently has 18 balanced cases covering tool protocol, knowledge, persona, casual, social-cue, and boundary routing.
 - `training/runs/tiny-char-lm/metrics.json` records model config, parameter count, train/validation loss history, data hashes, and a sample.
@@ -284,6 +285,7 @@ npm run build:voice-eval
 npm run build:router-eval
 npm run build:long-context-eval
 npm run check:contamination
+npm run check:knowledge-coverage
 npm run check:behavior-coverage
 npm run check:voice-coverage
 npm run check:router-coverage
@@ -340,6 +342,7 @@ Production readiness gate:
 ```bash
 npm run check:dataset-governance
 npm run check:tool-protocol-coverage
+npm run check:knowledge-coverage
 npm run check:behavior-coverage
 npm run check:voice-coverage
 npm run check:router-coverage
@@ -347,7 +350,7 @@ npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies dataset governance, contamination leakage, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, BFCL-style tool protocol coverage, behavior/persona coverage, voice coverage, specialist-router coverage, tool/knowledge/behavior/voice/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance`, `npm run check:contamination`, `npm run check:tool-protocol-coverage`, `npm run check:behavior-coverage`, `npm run check:voice-coverage`, and `npm run check:router-coverage` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, obvious secret/PII scans, held-out eval leakage, required tool-call scenario coverage, required Irene persona/social coverage, required Discord voice coverage, and required MoE route coverage. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies dataset governance, contamination leakage, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, BFCL-style tool protocol coverage, knowledge source/answer-shape coverage, behavior/persona coverage, voice coverage, specialist-router coverage, tool/knowledge/behavior/voice/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance`, `npm run check:contamination`, `npm run check:tool-protocol-coverage`, `npm run check:knowledge-coverage`, `npm run check:behavior-coverage`, `npm run check:voice-coverage`, and `npm run check:router-coverage` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, obvious secret/PII scans, held-out eval leakage, required tool-call scenario coverage, balanced knowledge-source and answer-shape coverage, required Irene persona/social coverage, required Discord voice coverage, and required MoE route coverage. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -414,6 +417,7 @@ The protocol suite checks tool behavior; the knowledge suite checks held-out gen
 
 ```bash
 npm run build:knowledge-eval
+npm run check:knowledge-coverage
 npm run eval:knowledge:oracle
 npm run eval:knowledge -- --predictions training/evals/knowledge-oracle.predictions.jsonl --out training/evals/knowledge-oracle.report.json
 npm run eval:knowledge:gate -- --candidate training/evals/knowledge-oracle.report.json
@@ -434,6 +438,8 @@ Current knowledge eval suite:
 |---|---:|
 | Dolly validation seed | 99 |
 | OpenAssistant validation seed | 101 |
+
+`npm run check:knowledge-coverage` is the structural knowledge guard. It fails if the held-out suite loses Dolly/OpenAssistant source coverage, context-grounded cases, technical/code cases, long-prompt reasoning, long-form explanatory references, concise factual answers, unique ids/references, or matching expected-answer hashes.
 
 Metrics reported:
 
@@ -647,6 +653,7 @@ Every dataset build must:
 - Pass `npm run check:dataset-governance` so raw licenses/checksums, processed provenance, eval-seed balance, hashes, gated-source boundaries, and secret/PII scans are healthy.
 - Keep preference/DPO rows explicit: prompt, chosen, and rejected must already exist; do not fabricate rejected answers from ordinary chat logs or plain ratings.
 - Pass `npm run check:contamination` before model promotion so held-out evals are not in train JSONL by exact ID, exact text, or high n-gram overlap.
+- Pass `npm run check:knowledge-coverage` before training so held-out answer-quality evals keep balanced source, context-grounded, technical/code, long-prompt, long-form, concise-answer, and reference-hash coverage.
 - Pass `npm run check:behavior-coverage` before training so Irene's she/her persona, emotional voice, social repair/support, candid boundaries, and tool abstention stay represented in held-out behavior evals.
 - Pass `npm run check:voice-coverage` before promoting voice-facing changes so transcription, speaker attribution, turn-taking, latency, social timing, and retention-policy cases stay represented.
 - Keep generated datasets and checkpoints out of git.
@@ -663,6 +670,7 @@ Every model iteration must:
 - Pass `npm run check:dataset-governance`, `npm run check:training-configs`, and `npm run check:production-readiness` before any production QLoRA run.
 - Pass `npm run analyze:sft-sequences` after each mixture rebuild and review over-length records or `maxTokenBudgetUsage` above the readiness headroom before increasing sequence length.
 - Run the protocol eval suite before promotion; a lower training loss does not ship if tool-call or no-tool metrics regress.
+- Pass `npm run check:knowledge-coverage` before rebuilding or promoting knowledge evals so factual learning remains measured across source and answer-shape families.
 - Pass `npm run eval:gate` against the candidate report, and compare against the current production baseline when one exists.
 - Pass `npm run eval:knowledge:gate` against the candidate knowledge report before promotion.
 - Pass `npm run eval:behavior:gate` against the candidate behavior report before promotion.

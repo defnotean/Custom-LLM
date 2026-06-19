@@ -28,6 +28,10 @@ import {
   type BehaviorCoverageReadinessReport,
 } from "./BehaviorCoverageReadiness";
 import {
+  checkKnowledgeCoverageReadiness,
+  type KnowledgeCoverageReadinessReport,
+} from "./KnowledgeCoverageReadiness";
+import {
   checkSpecialistRoutingCoverageReadiness,
   type SpecialistRoutingCoverageReadinessReport,
 } from "./SpecialistRoutingCoverageReadiness";
@@ -203,6 +207,7 @@ export interface ProductionTrainingReadinessOptions {
   sftReportPath?: string;
   preferenceReportPath?: string;
   toolEvalSuitePath?: string;
+  knowledgeEvalSuitePath?: string;
   behaviorEvalSuitePath?: string;
   toolEvalReportPath?: string;
   knowledgeEvalReportPath?: string;
@@ -233,6 +238,7 @@ export interface ProductionTrainingReadinessOptions {
   maxSftTokenBudgetUsage?: number;
   minSftPackingEfficiency?: number;
   toolProtocolCoverageMinCases?: number;
+  knowledgeCoverageMinCases?: number;
   behaviorCoverageMinCases?: number;
   routerCoverageMinCases?: number;
   voiceCoverageMinCases?: number;
@@ -299,6 +305,7 @@ const DEFAULTS = {
   sftReportPath: "training/data/mixtures/production-sft.report.json",
   preferenceReportPath: "training/data/preferences/production-dpo.report.json",
   toolEvalSuitePath: "training/evals/tool-routing.eval.jsonl",
+  knowledgeEvalSuitePath: "training/evals/knowledge.eval.jsonl",
   behaviorEvalSuitePath: "training/evals/behavior.eval.jsonl",
   toolEvalReportPath: "training/evals/oracle.report.json",
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
@@ -327,6 +334,7 @@ const DEFAULTS = {
   maxSftTokenBudgetUsage: 0.95,
   minSftPackingEfficiency: 0.5,
   toolProtocolCoverageMinCases: 250,
+  knowledgeCoverageMinCases: 200,
   behaviorCoverageMinCases: 11,
   routerCoverageMinCases: 18,
   voiceCoverageMinCases: 12,
@@ -375,6 +383,7 @@ export async function checkProductionTrainingReadiness(
     memoryContinuityGate,
     skillRetrievalGate,
     toolProtocolCoverageReport,
+    knowledgeCoverageReport,
     behaviorCoverageReport,
     routerCoverageReport,
     voiceCoverageReport,
@@ -395,6 +404,10 @@ export async function checkProductionTrainingReadiness(
       checkToolProtocolCoverageReadiness({
         suitePath: config.toolEvalSuitePath,
         minTotalCases: config.toolProtocolCoverageMinCases,
+      }),
+      checkKnowledgeCoverageReadiness({
+        suitePath: config.knowledgeEvalSuitePath,
+        minTotalCases: config.knowledgeCoverageMinCases,
       }),
       checkBehaviorCoverageReadiness({
         suitePath: config.behaviorEvalSuitePath,
@@ -459,6 +472,7 @@ export async function checkProductionTrainingReadiness(
       memoryContinuityGate,
       skillRetrievalGate,
       toolProtocolCoverageReport,
+      knowledgeCoverageReport,
       behaviorCoverageReport,
       routerCoverageReport,
       voiceCoverageReport,
@@ -563,6 +577,41 @@ function behaviorCoverageReadinessCheck(report: BehaviorCoverageReadinessReport)
         total: report.summary.total,
         byKind: report.summary.byKind,
         byRoute: report.summary.byRoute,
+        failingScenarios,
+      });
+}
+
+function knowledgeCoverageReadinessCheck(report: KnowledgeCoverageReadinessReport): ReadinessCheck {
+  const failingScenarios = report.scenarios
+    .filter((scenario) => scenario.count < scenario.minCases)
+    .map((scenario) => ({
+      id: scenario.id,
+      description: scenario.description,
+      count: scenario.count,
+      minCases: scenario.minCases,
+      sampleIds: scenario.sampleIds,
+    }));
+  const failingChecks = report.checks
+    .filter((check) => check.status === "fail" && !check.id.startsWith("knowledge-coverage-scenario:"))
+    .map((check) => ({ id: check.id, summary: check.summary, details: check.details }));
+  return report.status === "pass"
+    ? pass("knowledge-coverage", `Knowledge suite covers ${report.scenarios.length} required answer families`, {
+        total: report.summary.total,
+        bySource: report.summary.bySource,
+        contextGroundedCases: report.summary.contextGroundedCases,
+        technicalCases: report.summary.technicalCases,
+        longPromptCases: report.summary.longPromptCases,
+        longFormAnswerCases: report.summary.longFormAnswerCases,
+        conciseAnswerCases: report.summary.conciseAnswerCases,
+      })
+    : fail("knowledge-coverage", "Knowledge suite is missing required source or answer-shape coverage", {
+        total: report.summary.total,
+        bySource: report.summary.bySource,
+        duplicateIds: report.summary.duplicateIds,
+        duplicatePromptExpectedPairs: report.summary.duplicatePromptExpectedPairs,
+        expectedHashMatches: report.summary.expectedHashMatches,
+        metadataSourceMismatches: report.summary.metadataSourceMismatches,
+        failingChecks,
         failingScenarios,
       });
 }
@@ -836,6 +885,7 @@ function evalHarnessChecks(
   memoryContinuityGate: MemoryContinuityGateReport,
   skillRetrievalGate: SkillRetrievalGateReport,
   toolProtocolCoverageReport: ToolProtocolCoverageReadinessReport,
+  knowledgeCoverageReport: KnowledgeCoverageReadinessReport,
   behaviorCoverageReport: BehaviorCoverageReadinessReport,
   routerCoverageReport: SpecialistRoutingCoverageReadinessReport,
   voiceCoverageReport: VoiceCoverageReadinessReport,
@@ -864,7 +914,8 @@ function evalHarnessChecks(
           averageRougeL: knowledgeReport.averageRougeL,
           missingPredictions: knowledgeReport.missingPredictions,
           failures: knowledgeReport.failures.length,
-        }),
+      }),
+    knowledgeCoverageReadinessCheck(knowledgeCoverageReport),
     behaviorReport.total >= 10 &&
     behaviorReport.validJsonRate >= 0.98 &&
     behaviorReport.actionTypeAccuracy >= 0.95 &&
