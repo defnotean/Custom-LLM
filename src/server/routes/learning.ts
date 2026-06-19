@@ -111,6 +111,15 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
+const batchFilterSchema = z
+  .object({
+    kind: kindSchema.optional(),
+    reviewStatus: reviewStatusSchema.optional(),
+    trainingStatus: trainingStatusSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict();
+
 const parameterModuleQuerySchema = z.object({
   kind: parameterKindSchema.optional(),
   status: parameterStatusSchema.optional(),
@@ -139,6 +148,23 @@ const queueBodySchema = z
     reason: z.string().trim().max(2_000).optional(),
     force: z.boolean().optional(),
     autoQueueConfidence: z.number().min(0).max(1).optional(),
+  })
+  .strict();
+
+const batchReviewBodySchema = z
+  .object({
+    ids: z.array(z.string().trim().min(1).max(256)).min(1).max(200).optional(),
+    filter: batchFilterSchema.optional(),
+    reviewStatus: reviewStatusSchema.optional(),
+    reviewerId: z.string().trim().min(1).max(256).nullable().optional(),
+    reviewReason: z.string().trim().max(2_000).nullable().optional(),
+    queue: z.boolean().optional(),
+    datasetId: z.string().trim().min(1).max(256).optional(),
+    queueReason: z.string().trim().max(2_000).optional(),
+    force: z.boolean().optional(),
+    autoQueueConfidence: z.number().min(0).max(1).optional(),
+    dryRun: z.boolean().optional(),
+    execute: z.boolean().optional(),
   })
   .strict();
 
@@ -229,6 +255,43 @@ export function registerLearningRoutes(app: FastifyInstance, deps: LearningRoute
     const item = await deps.getLearnedItem(parsed.data.id);
     if (!item) return reply.status(404).send({ error: "learning item not found" });
     return item;
+  });
+
+  app.post("/learning/items/batch-review", async (request, reply) => {
+    const body = batchReviewBodySchema.safeParse(request.body ?? {});
+    if (!body.success) {
+      return reply.status(400).send({ error: "invalid batch review payload", details: body.error.flatten() });
+    }
+    if (!body.data.ids && !body.data.filter) {
+      return reply.status(400).send({ error: "batch review requires ids or filter" });
+    }
+    if (!body.data.reviewStatus && !body.data.queue) {
+      return reply.status(400).send({ error: "batch review requires reviewStatus or queue=true" });
+    }
+    if (body.data.ids && !deps.getLearnedItem) {
+      return reply.status(503).send({ error: "live learning item lookup disabled" });
+    }
+    if (!body.data.ids && !deps.listLearnedItems) {
+      return reply.status(503).send({ error: "live learning persistence disabled" });
+    }
+    const dryRun = body.data.execute ? false : body.data.dryRun ?? true;
+    if (!dryRun && body.data.reviewStatus && !deps.markReviewed) {
+      return reply.status(503).send({ error: "live learning review disabled" });
+    }
+    if (!dryRun && body.data.queue && !deps.queueForTraining) {
+      return reply.status(503).send({ error: "live learning training queue disabled" });
+    }
+
+    const selected = await selectBatchReviewItems(deps, body.data.ids, body.data.filter);
+    const report = await applyBatchReview({
+      items: selected.items,
+      missingIds: selected.missingIds,
+      input: body.data,
+      dryRun,
+      markReviewed: deps.markReviewed ?? null,
+      queueForTraining: deps.queueForTraining ?? null,
+    });
+    return report;
   });
 
   app.post("/learning/items/:id/review", async (request, reply) => {
@@ -433,6 +496,203 @@ function learningMutationError(reply: FastifyReply, err: unknown) {
   throw err;
 }
 
+type BatchReviewInput = z.infer<typeof batchReviewBodySchema>;
+type BatchReviewFilter = z.infer<typeof batchFilterSchema>;
+
+interface BatchReviewSelection {
+  items: LearnedItem[];
+  missingIds: string[];
+}
+
+interface BatchReviewMutation {
+  id: string;
+  status?: LearningReviewStatus;
+  trainingStatus?: TrainingPromotionStatus;
+}
+
+interface BatchReviewSkip {
+  id: string;
+  operation: "review" | "queue";
+  reason: string;
+}
+
+interface BatchReviewError {
+  id: string;
+  operation: "review" | "queue";
+  reason: string;
+}
+
+async function selectBatchReviewItems(
+  deps: LearningRouteDeps,
+  ids: string[] | undefined,
+  filter: BatchReviewFilter | undefined,
+): Promise<BatchReviewSelection> {
+  if (ids) {
+    const items: LearnedItem[] = [];
+    const missingIds: string[] = [];
+    for (const id of unique(ids)) {
+      const item = await deps.getLearnedItem!(id);
+      if (item) items.push(item);
+      else missingIds.push(id);
+    }
+    return { items, missingIds };
+  }
+  return { items: await deps.listLearnedItems!(filter), missingIds: [] };
+}
+
+async function applyBatchReview(options: {
+  items: LearnedItem[];
+  missingIds: string[];
+  input: BatchReviewInput;
+  dryRun: boolean;
+  markReviewed: LearningRouteDeps["markReviewed"];
+  queueForTraining: LearningRouteDeps["queueForTraining"];
+}): Promise<{
+  runtimeContract: "learning-batch-review-v1";
+  status: "dry_run" | "applied" | "partial" | "blocked" | "empty";
+  generatedAt: string;
+  dryRun: boolean;
+  selector: { ids?: string[]; filter?: BatchReviewFilter };
+  requested: {
+    reviewStatus?: LearningReviewStatus;
+    queue: boolean;
+    datasetId?: string;
+    force: boolean;
+    autoQueueConfidence: number;
+  };
+  summary: {
+    matched: number;
+    missing: number;
+    reviewed: number;
+    queued: number;
+    skipped: number;
+    errors: number;
+  };
+  matchedItemIds: string[];
+  missingIds: string[];
+  reviewed: BatchReviewMutation[];
+  queued: BatchReviewMutation[];
+  skipped: BatchReviewSkip[];
+  errors: BatchReviewError[];
+}> {
+  const reviewed: BatchReviewMutation[] = [];
+  const queued: BatchReviewMutation[] = [];
+  const skipped: BatchReviewSkip[] = options.missingIds.map((id) => ({
+    id,
+    operation: "review",
+    reason: "learning item not found",
+  }));
+  const errors: BatchReviewError[] = [];
+  const autoQueueConfidence = options.input.autoQueueConfidence ?? 0.92;
+
+  for (const initialItem of options.items) {
+    let item = initialItem;
+    let reviewFailed = false;
+    if (options.input.reviewStatus) {
+      if (options.dryRun) {
+        reviewed.push({ id: item.id, status: options.input.reviewStatus });
+        item = { ...item, reviewStatus: options.input.reviewStatus };
+      } else {
+        try {
+          item = await options.markReviewed!(item.id, options.input.reviewStatus, {
+            reviewerId: options.input.reviewerId ?? null,
+            reason: options.input.reviewReason ?? null,
+          });
+          reviewed.push({ id: item.id, status: item.reviewStatus });
+        } catch (err) {
+          reviewFailed = true;
+          errors.push({ id: item.id, operation: "review", reason: errorMessage(err) });
+        }
+      }
+    }
+
+    if (!options.input.queue || reviewFailed) continue;
+
+    const queueSkipReason = queueSkipReasonFor(item, {
+      force: options.input.force ?? false,
+      autoQueueConfidence,
+    });
+    if (queueSkipReason) {
+      skipped.push({ id: item.id, operation: "queue", reason: queueSkipReason });
+      continue;
+    }
+
+    if (options.dryRun) {
+      queued.push({ id: item.id, trainingStatus: "queued" });
+      continue;
+    }
+
+    try {
+      const queuedItem = await options.queueForTraining!(item.id, {
+        ...(options.input.datasetId ? { datasetId: options.input.datasetId } : {}),
+        ...(options.input.queueReason ? { reason: options.input.queueReason } : {}),
+        ...(options.input.force !== undefined ? { force: options.input.force } : {}),
+        ...(options.input.autoQueueConfidence !== undefined ? { autoQueueConfidence } : {}),
+      });
+      queued.push({ id: queuedItem.id, trainingStatus: queuedItem.training.status });
+    } catch (err) {
+      errors.push({ id: item.id, operation: "queue", reason: errorMessage(err) });
+    }
+  }
+
+  const matched = options.items.length;
+  const mutating = reviewed.length + queued.length;
+  const blocked = matched > 0 && mutating === 0 && skipped.length + errors.length > 0;
+  const status =
+    matched === 0 && options.missingIds.length === 0
+      ? "empty"
+      : options.dryRun
+        ? "dry_run"
+        : blocked
+          ? "blocked"
+          : skipped.length > 0 || errors.length > 0
+            ? "partial"
+            : "applied";
+  return {
+    runtimeContract: "learning-batch-review-v1",
+    status,
+    generatedAt: new Date().toISOString(),
+    dryRun: options.dryRun,
+    selector: {
+      ...(options.input.ids ? { ids: unique(options.input.ids) } : {}),
+      ...(options.input.filter ? { filter: options.input.filter } : {}),
+    },
+    requested: {
+      ...(options.input.reviewStatus ? { reviewStatus: options.input.reviewStatus } : {}),
+      queue: options.input.queue ?? false,
+      ...(options.input.datasetId ? { datasetId: options.input.datasetId } : {}),
+      force: options.input.force ?? false,
+      autoQueueConfidence,
+    },
+    summary: {
+      matched,
+      missing: options.missingIds.length,
+      reviewed: reviewed.length,
+      queued: queued.length,
+      skipped: skipped.length,
+      errors: errors.length,
+    },
+    matchedItemIds: options.items.map((item) => item.id),
+    missingIds: options.missingIds,
+    reviewed,
+    queued,
+    skipped,
+    errors,
+  };
+}
+
+function queueSkipReasonFor(
+  item: LearnedItem,
+  options: { force: boolean; autoQueueConfidence: number },
+): string | null {
+  if (!item.retention.canTrain && !options.force) return "retention policy does not allow training";
+  if (item.reviewStatus === "rejected") return "learning item was rejected";
+  if (!options.force && item.reviewStatus !== "approved" && item.confidence < options.autoQueueConfidence) {
+    return "learning item is not approved or high-confidence enough for training";
+  }
+  return null;
+}
+
 function parameterMutationError(reply: FastifyReply, err: unknown) {
   const message = err instanceof Error ? err.message : String(err);
   if (/not found/i.test(message)) return reply.status(404).send({ error: "parameter module not found" });
@@ -448,4 +708,12 @@ function asJsonObject(value: unknown): JsonObject {
   const json = toJsonValue(value);
   if (json && typeof json === "object" && !Array.isArray(json)) return json as JsonObject;
   return {};
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function unique<T>(values: T[]): T[] {
+  return [...new Set(values)];
 }

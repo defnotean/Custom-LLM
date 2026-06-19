@@ -127,6 +127,176 @@ describe("learning routes", () => {
     await app.close();
   });
 
+  it("dry-runs batch review and queue planning without mutating learned items", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      listLearnedItems: async (filter) => {
+        calls.push({ method: "list", filter });
+        return [
+          learnedItem({
+            id: "skill-1",
+            confidence: 0.82,
+            reviewStatus: "candidate",
+            retention: { canRetrieve: true, canTrain: true },
+          }),
+        ];
+      },
+      markReviewed: async () => {
+        calls.push({ method: "review" });
+        throw new Error("should not mutate on dry-run");
+      },
+      queueForTraining: async () => {
+        calls.push({ method: "queue" });
+        throw new Error("should not mutate on dry-run");
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/items/batch-review",
+      payload: {
+        filter: { kind: "skill", reviewStatus: "candidate", trainingStatus: "not_queued", limit: 10 },
+        reviewStatus: "approved",
+        queue: true,
+        datasetId: "skill-ledger-v2",
+        dryRun: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      runtimeContract: "learning-batch-review-v1",
+      status: "dry_run",
+      dryRun: true,
+      summary: { matched: 1, reviewed: 1, queued: 1, skipped: 0, errors: 0 },
+      matchedItemIds: ["skill-1"],
+      reviewed: [{ id: "skill-1", status: "approved" }],
+      queued: [{ id: "skill-1", trainingStatus: "queued" }],
+    });
+    expect(calls).toEqual([
+      {
+        method: "list",
+        filter: { kind: "skill", reviewStatus: "candidate", trainingStatus: "not_queued", limit: 10 },
+      },
+    ]);
+    await app.close();
+  });
+
+  it("executes batch review and queues only items allowed by training retention", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      getLearnedItem: async (id) => {
+        calls.push({ method: "get", id });
+        if (id === "missing") return null;
+        return learnedItem({
+          id,
+          confidence: id === "blocked" ? 0.99 : 0.76,
+          reviewStatus: "candidate",
+          retention: { canRetrieve: true, canTrain: id !== "blocked" },
+        });
+      },
+      markReviewed: async (id, status, options) => {
+        calls.push({ method: "review", id, status, options });
+        return learnedItem({
+          id,
+          reviewStatus: status,
+          retention: { canRetrieve: true, canTrain: id !== "blocked" },
+        });
+      },
+      queueForTraining: async (id, options) => {
+        calls.push({ method: "queue", id, options });
+        return learnedItem({
+          id,
+          reviewStatus: "approved",
+          retention: { canRetrieve: true, canTrain: true },
+          training: { status: "queued", queuedAt: "2026-06-18T16:00:00.000Z", datasetId: options?.datasetId },
+          accessPaths: ["skill_registry", "training_queue"],
+        });
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/items/batch-review",
+      payload: {
+        ids: ["trainable", "blocked", "missing", "trainable"],
+        reviewStatus: "approved",
+        reviewerId: "admin",
+        reviewReason: "batch-approved reusable learning",
+        queue: true,
+        datasetId: "skill-ledger-v2",
+        queueReason: "ready for next parameter-growth pass",
+        execute: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "partial",
+      dryRun: false,
+      selector: { ids: ["trainable", "blocked", "missing"] },
+      summary: { matched: 2, missing: 1, reviewed: 2, queued: 1, skipped: 2, errors: 0 },
+      missingIds: ["missing"],
+      queued: [{ id: "trainable", trainingStatus: "queued" }],
+      skipped: expect.arrayContaining([
+        { id: "missing", operation: "review", reason: "learning item not found" },
+        { id: "blocked", operation: "queue", reason: "retention policy does not allow training" },
+      ]),
+    });
+    expect(calls).toMatchObject([
+      { method: "get", id: "trainable" },
+      { method: "get", id: "blocked" },
+      { method: "get", id: "missing" },
+      {
+        method: "review",
+        id: "trainable",
+        status: "approved",
+        options: { reviewerId: "admin", reason: "batch-approved reusable learning" },
+      },
+      {
+        method: "queue",
+        id: "trainable",
+        options: { datasetId: "skill-ledger-v2", reason: "ready for next parameter-growth pass" },
+      },
+      {
+        method: "review",
+        id: "blocked",
+        status: "approved",
+        options: { reviewerId: "admin", reason: "batch-approved reusable learning" },
+      },
+    ]);
+    await app.close();
+  });
+
+  it("rejects batch review requests without an explicit selector or operation", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, {
+      getStats: null,
+      listLearnedItems: async () => [],
+    });
+
+    const noSelector = await app.inject({
+      method: "POST",
+      url: "/learning/items/batch-review",
+      payload: { reviewStatus: "approved" },
+    });
+    const noOperation = await app.inject({
+      method: "POST",
+      url: "/learning/items/batch-review",
+      payload: { filter: { reviewStatus: "candidate", limit: 10 } },
+    });
+
+    expect(noSelector.statusCode).toBe(400);
+    expect(noSelector.json()).toEqual({ error: "batch review requires ids or filter" });
+    expect(noOperation.statusCode).toBe(400);
+    expect(noOperation.json()).toEqual({ error: "batch review requires reviewStatus or queue=true" });
+    await app.close();
+  });
+
   it("reports queue gate failures without mutating training state", async () => {
     const app = Fastify({ logger: false });
     registerLearningRoutes(app, {

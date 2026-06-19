@@ -42,6 +42,14 @@ curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/queue \
   -H "content-type: application/json" \
   -d '{"datasetId":"skill-ledger-v1","reason":"approved for next adapter/specialist run"}'
 
+curl -X POST http://127.0.0.1:3000/learning/items/batch-review \
+  -H "content-type: application/json" \
+  -d '{"filter":{"kind":"skill","reviewStatus":"candidate","trainingStatus":"not_queued","limit":25},"reviewStatus":"approved","queue":true,"datasetId":"skill-ledger-v1","dryRun":true}'
+
+curl -X POST http://127.0.0.1:3000/learning/items/batch-review \
+  -H "content-type: application/json" \
+  -d '{"filter":{"kind":"skill","reviewStatus":"candidate","trainingStatus":"not_queued","limit":25},"reviewStatus":"approved","reviewerId":"admin","reviewReason":"approved reusable skills","queue":true,"queueReason":"ready for next adapter/specialist run","datasetId":"skill-ledger-v1","execute":true}'
+
 npm run plan:parameter-growth
 npm run check:parameter-growth-plan -- --allow-risk-review
 npm run build:parameter-growth-data -- --allow-risk-review
@@ -80,6 +88,8 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-hotload/apply \
 
 curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<module-id>"
 ```
+
+`POST /learning/items/batch-review` is the operator handoff between "Irene learned candidates while running" and "these items may feed parameter growth." It accepts explicit ids or a typed filter, dry-runs by default, and only mutates when `execute:true` is present. The response uses `learning-batch-review-v1` and lists matched ids, missing ids, reviewed items, queued items, skips, and per-item errors. Queueing still honors retention, rejection, approval, confidence, and `force` rules; a dry run never calls the review or queue mutators.
 
 The scheduled worker also writes parameter-growth plans to `training/plans/parameter-growth/` every six hours when the DB-backed learning repository is available. That directory is generated output and is intentionally ignored by Git.
 
