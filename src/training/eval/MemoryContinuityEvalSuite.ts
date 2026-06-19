@@ -5,6 +5,7 @@ import pino from "pino";
 import { LiveLearningRegistry, type LearnedItem } from "../../learning/LiveLearningRegistry";
 import { HashingEmbeddingProvider } from "../../memory/EmbeddingProvider";
 import { InMemoryMemoryStore } from "../../memory/InMemoryMemoryStore";
+import type { MemoryExtractionDecision, MemoryExtractionMode, MemoryExtractor } from "../../memory/MemoryExtractor";
 import { MemoryService, type RememberInput } from "../../memory/MemoryService";
 import type { EvalLatencyStats } from "./ToolEvalSuite";
 
@@ -14,7 +15,8 @@ export type MemoryContinuityCaseKind =
   | "scope_isolation"
   | "forget"
   | "policy_rejection"
-  | "learning_capture";
+  | "learning_capture"
+  | "llm_extraction";
 
 export interface MemoryContinuityEvalCase {
   id: string;
@@ -124,6 +126,31 @@ const CASES: MemoryContinuityEvalCase[] = [
     "memory:case:implicit-learned-item",
     "learning_capture",
     "Implicit memory writes create retrievable but non-trainable learned items.",
+  ),
+  evalCase(
+    "memory:case:llm-extraction-add",
+    "llm_extraction",
+    "LLM ADD extraction stores a concise policy-gated memory instead of the raw turn.",
+  ),
+  evalCase(
+    "memory:case:llm-extraction-update",
+    "llm_extraction",
+    "LLM UPDATE extraction replaces a matching memory without losing recall.",
+  ),
+  evalCase(
+    "memory:case:llm-extraction-delete",
+    "llm_extraction",
+    "LLM DELETE extraction removes a matching memory from recall.",
+  ),
+  evalCase(
+    "memory:case:llm-extraction-noop",
+    "llm_extraction",
+    "LLM NOOP extraction prevents non-durable turns from falling back into memory.",
+  ),
+  evalCase(
+    "memory:case:llm-extraction-policy-guard",
+    "llm_extraction",
+    "LLM ADD extraction still cannot store secrets because MemoryPolicy gates every candidate.",
   ),
 ];
 
@@ -425,6 +452,133 @@ async function evaluateCase(item: MemoryContinuityEvalCase): Promise<MemoryConti
       if (!learnedItemCaptured) reasons.push("implicit memory did not create a retrievable non-trainable learned item");
       break;
     }
+    case "memory:case:llm-extraction-add": {
+      const harness = makeHarness({
+        extractionMode: "llm",
+        extractionDecisions: [
+          {
+            action: "ADD",
+            content: "I prefer concise implementation updates.",
+            scope: "USER",
+            confidence: 0.92,
+            reason: "stable preference",
+          },
+        ],
+      });
+      const result = await harness.service.maybeExtractMemoryFromConversation(
+        defaultCtx(),
+        "btw for this project, short implementation updates are better than long ones",
+        "Understood.",
+      );
+      const rawTurnStored = await hasRecall(
+        harness.service,
+        "short implementation updates better",
+        defaultCtx(),
+        "btw for this project",
+      );
+      const itemCaptured = matchingLearnedItem(harness.learnedItems(), {
+        content: "concise implementation updates",
+        source: "llm_memory_extractor",
+        canTrain: false,
+      });
+      stored = result.stored;
+      recalled = await hasRecall(harness.service, "concise implementation updates", defaultCtx(), "concise implementation");
+      learnedItemCaptured = Boolean(itemCaptured);
+      if (!stored) reasons.push(`expected LLM ADD memory storage, got: ${result.reason}`);
+      if (!recalled) reasons.push("expected LLM-extracted ADD memory recall hit");
+      if (rawTurnStored) reasons.push("LLM ADD stored the raw turn instead of the extracted memory");
+      if (!learnedItemCaptured) reasons.push("LLM ADD did not create a retrievable non-trainable learned item");
+      break;
+    }
+    case "memory:case:llm-extraction-update": {
+      const harness = makeHarness({
+        extractionMode: "llm",
+        extractionDecisions: [
+          {
+            action: "UPDATE",
+            target: "short answers",
+            content: "I prefer detailed implementation notes.",
+            confidence: 0.9,
+            reason: "preference correction",
+          },
+        ],
+      });
+      await harness.service.remember(memoryInput("I prefer short answers.", { explicit: true }));
+      const result = await harness.service.maybeExtractMemoryFromConversation(
+        defaultCtx(),
+        "actually don't keep answers short; I want detailed implementation notes",
+        "Updated.",
+      );
+      const oldHit = await hasRecall(harness.service, "short answers", defaultCtx(), "short answers");
+      const count = await harness.service.count();
+      stored = result.stored;
+      recalled = await hasRecall(harness.service, "detailed implementation notes", defaultCtx(), "detailed implementation");
+      if (!stored) reasons.push(`expected LLM UPDATE replacement storage, got: ${result.reason}`);
+      if (!recalled) reasons.push("expected LLM-extracted UPDATE memory recall hit");
+      if (oldHit) reasons.push("old memory remained after LLM UPDATE");
+      if (count !== 1) reasons.push(`expected exactly one memory after LLM UPDATE, got ${count}`);
+      break;
+    }
+    case "memory:case:llm-extraction-delete": {
+      const harness = makeHarness({
+        extractionMode: "llm",
+        extractionDecisions: [{ action: "DELETE", target: "short answers", confidence: 0.94, reason: "forget request" }],
+      });
+      await harness.service.remember(memoryInput("I prefer short answers.", { explicit: true }));
+      const result = await harness.service.maybeExtractMemoryFromConversation(
+        defaultCtx(),
+        "forget that I prefer short answers",
+        "Forgotten.",
+      );
+      const afterDeleteHit = await hasRecall(harness.service, "short answers", defaultCtx(), "short answers");
+      const count = await harness.service.count();
+      stored = false;
+      recalled = !afterDeleteHit;
+      forgetPassed = result.reason.includes("deleted memory") && !afterDeleteHit && count === 0;
+      if (!result.reason.includes("deleted memory")) reasons.push(`expected LLM DELETE to delete memory, got: ${result.reason}`);
+      if (afterDeleteHit) reasons.push("deleted LLM extraction target was still recalled");
+      if (count !== 0) reasons.push(`expected empty store after LLM DELETE, got ${count}`);
+      break;
+    }
+    case "memory:case:llm-extraction-noop": {
+      const harness = makeHarness({
+        extractionMode: "llm",
+        extractionDecisions: [{ action: "NOOP", reason: "one-off", confidence: 1 }],
+      });
+      const result = await harness.service.maybeExtractMemoryFromConversation(
+        defaultCtx(),
+        "I prefer short answers btw",
+        "Got it.",
+      );
+      const count = await harness.service.count();
+      stored = result.stored;
+      policyRejected = !result.stored && result.reason === "one-off" && count === 0;
+      if (result.stored) reasons.push("LLM NOOP unexpectedly stored memory");
+      if (result.reason !== "one-off") reasons.push(`expected NOOP reason to win, got: ${result.reason}`);
+      if (count !== 0) reasons.push("LLM NOOP changed the memory store");
+      break;
+    }
+    case "memory:case:llm-extraction-policy-guard": {
+      const harness = makeHarness({
+        extractionMode: "llm",
+        extractionDecisions: [
+          { action: "ADD", content: "my password: hunter2", confidence: 0.99, reason: "bad extractor candidate" },
+        ],
+      });
+      const result = await harness.service.maybeExtractMemoryFromConversation(
+        defaultCtx(),
+        "remember my password: hunter2",
+        "I cannot store that.",
+      );
+      const count = await harness.service.count();
+      stored = result.stored;
+      policyRejected = !result.stored && count === 0 && harness.learnedItems().length === 0;
+      if (result.stored) reasons.push("LLM-extracted secret-like memory was stored");
+      if (!/secret|credential/i.test(result.reason)) reasons.push(`expected policy rejection reason, got: ${result.reason}`);
+      if (count !== 0) reasons.push("memory store changed after LLM-extracted secret rejection");
+      if (harness.learnedItems().length !== 0) reasons.push("LLM-extracted secret created a learned item");
+      break;
+    }
     default:
       reasons.push(`no evaluator for case ${item.id}`);
   }
@@ -444,7 +598,7 @@ async function evaluateCase(item: MemoryContinuityEvalCase): Promise<MemoryConti
   };
 }
 
-function makeHarness(): {
+function makeHarness(options: { extractionMode?: MemoryExtractionMode; extractionDecisions?: MemoryExtractionDecision[] } = {}): {
   service: MemoryService;
   learnedItems: () => LearnedItem[];
 } {
@@ -459,8 +613,18 @@ function makeHarness(): {
     learning: {
       createLearnedItem: async (input) => registry.recordLearnedItem(input),
     },
+    extractionMode: options.extractionMode ?? "heuristic",
+    ...(options.extractionDecisions ? { extractor: fixedExtractor(options.extractionDecisions) } : {}),
   });
   return { service, learnedItems: () => registry.listLearnedItems() };
+}
+
+function fixedExtractor(decisions: MemoryExtractionDecision[]): MemoryExtractor {
+  return {
+    async extract() {
+      return decisions;
+    },
+  };
 }
 
 async function hasRecall(

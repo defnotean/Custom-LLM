@@ -38,7 +38,7 @@ describe("MemoryContinuityPromotionGate", () => {
 function report(overrides: Partial<MemoryContinuityReport> = {}): MemoryContinuityReport {
   return {
     suitePath: "training/evals/memory-continuity.eval.json",
-    total: 12,
+    total: 17,
     passRate: 1,
     storedExpectedRate: 1,
     recallHitRate: 1,
@@ -46,7 +46,7 @@ function report(overrides: Partial<MemoryContinuityReport> = {}): MemoryContinui
     forgetPassRate: 1,
     policyRejectionPassRate: 1,
     learnedItemPassRate: 1,
-    latencyMs: { count: 12, average: 1, p95: 1, max: 1 },
+    latencyMs: { count: 17, average: 1, p95: 1, max: 1 },
     byKind: {},
     failures: [],
     results: [],

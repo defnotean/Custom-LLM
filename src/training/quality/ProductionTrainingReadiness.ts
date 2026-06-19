@@ -709,6 +709,7 @@ function memoryCoverageReadinessCheck(report: MemoryContinuityCoverageReadinessR
         forgetCases: report.summary.forgetCases,
         policyRejectionCases: report.summary.policyRejectionCases,
         learnedItemCases: report.summary.learnedItemCases,
+        llmExtractionCases: report.summary.llmExtractionCases,
       })
     : fail("memory-coverage", "Memory continuity suite is missing required live-learning coverage", {
         total: report.summary.total,
@@ -1073,7 +1074,7 @@ function evalHarnessChecks(
           failures: longContextReport.failures.length,
         }),
     memoryContinuityGate.status === "pass" &&
-    memoryContinuityGate.candidate.total >= 12 &&
+    memoryContinuityGate.candidate.total >= 17 &&
     memoryContinuityGate.candidate.passRate === 1 &&
     memoryContinuityGate.candidate.storedExpectedRate === 1 &&
     memoryContinuityGate.candidate.recallHitRate === 1 &&

@@ -35,6 +35,7 @@ export interface MemoryContinuityCoverageReadinessReport {
     forgetCases: number;
     policyRejectionCases: number;
     learnedItemCases: number;
+    llmExtractionCases: number;
   };
   checks: Array<{
     id: string;
@@ -56,7 +57,7 @@ interface ScenarioDefinition {
 
 const DEFAULTS = {
   suitePath: "training/evals/memory-continuity.eval.json",
-  minTotalCases: 12,
+  minTotalCases: 17,
 };
 
 const CASE_KINDS: MemoryContinuityCaseKind[] = [
@@ -66,6 +67,7 @@ const CASE_KINDS: MemoryContinuityCaseKind[] = [
   "forget",
   "policy_rejection",
   "learning_capture",
+  "llm_extraction",
 ];
 
 const REQUIRED_SCENARIOS: ScenarioDefinition[] = [
@@ -141,6 +143,36 @@ const REQUIRED_SCENARIOS: ScenarioDefinition[] = [
     minCases: 1,
     match: (item) => item.kind === "learning_capture" && hasText(item, ["implicit", "retrievable", "non-trainable"]),
   },
+  {
+    id: "llm-extraction-add",
+    description: "LLM ADD extraction stores a concise policy-gated memory instead of the raw turn",
+    minCases: 1,
+    match: (item) => item.kind === "llm_extraction" && hasText(item, ["llm", "add", "policy-gated", "raw turn"]),
+  },
+  {
+    id: "llm-extraction-update",
+    description: "LLM UPDATE extraction replaces matching memories without losing recall",
+    minCases: 1,
+    match: (item) => item.kind === "llm_extraction" && hasText(item, ["llm", "update", "replaces", "recall"]),
+  },
+  {
+    id: "llm-extraction-delete",
+    description: "LLM DELETE extraction removes matching memories from recall",
+    minCases: 1,
+    match: (item) => item.kind === "llm_extraction" && hasText(item, ["llm", "delete", "removes", "recall"]),
+  },
+  {
+    id: "llm-extraction-noop",
+    description: "LLM NOOP extraction prevents non-durable turns from falling back into memory",
+    minCases: 1,
+    match: (item) => item.kind === "llm_extraction" && hasText(item, ["llm", "noop", "falling back"]),
+  },
+  {
+    id: "llm-extraction-policy-guard",
+    description: "LLM extraction remains gated by MemoryPolicy for secret-like candidates",
+    minCases: 1,
+    match: (item) => item.kind === "llm_extraction" && hasText(item, ["llm", "memorypolicy", "secrets"]),
+  },
 ];
 
 export async function checkMemoryContinuityCoverageReadiness(
@@ -203,6 +235,7 @@ export async function checkMemoryContinuityCoverageReadiness(
       forgetCases: cases.filter((item) => item.kind === "forget").length,
       policyRejectionCases: cases.filter((item) => item.kind === "policy_rejection").length,
       learnedItemCases: cases.filter((item) => item.kind === "learning_capture").length,
+      llmExtractionCases: cases.filter((item) => item.kind === "llm_extraction").length,
     },
     checks,
     scenarios,

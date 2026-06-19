@@ -1,7 +1,7 @@
 {
   "status": "pass",
   "thresholds": {
-    "minTotalCases": 12,
+    "minTotalCases": 17,
     "minPassRate": 1,
     "minStoredExpectedRate": 1,
     "minRecallHitRate": 1,
@@ -15,7 +15,7 @@
   },
   "candidate": {
     "suitePath": "training/evals/memory-continuity.eval.json",
-    "total": 12,
+    "total": 17,
     "passRate": 1,
     "storedExpectedRate": 1,
     "recallHitRate": 1,
@@ -24,7 +24,7 @@
     "policyRejectionPassRate": 1,
     "learnedItemPassRate": 1,
     "failures": 0,
-    "latencyP95Ms": 8
+    "latencyP95Ms": 4
   },
   "failures": [],
   "warnings": []

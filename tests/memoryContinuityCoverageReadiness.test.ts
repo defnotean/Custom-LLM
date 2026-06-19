@@ -23,13 +23,17 @@ describe("MemoryContinuityCoverageReadiness", () => {
     const report = await checkMemoryContinuityCoverageReadiness({ suitePath });
 
     expect(report.status).toBe("pass");
-    expect(report.summary.total).toBe(12);
+    expect(report.summary.total).toBe(17);
     expect(report.summary.byKind.scope_isolation).toBe(3);
     expect(report.summary.byKind.forget).toBe(3);
+    expect(report.summary.byKind.llm_extraction).toBe(5);
     expect(report.summary.policyRejectionCases).toBe(2);
     expect(report.summary.learnedItemCases).toBe(2);
+    expect(report.summary.llmExtractionCases).toBe(5);
     expect(checkStatus(report.checks, "memory-coverage-scenario:implicit-preference-capture")).toBe("pass");
     expect(checkStatus(report.checks, "memory-coverage-scenario:explicit-learned-item-capture")).toBe("pass");
+    expect(checkStatus(report.checks, "memory-coverage-scenario:llm-extraction-add")).toBe("pass");
+    expect(checkStatus(report.checks, "memory-coverage-scenario:llm-extraction-policy-guard")).toBe("pass");
   });
 
   it("fails when policy rejection coverage is removed", async () => {
@@ -58,6 +62,22 @@ describe("MemoryContinuityCoverageReadiness", () => {
 
     expect(report.status).toBe("fail");
     expect(checkStatus(report.checks, "memory-coverage-unique-ids")).toBe("fail");
+  });
+
+  it("fails when LLM extraction coverage is removed", async () => {
+    const suitePath = await writeDefaultSuite();
+    const suite = await readSuite(suitePath);
+    suite.cases = suite.cases.filter((item) => item.kind !== "llm_extraction");
+    await writeSuite(suitePath, suite);
+
+    const report = await checkMemoryContinuityCoverageReadiness({ suitePath, minTotalCases: 0 });
+
+    expect(report.status).toBe("fail");
+    expect(checkStatus(report.checks, "memory-coverage-scenario:llm-extraction-add")).toBe("fail");
+    expect(checkStatus(report.checks, "memory-coverage-scenario:llm-extraction-update")).toBe("fail");
+    expect(checkStatus(report.checks, "memory-coverage-scenario:llm-extraction-delete")).toBe("fail");
+    expect(checkStatus(report.checks, "memory-coverage-scenario:llm-extraction-noop")).toBe("fail");
+    expect(checkStatus(report.checks, "memory-coverage-scenario:llm-extraction-policy-guard")).toBe("fail");
   });
 
   async function writeDefaultSuite(): Promise<string> {

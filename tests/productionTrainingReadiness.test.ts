@@ -656,6 +656,31 @@ function buildMemoryContinuityRows(): MemoryContinuityEvalCase[] {
       "learning_capture",
       "Implicit memory writes create retrievable but non-trainable learned items.",
     ),
+    memoryCase(
+      "memory:case:llm-extraction-add",
+      "llm_extraction",
+      "LLM ADD extraction stores a concise policy-gated memory instead of the raw turn.",
+    ),
+    memoryCase(
+      "memory:case:llm-extraction-update",
+      "llm_extraction",
+      "LLM UPDATE extraction replaces a matching memory without losing recall.",
+    ),
+    memoryCase(
+      "memory:case:llm-extraction-delete",
+      "llm_extraction",
+      "LLM DELETE extraction removes a matching memory from recall.",
+    ),
+    memoryCase(
+      "memory:case:llm-extraction-noop",
+      "llm_extraction",
+      "LLM NOOP extraction prevents non-durable turns from falling back into memory.",
+    ),
+    memoryCase(
+      "memory:case:llm-extraction-policy-guard",
+      "llm_extraction",
+      "LLM ADD extraction still cannot store secrets because MemoryPolicy gates every candidate.",
+    ),
   ];
 }
 
@@ -671,7 +696,7 @@ function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Reco
   const { candidate: _candidate, ...topLevelOverrides } = overrides;
   const candidate = {
     suitePath: "training/evals/memory-continuity.eval.json",
-    total: 12,
+    total: 17,
     passRate: 1,
     storedExpectedRate: 1,
     recallHitRate: 1,

@@ -71,6 +71,36 @@
       "kind": "learning_capture",
       "description": "Implicit memory writes create retrievable but non-trainable learned items.",
       "metadata": {}
+    },
+    {
+      "id": "memory:case:llm-extraction-add",
+      "kind": "llm_extraction",
+      "description": "LLM ADD extraction stores a concise policy-gated memory instead of the raw turn.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:llm-extraction-update",
+      "kind": "llm_extraction",
+      "description": "LLM UPDATE extraction replaces a matching memory without losing recall.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:llm-extraction-delete",
+      "kind": "llm_extraction",
+      "description": "LLM DELETE extraction removes a matching memory from recall.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:llm-extraction-noop",
+      "kind": "llm_extraction",
+      "description": "LLM NOOP extraction prevents non-durable turns from falling back into memory.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:llm-extraction-policy-guard",
+      "kind": "llm_extraction",
+      "description": "LLM ADD extraction still cannot store secrets because MemoryPolicy gates every candidate.",
+      "metadata": {}
     }
   ]
 }

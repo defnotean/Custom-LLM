@@ -52,7 +52,7 @@ export interface MemoryContinuityReportSummary {
 }
 
 export const DEFAULT_MEMORY_CONTINUITY_THRESHOLDS: MemoryContinuityPromotionThresholds = {
-  minTotalCases: 12,
+  minTotalCases: 17,
   minPassRate: 1,
   minStoredExpectedRate: 1,
   minRecallHitRate: 1,

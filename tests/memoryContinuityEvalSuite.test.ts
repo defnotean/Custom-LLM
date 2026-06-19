@@ -16,9 +16,10 @@ describe("MemoryContinuityEvalSuite", () => {
     const summary = await writeMemoryContinuityEvalSuite(suitePath);
     const report = await evaluateMemoryContinuitySuite(suitePath);
 
-    expect(summary.cases).toBe(12);
+    expect(summary.cases).toBe(17);
     expect(summary.byKind.scope_isolation).toBe(3);
     expect(summary.byKind.forget).toBe(3);
+    expect(summary.byKind.llm_extraction).toBe(5);
     expect(report.passRate).toBe(1);
     expect(report.storedExpectedRate).toBe(1);
     expect(report.recallHitRate).toBe(1);
@@ -26,6 +27,7 @@ describe("MemoryContinuityEvalSuite", () => {
     expect(report.forgetPassRate).toBe(1);
     expect(report.policyRejectionPassRate).toBe(1);
     expect(report.learnedItemPassRate).toBe(1);
+    expect(report.byKind.llm_extraction?.passRate).toBe(1);
     expect(report.failures).toEqual([]);
   });
 

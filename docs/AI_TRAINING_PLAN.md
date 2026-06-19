@@ -586,8 +586,9 @@ Current memory continuity suite:
 | `forget` | 3 | Owner delete, admin delete, and non-owner delete denial |
 | `policy_rejection` | 2 | Secret-like content and one-off chatter are not stored |
 | `learning_capture` | 2 | Memory writes create learned items with correct retrieval/training retention |
+| `llm_extraction` | 5 | LLM ADD, UPDATE, DELETE, NOOP, and MemoryPolicy guard behavior |
 
-`npm run check:memory-coverage` is the structural live-memory guard. It fails if the suite stops covering immediate explicit recall, implicit preference capture without restart, USER/GUILD/CHANNEL isolation, owner/admin/non-owner forgetting behavior, secret and one-off rejection, or explicit/implicit learned-item capture.
+`npm run check:memory-coverage` is the structural live-memory guard. It fails if the suite stops covering immediate explicit recall, implicit preference capture without restart, LLM ADD/UPDATE/DELETE/NOOP extraction with policy guards, USER/GUILD/CHANNEL isolation, owner/admin/non-owner forgetting behavior, secret and one-off rejection, or explicit/implicit learned-item capture.
 
 Metrics reported:
 
