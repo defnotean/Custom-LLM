@@ -14,6 +14,8 @@ On the **Bot** tab, enable:
 - ✅ **Message Content Intent** — required: the bot reads message text.
 - ✅ **Server Members Intent** — used for member lookups (`get_user_info`, moderation tools).
 
+The runtime also requests the non-privileged `GuildVoiceStates` gateway intent so Irene can see voice-channel state and use Discord Voice. There is no Developer Portal toggle for that one.
+
 Without these the gateway connection will fail or events will arrive empty. Past 100 servers these require verification — irrelevant for development.
 
 ## 3. Invite the bot
@@ -21,12 +23,12 @@ Without these the gateway connection will fail or events will arrive empty. Past
 Generate an invite URL (OAuth2 → URL Generator):
 
 - Scopes: `bot`, `applications.commands`
-- Recommended bot permissions for the starter toolset: View Channels, Send Messages, Read Message History, Moderate Members, Manage Messages, Embed Links
+- Recommended bot permissions for the starter toolset: View Channels, Send Messages, Read Message History, Moderate Members, Manage Messages, Embed Links, Connect, Speak, Use Voice Activity
 
 Or use this template (replace the client id):
 
 ```
-https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot+applications.commands&permissions=1099780064256
+https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot+applications.commands&permissions=1099816764416
 ```
 
 ## 4. Development guild and slash commands
@@ -51,7 +53,7 @@ DISCORD_PRESENCE_ACTIVITY_NAME=for tool calls
 
 Supported activity types are `Playing`, `Listening`, `Watching`, `Competing`, and `Custom`.
 
-Voice join/leave commands are shipped behind an opt-in policy. `!ai voice say` uses a configurable HTTP TTS endpoint plus Discord Voice playback when `VOICE_TTS_ENDPOINT` is set. `!ai voice listen status|enable|disable` manages the opt-in listening/transcription policy and requires `VOICE_STT_ENDPOINT` before listening can be enabled. The current voice code requires guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training. When listening is enabled before `!ai voice join`, the receive bridge subscribes to Discord speaking events, buffers transient per-speaker Opus packets, sends them to STT, routes transcripts through the normal agent/tool/memory path, and can queue a TTS reply. `npm run eval:voice:gate` covers deterministic transcript, speaker, turn-taking, latency, social-timing, and retention checks. Production VAD, Opus decode/mux handling, speaker-attribution hardening against live audio, and live Discord/STT validation are still TODO.
+Voice join/leave commands are shipped behind an opt-in policy. `!ai voice say` uses a configurable HTTP TTS endpoint plus Discord Voice playback when `VOICE_TTS_ENDPOINT` is set. `!ai voice listen status|enable|disable` manages the opt-in listening/transcription policy and requires `VOICE_STT_ENDPOINT` before listening can be enabled. The current voice code requires guild/channel opt-in, transient raw audio by default, visible listening presence while actively transcribing, and review before transcripts can feed training. When listening is enabled before `!ai voice join`, the receive bridge subscribes to Discord speaking events, buffers transient per-speaker Opus packets, runs them through the preprocessing/VAD handoff, sends them to STT, routes transcripts through the normal agent/tool/memory path, and can queue a TTS reply. `npm run eval:voice:gate` covers deterministic transcript, speaker, turn-taking, latency, social-timing, and retention checks. Production decoder/VAD implementation, speaker-attribution hardening against live audio, and live Discord/STT validation are still TODO.
 
 ```env
 # Contract: POST JSON {text, voice, format, metadata}; return audio bytes or JSON {audioBase64}.
@@ -131,3 +133,4 @@ It deliberately ignores all other messages (spam/cost control). Slash commands u
 | Bot online but silent | Mention it or use `!ai`; check it can View Channel + Send Messages there |
 | Empty `message.content` | Message Content Intent not enabled |
 | Moderation tools fail with permission errors | The *bot's role* also needs the permission (e.g. Moderate Members) and must sit above the target's highest role |
+| Voice join/speak fails | Confirm the bot role has Connect, Speak, and Use Voice Activity in that voice channel |

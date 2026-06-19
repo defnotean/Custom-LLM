@@ -33,6 +33,7 @@ export interface DiscordVoiceServiceOptions {
   speechQueue?: VoiceSpeechQueue | null;
   sttProvider?: SttProvider | null;
   receiveBridge?: VoiceReceiveBridgePort | null;
+  presenceIndicator?: VoicePresenceIndicator | null;
   logger?: Logger;
   readyTimeoutMs?: number;
 }
@@ -40,6 +41,11 @@ export interface DiscordVoiceServiceOptions {
 export interface VoiceReceiveBridgePort {
   attach(input: { guildId: string; channelId: string; connection: VoiceConnection; session: VoiceSession }): void;
   detach(guildId: string): void;
+}
+
+export interface VoicePresenceIndicator {
+  showListening(input: { guildId: string; channelId: string }): unknown;
+  clearListening(guildId: string): unknown;
 }
 
 export interface BufferedVoiceAudioInput {
@@ -57,6 +63,7 @@ export class DiscordVoiceService {
   private readonly speechQueue: VoiceSpeechQueue | null;
   private readonly sttProvider: SttProvider | null;
   private receiveBridge: VoiceReceiveBridgePort | null;
+  private readonly presenceIndicator: VoicePresenceIndicator | null;
   private readonly logger?: Logger;
   private readonly readyTimeoutMs: number;
 
@@ -66,6 +73,7 @@ export class DiscordVoiceService {
     this.speechQueue = options.speechQueue ?? null;
     this.sttProvider = options.sttProvider ?? null;
     this.receiveBridge = options.receiveBridge ?? null;
+    this.presenceIndicator = options.presenceIndicator ?? null;
     this.logger = options.logger;
     this.readyTimeoutMs = options.readyTimeoutMs ?? 10_000;
   }
@@ -184,6 +192,7 @@ export class DiscordVoiceService {
       });
       if (started.ok) {
         this.receiveBridge?.attach({ guildId: ctx.guildId, channelId: channel.id, connection, session: started.session });
+        this.syncPresenceIndicator(started.session);
       }
       return {
         ok: true,
@@ -194,6 +203,7 @@ export class DiscordVoiceService {
       getVoiceConnection(ctx.guildId)?.destroy();
       this.registry.stop(ctx.guildId);
       this.receiveBridge?.detach(ctx.guildId);
+      this.presenceIndicator?.clearListening(ctx.guildId);
       this.logger?.warn({ err: toErrorMessage(err), guildId: ctx.guildId, channelId: channel.id }, "voice join failed");
       return { ok: false, policy, message: `Voice join failed: ${toErrorMessage(err)}` };
     }
@@ -206,6 +216,7 @@ export class DiscordVoiceService {
     connection?.destroy();
     void this.speechQueue?.stopGuild(ctx.guildId);
     this.receiveBridge?.detach(ctx.guildId);
+    this.presenceIndicator?.clearListening(ctx.guildId);
     const stopped = this.registry.stop(ctx.guildId);
     return {
       ok: true,
@@ -294,7 +305,10 @@ export class DiscordVoiceService {
       visibleIndicator: true,
     };
     await this.settingsStore.updateSettings(ctx.guildId, { ...settings, voice: nextVoice }, ctx.guildName ?? undefined);
-    if (!enabled) this.receiveBridge?.detach(ctx.guildId);
+    if (!enabled) {
+      this.receiveBridge?.detach(ctx.guildId);
+      this.presenceIndicator?.clearListening(ctx.guildId);
+    }
 
     const policy = resolveVoicePolicy({
       guildId: ctx.guildId,
@@ -418,6 +432,14 @@ export class DiscordVoiceService {
     if (!this.settingsStore) return {};
     const settings = await this.settingsStore.getSettings(guildId);
     return settings.voice ?? {};
+  }
+
+  private syncPresenceIndicator(session: VoiceSession): void {
+    if (session.policy.canTranscribe && session.policy.visibleIndicator) {
+      this.presenceIndicator?.showListening({ guildId: session.guildId, channelId: session.channelId });
+      return;
+    }
+    this.presenceIndicator?.clearListening(session.guildId);
   }
 }
 

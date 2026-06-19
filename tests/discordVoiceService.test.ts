@@ -1,10 +1,27 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GuildSettings } from "../src/database/repositories/GuildRepository";
 import { DiscordVoiceService } from "../src/discord/voice/DiscordVoiceService";
 import { VoiceSessionRegistry } from "../src/discord/voice/VoiceSessionPolicy";
 import { VoiceSpeechQueue, type VoiceSpeechJob } from "../src/discord/voice/VoiceSpeechQueue";
 import type { VoiceTranscriptionRequest } from "../src/discord/voice/VoiceSttTranscription";
 import type { BotMessageContext } from "../src/types/discord";
+
+const voiceMock = vi.hoisted(() => {
+  const destroy = vi.fn();
+  return {
+    connection: { destroy },
+    entersState: vi.fn(async () => undefined),
+    getVoiceConnection: vi.fn(() => null),
+    joinVoiceChannel: vi.fn(() => ({ destroy })),
+  };
+});
+
+vi.mock("@discordjs/voice", () => ({
+  entersState: voiceMock.entersState,
+  getVoiceConnection: voiceMock.getVoiceConnection,
+  joinVoiceChannel: voiceMock.joinVoiceChannel,
+  VoiceConnectionStatus: { Ready: "ready" },
+}));
 
 function makeCtx(overrides?: Partial<BotMessageContext>): BotMessageContext {
   return {
@@ -48,6 +65,14 @@ function makeSettingsStore(initial: GuildSettings = {}) {
 }
 
 describe("DiscordVoiceService", () => {
+  afterEach(() => {
+    voiceMock.connection.destroy.mockClear();
+    voiceMock.entersState.mockClear();
+    voiceMock.getVoiceConnection.mockClear();
+    voiceMock.getVoiceConnection.mockReturnValue(null);
+    voiceMock.joinVoiceChannel.mockClear();
+  });
+
   it("enables only the caller's current voice channel and leaves listening off", async () => {
     const settings = makeSettingsStore();
     const service = new DiscordVoiceService({ settingsStore: settings.store });
@@ -95,6 +120,36 @@ describe("DiscordVoiceService", () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toContain("voice-disabled");
+    expect(voiceMock.joinVoiceChannel).not.toHaveBeenCalled();
+  });
+
+  it("shows visible listening presence when joining an opted-in transcribing session", async () => {
+    const presenceIndicator = { showListening: vi.fn(), clearListening: vi.fn() };
+    const receiveBridge = { attach: vi.fn(), detach: vi.fn() };
+    const service = new DiscordVoiceService({
+      settingsStore: makeSettingsStore({
+        voice: {
+          enabled: true,
+          allowChannels: ["voice-1"],
+          listenEnabled: true,
+          transcriptionEnabled: true,
+          visibleIndicator: true,
+        },
+      }).store,
+      sttProvider: { transcribe: async () => ({ text: "ok" }) },
+      receiveBridge,
+      presenceIndicator,
+    });
+
+    const result = await service.joinCurrentChannel(makeCtx());
+
+    expect(result.ok).toBe(true);
+    expect(voiceMock.joinVoiceChannel).toHaveBeenCalledWith(expect.objectContaining({ selfDeaf: false }));
+    expect(receiveBridge.attach).toHaveBeenCalledWith(
+      expect.objectContaining({ guildId: "guild-1", channelId: "voice-1" }),
+    );
+    expect(presenceIndicator.showListening).toHaveBeenCalledWith({ guildId: "guild-1", channelId: "voice-1" });
+    expect(presenceIndicator.clearListening).not.toHaveBeenCalled();
   });
 
   it("keeps speech unavailable until a TTS backend is configured", async () => {
@@ -202,17 +257,20 @@ describe("DiscordVoiceService", () => {
     const settings = makeSettingsStore({
       voice: { enabled: true, allowChannels: ["voice-1"], listenEnabled: true, transcriptionEnabled: true },
     });
-    const service = new DiscordVoiceService({
+    const receiveBridge = { attach: vi.fn(), detach: vi.fn() };
+    const presenceIndicator = { showListening: vi.fn(), clearListening: vi.fn() };
+    const serviceWithPresence = new DiscordVoiceService({
       settingsStore: settings.store,
       sttProvider: { transcribe: async () => ({ text: "ok" }) },
+      receiveBridge,
+      presenceIndicator,
     });
-    const receiveBridge = { attach: vi.fn(), detach: vi.fn() };
-    service.setReceiveBridge(receiveBridge);
 
-    const result = await service.configureListening(makeCtx(), false);
+    const result = await serviceWithPresence.configureListening(makeCtx(), false);
 
     expect(result.ok).toBe(true);
     expect(receiveBridge.detach).toHaveBeenCalledWith("guild-1");
+    expect(presenceIndicator.clearListening).toHaveBeenCalledWith("guild-1");
     expect(settings.read().voice).toMatchObject({
       listenEnabled: false,
       transcriptionEnabled: false,

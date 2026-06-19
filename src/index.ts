@@ -64,6 +64,7 @@ import {
 } from "./training/parameter/ParameterTrainerDispatchService";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
+import { VoiceListeningPresenceIndicator } from "./discord/presence";
 import { createMessageHandler } from "./discord/events/messageCreate";
 import { createInteractionHandler } from "./discord/events/interactionCreate";
 import { DiscordVoiceService } from "./discord/voice/DiscordVoiceService";
@@ -191,6 +192,16 @@ async function main(): Promise<void> {
 
   // ── Discord client + agent ─────────────────────────────────────────────
   const discordClient = createDiscordClient();
+  const discordPresence = {
+    status: env.DISCORD_PRESENCE_STATUS,
+    activityType: env.DISCORD_PRESENCE_ACTIVITY_TYPE,
+    activityName: env.DISCORD_PRESENCE_ACTIVITY_NAME,
+  };
+  const voicePresenceIndicator = new VoiceListeningPresenceIndicator({
+    client: discordClient,
+    basePresence: discordPresence,
+    logger: childLogger("presence"),
+  });
   const voiceSpeechQueue = env.VOICE_TTS_ENDPOINT
     ? new VoiceSpeechQueue(
         new DiscordVoiceSpeechPlayer({
@@ -233,6 +244,7 @@ async function main(): Promise<void> {
     settingsStore: guildRepo,
     speechQueue: voiceSpeechQueue,
     sttProvider,
+    presenceIndicator: voicePresenceIndicator,
     logger: childLogger("voice"),
   });
 
@@ -400,11 +412,7 @@ async function main(): Promise<void> {
 
   // ── Discord login (optional in API-only/dev mode) ──────────────────────
   if (env.DISCORD_TOKEN) {
-    await startDiscordClient(discordClient, env.DISCORD_TOKEN, childLogger("discord"), {
-      status: env.DISCORD_PRESENCE_STATUS,
-      activityType: env.DISCORD_PRESENCE_ACTIVITY_TYPE,
-      activityName: env.DISCORD_PRESENCE_ACTIVITY_NAME,
-    });
+    await startDiscordClient(discordClient, env.DISCORD_TOKEN, childLogger("discord"), discordPresence);
   } else {
     logger.warn("DISCORD_TOKEN not set — running in API-only mode (no Discord connection)");
   }

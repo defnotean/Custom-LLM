@@ -11,6 +11,17 @@ export interface DiscordPresenceOptions {
   activityName: string;
 }
 
+export interface VoiceListeningPresenceInput {
+  guildId: string;
+  channelId: string;
+}
+
+export interface VoiceListeningPresenceIndicatorOptions {
+  client: Client;
+  basePresence: DiscordPresenceOptions;
+  logger?: Logger;
+}
+
 const activityTypeByName: Record<DiscordPresenceActivityType, ActivityType> = {
   Playing: ActivityType.Playing,
   Listening: ActivityType.Listening,
@@ -40,6 +51,14 @@ export function buildPresenceData(options: DiscordPresenceOptions): PresenceData
   };
 }
 
+export function buildVoiceListeningPresenceData(base: DiscordPresenceOptions, activeGuilds: number): PresenceData {
+  return buildPresenceData({
+    status: base.status,
+    activityType: "Listening",
+    activityName: formatVoiceListeningActivity(activeGuilds),
+  });
+}
+
 export function applyDiscordPresence(
   client: Client,
   options: DiscordPresenceOptions,
@@ -57,4 +76,44 @@ export function applyDiscordPresence(
     "discord presence configured",
   );
   return presence;
+}
+
+export class VoiceListeningPresenceIndicator {
+  private readonly active = new Map<string, VoiceListeningPresenceInput>();
+
+  constructor(private readonly options: VoiceListeningPresenceIndicatorOptions) {}
+
+  showListening(input: VoiceListeningPresenceInput): PresenceData | null {
+    this.active.set(input.guildId, input);
+    return this.apply();
+  }
+
+  clearListening(guildId: string): PresenceData | null {
+    this.active.delete(guildId);
+    return this.apply();
+  }
+
+  activeCount(): number {
+    return this.active.size;
+  }
+
+  private apply(): PresenceData | null {
+    if (!this.options.client.user) return null;
+    if (this.active.size === 0) {
+      return applyDiscordPresence(this.options.client, this.options.basePresence, this.options.logger);
+    }
+
+    const presence = buildVoiceListeningPresenceData(this.options.basePresence, this.active.size);
+    this.options.client.user.setPresence(presence);
+    this.options.logger?.info(
+      { activeVoiceGuilds: this.active.size, activityName: presence.activities?.[0]?.name },
+      "discord voice listening presence configured",
+    );
+    return presence;
+  }
+}
+
+function formatVoiceListeningActivity(activeGuilds: number): string {
+  const count = Math.max(1, activeGuilds);
+  return `to opt-in voice in ${count} ${count === 1 ? "server" : "servers"}`;
 }

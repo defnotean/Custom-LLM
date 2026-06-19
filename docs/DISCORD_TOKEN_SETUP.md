@@ -24,6 +24,7 @@ bot (`custom-llm-discord-bot`).
 | Test server ID (optional, dev) | `DISCORD_GUILD_ID` | Discord client → right-click your server → Copy Server ID |
 | Message Content Intent | *(toggle, not an env var)* | Developer Portal → **Bot** → Privileged Gateway Intents |
 | Server Members Intent | *(toggle, not an env var)* | Developer Portal → **Bot** → Privileged Gateway Intents |
+| Voice state events | *(non-privileged intent, no toggle)* | Requested by code for Discord Voice join/listen state |
 
 These three env vars are read and validated in
 [`src/config/env.ts`](../src/config/env.ts) (lines 19–21). They each default to an
@@ -88,6 +89,8 @@ of them. Toggle these **on** and click **Save Changes**:
 
 Leave **Presence Intent** **off** (the bot doesn't read presence/status).
 
+The bot also requests Discord's non-privileged `GuildVoiceStates` intent in code for voice-channel state. There is no separate Developer Portal toggle for it.
+
 ### Why this bot needs them (grounded in the code)
 
 The client is constructed in
@@ -99,6 +102,7 @@ intents: [
   GatewayIntentBits.Guilds,          // basic guild/channel data
   GatewayIntentBits.GuildMessages,   // receive message events in servers
   GatewayIntentBits.GuildMembers,    // ← PRIVILEGED: Server Members Intent
+  GatewayIntentBits.GuildVoiceStates,// voice-channel state for Discord Voice
   GatewayIntentBits.MessageContent,  // ← PRIVILEGED: Message Content Intent
   GatewayIntentBits.DirectMessages,  // receive DMs
 ],
@@ -114,6 +118,9 @@ intents: [
   member/permission lookups that gate moderation tools (e.g. resolving a member's
   permissions and roles for tools like timeout/kick). Without it, member data is
   incomplete and those lookups misbehave.
+- **Voice State events** back `GatewayIntentBits.GuildVoiceStates`. This is not a
+  privileged portal toggle, but the code requests it so Irene can join voice,
+  track the caller's voice channel, and support opt-in listening sessions.
 
 The factory also sets **partials** so DMs work:
 
@@ -149,6 +156,9 @@ You can let Discord build the URL for you, or use the ready-made template below.
    | **Embed Links** | Render link previews / richer output. |
    | **Manage Messages** | Backs the message-management tool (e.g. deleting/cleaning messages) when a moderator asks. |
    | **Moderate Members** | Backs the timeout moderation tool. |
+   | **Connect** | Lets Irene join opted-in voice channels. |
+   | **Speak** | Lets Irene play TTS replies in voice. |
+   | **Use Voice Activity** | Lets Irene speak without push-to-talk constraints. |
 
    > Permissions are also enforced per-user: the bot only runs a moderation tool if
    > the **requesting member** has the matching permission (e.g. `MODERATE_MEMBERS`,
@@ -164,12 +174,12 @@ You can let Discord build the URL for you, or use the ready-made template below.
 Replace `YOUR_CLIENT_ID` with your `DISCORD_CLIENT_ID` from Step 2:
 
 ```
-https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot+applications.commands&permissions=1099780064256
+https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot+applications.commands&permissions=1099816764416
 ```
 
-The `permissions=1099780064256` bitfield encodes exactly the six permissions in the
+The `permissions=1099816764416` bitfield encodes exactly the nine permissions in the
 table above (View Channels, Send Messages, Read Message History, Embed Links, Manage
-Messages, Moderate Members). It matches the value used in
+Messages, Moderate Members, Connect, Speak, Use Voice Activity). It matches the value used in
 [`DISCORD_SETUP.md`](./DISCORD_SETUP.md). If you change the checkboxes in Option A, the
 number changes too — that's expected.
 
@@ -266,7 +276,8 @@ Other good signs around it:
 | Replies come back **empty** or it never reacts to plain mentions/text | **Message Content Intent** not enabled | `message.content` is empty without it — enable it (Step 5) and restart. |
 | **DMs don't work** | Missing DM intent/partials, or DMs disabled | The code already sets `DirectMessages` + `Partials.Channel` ([`client.ts`](../src/discord/client.ts) lines 21, 24); make sure your server's privacy settings allow DMs from the bot. |
 | Moderation tools fail with a **permission error** | The bot's role lacks the permission, or is too low in the role list | Give the bot's role the needed permission (e.g. **Moderate Members**) and drag its role **above** the target member's highest role. The requesting user also needs that permission. |
-| Slash commands do nothing | Not implemented yet | Expected — the current build uses prefix/mention/DM. Use `!ai help`. |
+| Voice join/speak fails | The bot's role lacks voice channel permissions | Give the bot role **Connect**, **Speak**, and **Use Voice Activity** in the target voice channel, then retry `!ai voice join`. |
+| Slash commands do nothing | Commands were not registered or have not propagated | Run `npm run register:discord-commands`; use `DISCORD_GUILD_ID` for fast test-server registration, or wait for global command propagation. |
 
 ---
 
@@ -277,7 +288,7 @@ Other good signs around it:
 - [ ] Bot token reset + copied → `DISCORD_TOKEN` (copied on the one reveal)
 - [ ] **Message Content Intent** enabled
 - [ ] **Server Members Intent** enabled
-- [ ] Invite URL built with scopes `bot` + `applications.commands` and the 6 permissions
+- [ ] Invite URL built with scopes `bot` + `applications.commands` and the 9 permissions
 - [ ] Bot invited to a test server
 - [ ] (Optional) **Server ID** copied → `DISCORD_GUILD_ID`
 - [ ] `.env` filled in, app started
