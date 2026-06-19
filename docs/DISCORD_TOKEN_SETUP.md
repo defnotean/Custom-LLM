@@ -137,8 +137,7 @@ You can let Discord build the URL for you, or use the ready-made template below.
 1. In the left sidebar, open **OAuth2** → **URL Generator**.
 2. Under **Scopes**, check:
    - ✅ `bot`
-   - ✅ `applications.commands` *(reserved for slash commands; the current build uses
-     prefix/mention, but including this scope now avoids re-inviting later)*
+   - ✅ `applications.commands` *(required for `/ai input:<text>` slash commands)*
 3. A **Bot Permissions** panel appears. Check the permissions this bot actually uses
    (derived from its feature set):
 
@@ -190,11 +189,11 @@ number changes too — that's expected.
 2. Right-click your test server's icon → **Copy Server ID**.
 3. Put it in `.env` as `DISCORD_GUILD_ID=...`.
 
-This is **optional**. It's read in [`src/config/env.ts`](../src/config/env.ts)
-(line 21) and reserved for fast, guild-scoped slash-command registration later
-(guild-scoped commands update instantly vs ~1 hour for global). The current build
-responds via the `!ai` prefix, @mentions, replies, and DMs — none of which require
-`DISCORD_GUILD_ID` — so you can leave it blank for now.
+This is **optional**. It is read in [`src/config/env.ts`](../src/config/env.ts)
+and used by `npm run register:discord-commands` for fast, guild-scoped slash-command
+registration (guild-scoped commands update almost instantly vs about an hour for
+global). The bot also responds via the `!ai` prefix, @mentions, replies, and DMs,
+none of which require `DISCORD_GUILD_ID`.
 
 ## Step 9 — Put the values in `.env` and start the bot
 

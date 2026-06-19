@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "postinstall": "prisma generate",
     "test-llm": "tsx scripts/test-llm.ts",
+    "register:discord-commands": "tsx scripts/register-discord-commands.ts",
     "export:training": "tsx scripts/export-training-data.ts",
     "plan:parameter-growth": "tsx scripts/plan-parameter-growth.ts",
     "check:parameter-growth-plan": "tsx scripts/check-parameter-growth-plan.ts",

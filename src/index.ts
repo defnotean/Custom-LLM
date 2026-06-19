@@ -285,7 +285,15 @@ async function main(): Promise<void> {
       logger: childLogger("discord"),
     }),
   );
-  discordClient.on(Events.InteractionCreate, createInteractionHandler({ logger: childLogger("discord") }));
+  discordClient.on(
+    Events.InteractionCreate,
+    createInteractionHandler({
+      agent,
+      commandServices,
+      settingsStore: guildRepo,
+      logger: childLogger("discord"),
+    }),
+  );
 
   // ── API server ─────────────────────────────────────────────────────────
   const api = buildApiServer({

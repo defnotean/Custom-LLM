@@ -34,7 +34,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 
 | Layer | Location | Responsibility |
 |---|---|---|
-| Discord | `src/discord/` | Gateway events, context normalization, per-guild text-channel allowlist enforcement, prefix commands, typing/splitting |
+| Discord | `src/discord/` | Gateway events, context normalization, per-guild text-channel allowlist enforcement, prefix commands, `/ai input:<text>` slash command registration/handling, typing/splitting |
 | Voice & Presence | `src/discord/presence.ts`, `src/discord/voice/` | Bot identity/status config, opt-in voice policy, voice-session state, command-gated voice-channel join/leave, provider-backed speech queue, HTTP TTS provider contract, and Discord playback adapter; opt-in STT/transcription is next |
 | Orchestration | `src/ai/orchestration/` | AgentController + thin agents (conversation, tool-router, memory, safety, evaluation) |
 | LLM | `src/ai/llm/` | Provider abstraction, OpenAI-compatible + native Ollama, fallback router, optional SubQ long-context route |
@@ -124,7 +124,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Area | Status |
 |---|---|
 | Content moderation (`ModerationRules`) | **Placeholder** — minimal regex screen. Production: Llama Guard via local endpoint + Discord AutoMod + provider moderation |
-| Slash commands (`interactionCreate`) | **Placeholder** — replies with a pointer to `!ai`; registration script + defer/followUp flow not built |
+| Slash commands (`interactionCreate`) | **Implemented** - `npm run register:discord-commands` publishes `/ai input:<text>` globally or to `DISCORD_GUILD_ID`; handler defers replies, enforces guild text policy, then routes into the same command/agent paths as prefix messages |
 | Memory summarizer worker | **Placeholder** — scheduled and observable, performs no writes; intended: rolling channel summaries + memory consolidation |
 | Embedding-based tool routing | **Implemented, opt-in** via `TOOL_ROUTER_STRATEGY=embedding`; use a real embedding model for semantic recall and compare eval metrics before promotion |
 | QdrantMemoryStore | **Implemented, not integration-tested** — REST calls per documented API; exercise against `docker compose up qdrant` before relying on it |

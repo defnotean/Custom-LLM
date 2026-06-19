@@ -15,5 +15,10 @@ export function toUpperSnake(pascal: string): string {
 /** Normalized permission names for a guild member (empty for DMs). */
 export function memberPermissionNames(member: GuildMember | null): string[] {
   if (!member) return [];
-  return member.permissions.toArray().map(toUpperSnake);
+  return permissionNames(member.permissions);
+}
+
+export function permissionNames(permissions: { toArray(): string[] } | null | undefined): string[] {
+  if (!permissions) return [];
+  return permissions.toArray().map(toUpperSnake);
 }

@@ -29,9 +29,15 @@ Or use this template (replace the client id):
 https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot+applications.commands&permissions=1099780064256
 ```
 
-## 4. Development guild
+## 4. Development guild and slash commands
 
-Set `DISCORD_GUILD_ID` to your test server's id (enable Developer Mode in Discord → right-click server → Copy Server ID). It is reserved for guild-scoped slash-command registration (instant updates vs ~1h global) once slash commands land — the current build uses prefix commands and mentions.
+Set `DISCORD_GUILD_ID` to your test server's id (enable Developer Mode in Discord → right-click server → Copy Server ID) for fast guild-scoped slash-command registration. Leave it blank to register globally, which can take about an hour to propagate.
+
+```bash
+npm run register:discord-commands
+```
+
+The registered command is `/ai input:<text>`. It routes through the same deterministic command and agent paths as `!ai`, including text-channel allowlists, disabled-tool policy, permission gates, cooldowns, and confirmation gates.
 
 ## 5. Presence
 
@@ -98,11 +104,12 @@ The bot responds to:
 | Trigger | Example |
 |---|---|
 | Prefix commands | `!ai ping`, `!ai tools`, `!ai help` |
+| Slash command | `/ai input: ping` or `/ai input: hello Irene` |
 | @mention | `@Irene what's the server's game night?` |
 | Reply to one of its messages | (continues the conversation) |
 | DM | anything |
 
-It deliberately ignores all other messages (spam/cost control). Slash commands are a documented placeholder (`src/discord/events/interactionCreate.ts`).
+It deliberately ignores all other messages (spam/cost control). Slash commands use the same command/agent pipeline through `src/discord/events/interactionCreate.ts`.
 
 ## Troubleshooting
 

@@ -17,7 +17,7 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Voice readiness**: opt-in guild/channel voice policy, session state, Discord Voice join/leave path, provider-backed speech queue, HTTP TTS endpoint contract, and Discord playback adapter; listen/STT stay off until explicit backends and retention policy are configured
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `/learning/status`, `/learning/items`, `/learning/parameter-modules`, `/learning/parameter-modules/stage-from-manifest`, `/learning/parameter-hotload/apply`, `/learning/parameter-snapshot`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 303 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 309 passing tests
 
 ## Quickstart
 
@@ -46,6 +46,7 @@ npm run dev
 ```
 
 Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DISCORD_TOKEN` the app runs in API-only mode; without a database it runs with persistence disabled (loud warnings, no crashes).
+Run `npm run register:discord-commands` after setting `DISCORD_TOKEN` and `DISCORD_CLIENT_ID` to publish the `/ai input:<text>` slash command; set `DISCORD_GUILD_ID` for fast guild-scoped registration during development.
 
 ## Commands
 
@@ -58,6 +59,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `!ai voice status|policy|enable|disable|join|leave|say|stop-speaking` | Opt-in voice presence and speech queue management |
 | `!ai export-training` | Export training JSONL (admin) |
 | `!ai stats` / `!ai health` / `!ai help` | Ops info |
+| `/ai input:<text>` | Slash-command entrypoint for the same chat and deterministic command paths |
 
 ## Scripts
 
@@ -66,6 +68,7 @@ Then in Discord: `!ai ping`, `!ai help`, or just @mention the bot. Without a `DI
 | `npm run dev` / `npm start` / `npm run build` | Run (watch) / run compiled / compile |
 | `npm run typecheck` / `npm test` | Strict TS check / Vitest suite |
 | `npm run test-llm` | Smoke-test the configured LLM + embedding endpoints |
+| `npm run register:discord-commands` | Register `/ai input:<text>` slash command globally or to `DISCORD_GUILD_ID` |
 | `npm run export:training` | Write `exports/training/*.jsonl` from logged interactions |
 | `npm run plan:parameter-growth` | Write a parameter-growth training-batch manifest from approved queued learned items |
 | `npm run check:parameter-growth-plan` | Gate a parameter-growth plan before any trainer consumes it |
@@ -172,11 +175,11 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 
 ## Status: real vs. placeholder
 
-**Fully working:** boot/degraded modes, Discord conversation + commands, admin settings commands for text allowlists and disabled tools, per-guild text-channel allowlist enforcement, per-guild disabled-tool routing/command/executor enforcement, configurable Irene presence, voice policy/session scaffold, opt-in voice join/leave command path, provider-backed voice speech queue with cooldown/depth/stop gates, HTTP TTS provider contract and Discord playback adapter, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, SubQ/SSA architecture contract check, dataset governance readiness check, adversarial no-tool, expanded multi-turn confirmation/correction, and prompt-injection protocol cases, ops API, docker compose, 303 tests.
+**Fully working:** boot/degraded modes, Discord conversation + prefix commands, `/ai input:<text>` slash-command registration/handler, admin settings commands for text allowlists and disabled tools, per-guild text-channel allowlist enforcement, per-guild disabled-tool routing/command/executor enforcement, configurable Irene presence, voice policy/session scaffold, opt-in voice join/leave command path, provider-backed voice speech queue with cooldown/depth/stop gates, HTTP TTS provider contract and Discord playback adapter, both LLM providers + fallback/SubQ long-context router, response parsing/repair, tool registry/router/executor with all gates, pgvector + in-process memory stores, memory policy, live-learning ledger capture for memory writes/tool-skill candidates/eval failures, learned-item review/queue ops API, approved-skill prompt retrieval, active parameter-module prompt activation, parameter-growth planning/gating/data handoff/quality checks/trainer dispatch contract/backend-aware trainer control endpoint/module staging and promotion gates/stage-from-manifest API/hotload handoff quality checks/apply client/backend-aware control endpoint/status accounting and ops API, rate limiting, training capture, JSONL export, synthetic generation, protocol/knowledge/behavior/router/tool-router/skill/long-context eval gates, SubQ/SSA architecture contract check, dataset governance readiness check, adversarial no-tool, expanded multi-turn confirmation/correction, and prompt-injection protocol cases, ops API, docker compose, 309 tests.
 
 **Implemented but unverified against live services:** QdrantMemoryStore (REST per docs, no integration test yet).
 
-**Placeholders (interface real, body minimal - all tracked in ARCHITECTURE.md):** content moderation rules, slash commands, memory summarizer worker, STT/audio receive, Redis-backed cooldowns/queue.
+**Placeholders (interface real, body minimal - all tracked in ARCHITECTURE.md):** content moderation rules, memory summarizer worker, STT/audio receive, Redis-backed cooldowns/queue.
 
 ## License
 
