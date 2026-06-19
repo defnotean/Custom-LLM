@@ -83,6 +83,7 @@
     "eval:predictions": "tsx scripts/evaluate-predictions.ts",
     "eval:gate": "tsx scripts/check-eval-promotion.ts",
     "report:training-runs": "tsx scripts/report-training-runs.ts",
+    "report:irene-status": "tsx scripts/report-irene-status.ts",
     "check:training-report": "tsx scripts/check-training-report.ts",
     "check:tool-protocol-coverage": "tsx scripts/check-tool-protocol-coverage.ts",
     "check:knowledge-coverage": "tsx scripts/check-knowledge-coverage.ts",

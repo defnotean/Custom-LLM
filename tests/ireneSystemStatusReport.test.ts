@@ -1,0 +1,275 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { buildIreneSystemStatusReport } from "../src/training/quality/IreneSystemStatusReport";
+
+describe("IreneSystemStatusReport", () => {
+  let dir: string | null = null;
+
+  afterEach(async () => {
+    if (dir) await rm(dir, { recursive: true, force: true });
+    dir = null;
+  });
+
+  it("reports active parameters, scratch parameters, and current capability gates", async () => {
+    const fixture = await writeFixture();
+
+    const report = await buildIreneSystemStatusReport({
+      runRoot: fixture.runRoot,
+      includeProductionReadiness: false,
+      toolProtocolGatePath: fixture.gates.toolProtocol,
+      behaviorScratchGatePath: fixture.gates.behavior,
+      routerScratchGatePath: fixture.gates.router,
+      toolRouterGatePath: fixture.gates.toolRouter,
+      memoryContinuityGatePath: fixture.gates.memory,
+      skillRetrievalGatePath: fixture.gates.skill,
+      longContextGatePath: fixture.gates.longContext,
+      voiceGatePath: fixture.gates.voice,
+      learningStats: {
+        learnedItems: 12,
+        candidateItems: 4,
+        approvedItems: 3,
+        queuedItems: 2,
+        trainedItems: 1,
+        parameterModules: 3,
+        activeParameterModules: 2,
+        stagedParameterModules: 1,
+        totalSystemParams: 4_012_000_000,
+        stagedParams: 775_358,
+        activeParamsPerRequest: 4_012_000_000,
+      },
+      now: () => "2026-06-19T07:00:00.000Z",
+    });
+
+    expect(report.runtimeContract).toBe("irene-system-status-v1");
+    expect(report.generatedAt).toBe("2026-06-19T07:00:00.000Z");
+    expect(report.overall).toMatchObject({
+      capabilityLevel: "tool_protocol_specialist_prototype",
+      criticalFailures: ["behavior_scratch", "router_scratch"],
+    });
+    expect(report.parameterAccounting).toMatchObject({
+      source: "learning_stats",
+      plannedProductionBaseParams: 4_000_000_000,
+      activeSystemParams: 4_012_000_000,
+      activeParamsPerRequest: 4_012_000_000,
+      stagedParams: 775_358,
+      largestScratchCheckpointParams: 2_715_772,
+      largestScratchCheckpointRun: "tiny-transformer-iter6-expanded-sft",
+      bestProtocolScratchParams: 775_358,
+      behaviorScratchParams: 392_619,
+      routerScratchParams: 343_050,
+    });
+    expect(report.learning).toMatchObject({
+      enabled: true,
+      learnedItems: 12,
+      queuedItems: 2,
+      trainedItems: 1,
+    });
+    expect(surface(report, "tool_protocol_scratch")).toMatchObject({
+      status: "pass",
+      cases: 34,
+      params: 775_358,
+      metrics: {
+        validJsonRate: 1,
+        actionTypeAccuracy: 1,
+        hallucinatedToolRate: 0,
+      },
+    });
+    expect(surface(report, "behavior_scratch")).toMatchObject({
+      status: "fail",
+      params: 392_619,
+      metrics: { validJsonRate: 0, requirementPassRate: 0 },
+    });
+    expect(surface(report, "router_scratch")).toMatchObject({
+      status: "fail",
+      params: 343_050,
+      metrics: { routeAccuracy: 0.055556, invalidPredictions: 13 },
+    });
+    expect(surface(report, "memory_continuity")).toMatchObject({
+      status: "pass",
+      cases: 17,
+      metrics: { passRate: 1, recallHitRate: 1 },
+    });
+    expect(report.nextActions).toEqual(
+      expect.arrayContaining([
+        "Fix behavior/persona JSON stability before judging social quality.",
+        "Train or replace the route classifier until invalid route predictions are zero.",
+        "Keep expanding BFCL-style tool cases so the perfect-tool-call target stays measurable.",
+      ]),
+    );
+  });
+
+  it("marks missing evidence as unmeasured without inventing quality", async () => {
+    dir = await mkdtemp(join(tmpdir(), "irene-status-missing-"));
+    const report = await buildIreneSystemStatusReport({
+      runRoot: join(dir, "runs"),
+      includeProductionReadiness: false,
+      toolProtocolGatePath: join(dir, "missing-tool.json"),
+      behaviorScratchGatePath: join(dir, "missing-behavior.json"),
+      routerScratchGatePath: join(dir, "missing-router.json"),
+      toolRouterGatePath: join(dir, "missing-tool-router.json"),
+      memoryContinuityGatePath: join(dir, "missing-memory.json"),
+      skillRetrievalGatePath: join(dir, "missing-skill.json"),
+      longContextGatePath: join(dir, "missing-long-context.json"),
+      voiceGatePath: join(dir, "missing-voice.json"),
+      now: () => "2026-06-19T07:10:00.000Z",
+    });
+
+    expect(report.overall.capabilityLevel).toBe("unmeasured");
+    expect(report.parameterAccounting.source).toBe("not_configured");
+    expect(report.parameterAccounting.activeSystemParams).toBe(0);
+    expect(report.scratchRuns.totalRuns).toBe(0);
+    expect(report.capabilityScorecard.every((surface) => surface.status === "not_measured")).toBe(true);
+  });
+
+  async function writeFixture(): Promise<{
+    runRoot: string;
+    gates: Record<"toolProtocol" | "behavior" | "router" | "toolRouter" | "memory" | "skill" | "longContext" | "voice", string>;
+  }> {
+    dir = await mkdtemp(join(tmpdir(), "irene-status-"));
+    const runRoot = join(dir, "runs");
+    const gateDir = join(dir, "gates");
+    await mkdir(runRoot, { recursive: true });
+    await mkdir(gateDir, { recursive: true });
+
+    await writeMetrics(runRoot, "tiny-transformer-protocol-iter16", 775_358, 235, 58, 6.0791, 0.0511);
+    await writeMetrics(runRoot, "tiny-transformer-behavior-iter1", 392_619, 45, 11, 6.4848, 0.2655);
+    await writeMetrics(runRoot, "tiny-transformer-router-iter1", 343_050, 34, 8, 6.2163, 0.3845);
+    await writeMetrics(runRoot, "tiny-transformer-iter6-expanded-sft", 2_715_772, 8_000, 1_000, 9.0983, 4.5789);
+
+    const gates = {
+      toolProtocol: join(gateDir, "tool-protocol.gate.json"),
+      behavior: join(gateDir, "behavior.gate.json"),
+      router: join(gateDir, "router.gate.json"),
+      toolRouter: join(gateDir, "tool-router.gate.json"),
+      memory: join(gateDir, "memory.gate.json"),
+      skill: join(gateDir, "skill.gate.json"),
+      longContext: join(gateDir, "long-context.gate.json"),
+      voice: join(gateDir, "voice.gate.json"),
+    };
+    await writeJson(
+      gates.toolProtocol,
+      gate("pass", {
+        total: 34,
+        validJsonRate: 1,
+        actionTypeAccuracy: 1,
+        toolNameAccuracy: 1,
+        toolArgumentValidity: 1,
+        noToolAccuracy: 1,
+        hallucinatedToolRate: 0,
+        latencyP95Ms: 653.428,
+      }),
+    );
+    await writeJson(
+      gates.behavior,
+      gate("fail", {
+        total: 11,
+        validJsonRate: 0,
+        requirementPassRate: 0,
+        personaConsistencyRate: 0,
+        socialCueAccuracy: 0,
+        casualToneAccuracy: 0,
+        boundaryAccuracy: 0,
+      }),
+    );
+    await writeJson(
+      gates.router,
+      gate("fail", {
+        total: 18,
+        routeAccuracy: 0.055556,
+        expertAccuracy: 0.055556,
+        toolVsNonToolAccuracy: 0.222222,
+        invalidPredictions: 13,
+        latencyP95Ms: 311.219,
+      }),
+    );
+    await writeJson(
+      gates.toolRouter,
+      gate("pass", {
+        total: 75,
+        expectedToolRecall: 1,
+        top1Accuracy: 1,
+        noToolAccuracy: 1,
+        forbiddenCandidateRate: 0,
+        latencyP95Ms: 1,
+      }),
+    );
+    await writeJson(
+      gates.memory,
+      gate("pass", {
+        total: 17,
+        passRate: 1,
+        recallHitRate: 1,
+        isolationPassRate: 1,
+        forgetPassRate: 1,
+        policyRejectionPassRate: 1,
+        learnedItemPassRate: 1,
+        latencyP95Ms: 4,
+      }),
+    );
+    await writeJson(
+      gates.skill,
+      gate("pass", { total: 10, recallAtK: 1, precisionAtK: 1, top1Accuracy: 1, noHitAccuracy: 1, latencyP95Ms: 1 }),
+    );
+    await writeJson(
+      gates.longContext,
+      gate("pass", { total: 28, answerRate: 1, exactMatchRate: 1, expectedContainRate: 1, falsePositiveRate: 0 }),
+    );
+    await writeJson(
+      gates.voice,
+      gate("pass", {
+        total: 12,
+        transcriptExactRate: 1,
+        speakerAttributionAccuracy: 1,
+        responseDecisionAccuracy: 1,
+        latencyPassRate: 1,
+        retentionPolicyPassRate: 1,
+      }),
+    );
+
+    return { runRoot, gates };
+  }
+});
+
+async function writeMetrics(
+  runRoot: string,
+  runName: string,
+  parameters: number,
+  trainRecords: number,
+  validationRecords: number,
+  firstValLoss: number,
+  finalValLoss: number,
+): Promise<void> {
+  const runDir = join(runRoot, runName);
+  await mkdir(runDir, { recursive: true });
+  await writeJson(join(runDir, "metrics.json"), {
+    model: "tiny_pytorch_transformer_lm",
+    parameters,
+    train_records: trainRecords,
+    val_records: validationRecords,
+    best_checkpoint_val_loss: finalValLoss,
+    final_val_loss: finalValLoss,
+    history: [
+      { step: 1, val_loss: firstValLoss },
+      { step: 2, val_loss: finalValLoss },
+    ],
+  });
+}
+
+function gate(status: "pass" | "fail", candidate: Record<string, unknown>): Record<string, unknown> {
+  return { status, candidate, failures: status === "pass" ? [] : [{ metric: "fixture" }], warnings: [] };
+}
+
+async function writeJson(path: string, body: unknown): Promise<void> {
+  await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+}
+
+function surface(
+  report: Awaited<ReturnType<typeof buildIreneSystemStatusReport>>,
+  id: string,
+): Awaited<ReturnType<typeof buildIreneSystemStatusReport>>["capabilityScorecard"][number] {
+  const found = report.capabilityScorecard.find((item) => item.id === id);
+  if (!found) throw new Error(`missing surface ${id}`);
+  return found;
+}
