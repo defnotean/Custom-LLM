@@ -485,7 +485,11 @@ function isSocialCueKind(kind: BehaviorEvalCaseKind): boolean {
 }
 
 function normalize(input: string): string {
-  return input.toLowerCase().replace(/\s+/g, " ").trim();
+  return input
+    .toLowerCase()
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function ratio(numerator: number, denominator: number): number {

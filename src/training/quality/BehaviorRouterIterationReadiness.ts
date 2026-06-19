@@ -44,10 +44,10 @@ export interface BehaviorRouterIterationCheck {
 const DEFAULTS = {
   behaviorDatasetPath: "training/data/behavior/sft.all.jsonl",
   behaviorEvalSuitePath: "training/evals/behavior.eval.jsonl",
-  behaviorGatePath: "training/evals/tiny-transformer-behavior-iter3.det.gate.json",
+  behaviorGatePath: "training/evals/tiny-transformer-behavior-iter4.det.gate.json",
   routerDatasetPath: "training/data/router/sft.all.jsonl",
   routerEvalSuitePath: "training/evals/specialist-routing.eval.jsonl",
-  routerGatePath: "training/evals/tiny-transformer-router-iter3.det.gate.json",
+  routerGatePath: "training/evals/tiny-transformer-router-iter4.det.gate.json",
   minBehaviorRecords: 90,
   minRouterRecords: 70,
   minRecordsPerBehaviorRoute: 4,

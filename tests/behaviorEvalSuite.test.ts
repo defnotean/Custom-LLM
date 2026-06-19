@@ -110,4 +110,35 @@ describe("BehaviorEvalSuite", () => {
       ]),
     );
   });
+
+  it("normalizes slash spacing for she/her persona checks", async () => {
+    dir = await mkdtemp(join(tmpdir(), "behavior-eval-"));
+    const suitePath = join(dir, "suite.jsonl");
+    const predictionsPath = join(dir, "predictions.jsonl");
+    const cases: BehaviorEvalCase[] = [
+      {
+        id: "persona",
+        kind: "persona_identity",
+        route: "persona",
+        prompt: "pronouns?",
+        expected: { actionType: "message", oracle: { type: "message", content: "She/her." } },
+        candidateTools: [],
+        requirements: { anyOf: ["she/her"], noneOf: ["he/him"], allowToolCall: false },
+        metadata: {},
+      },
+    ];
+    await mkdir(dir, { recursive: true });
+    await writeFile(suitePath, `${cases.map((item) => JSON.stringify(item)).join("\n")}\n`, "utf8");
+    await writeFile(
+      predictionsPath,
+      `${JSON.stringify({ id: "persona", output: JSON.stringify({ type: "message", content: "She / her works." }) })}\n`,
+      "utf8",
+    );
+
+    const report = await evaluateBehaviorPredictions(suitePath, predictionsPath);
+    expect(report.validJsonRate).toBe(1);
+    expect(report.requirementPassRate).toBe(1);
+    expect(report.personaConsistencyRate).toBe(1);
+    expect(report.failures).toEqual([]);
+  });
 });

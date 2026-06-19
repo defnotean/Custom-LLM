@@ -79,6 +79,8 @@ npm run check:subq-architecture
 
 Promotion criteria for this track are stricter than "it trains": the checkpoint must reload through the direct evaluators, preserve tool protocol behavior, keep the `check:subq-architecture` contract passing, and eventually beat dense attention on long-context retrieval/cost before any SSA model replaces the normal serving path.
 
+Latest local contract check: `npm run check:subq-architecture` passes with 28 long-context cases, every case pinned to `preferredProvider="subq"` and `architectureTarget="subquadratic-sparse-attention"`. The 64k-token sparse budget uses about 0.13% of dense causal edges, averages about 43 keys per token, and reports growth exponent 1.037578, so the checked local/log path remains subquadratic.
+
 ## Parameter Trainer Runner
 
 Parameter-growth training starts from a checked `parameter-training-dispatch-v1` request. The repo-owned runner is safe by default: plan mode writes the run contract and SubQ/SSA expectations, while import mode only stages artifacts that an external Axolotl/Unsloth/custom trainer already produced.
@@ -192,8 +194,9 @@ Current scratch behavior report:
 | `tiny-transformer-behavior-iter1` | 392,619 | 45 / 11 | 35,416 / 8,741 | 6.4848 | 0.2655 | First persona/social specialist smoke run. It learns the small behavior SFT set cleanly and has no artifact warnings, but has no comparable baseline and is not a general assistant. |
 | `tiny-transformer-behavior-iter2` | 819,819 | 45 / 11 | 35,416 / 8,741 | 6.3389 | 0.1024 / 0.1268 | Wider/deeper behavior rerun. It improves best validation loss by 0.1631 over iter1, but deterministic held-out behavior generation still fails promotion because strict JSON output is unstable. |
 | `tiny-transformer-behavior-iter3` | 840,122 | 74 / 18 | 65,595 / 16,072 | 6.4123 | 0.1215 / 0.1850 | Expanded behavior-data rerun with 92 accepted rows. Direct deterministic eval improves valid JSON to 0.545455 and requirement pass rate to 0.545455, but still fails promotion on JSON stability, persona consistency, social-cue accuracy, and casual tone. |
+| `tiny-transformer-behavior-iter4` | 845,005 | 90 / 22 | 79,802 / 19,585 | 6.3008 | 0.1350 / 0.1601 | Targeted behavior-data rerun with 112 accepted rows. Direct deterministic eval improves she/her persona consistency to 0.666667, but requirement pass rate, action-type accuracy, and social-cue accuracy regress, so this is review evidence only. |
 
-`tiny-transformer-behavior-iter3` is the current scratch checkpoint aimed at the social/persona specialist surface: she/her identity, affective persona, casual Discord replies, social repair/support, boundary wording, and no-tool discipline. It is useful evidence that the behavior data path trains and reports cleanly, not proof of broad intelligence. Deterministic direct held-out behavior generation still fails the behavior gate with valid JSON rate 0.545455, action type accuracy 1.000, requirement pass rate 0.545455, persona consistency 0.333333, social-cue accuracy 0.800000, casual tone 0.500000, tool abstention 1.000, and boundary accuracy 1.000. The next behavior iteration must fix strict action JSON and persona/casual phrasing before tone quality can be judged. The saved training report is `training/reports/tiny-transformer-behavior-iter3.report.json`; the current direct gate summary is `training/evals/tiny-transformer-behavior-iter3.det.gate.json`.
+`tiny-transformer-behavior-iter4` is the current scratch checkpoint aimed at the social/persona specialist surface: she/her identity, affective persona, casual Discord replies, social repair/support, boundary wording, and no-tool discipline. It is useful evidence that the behavior data path trains and reports cleanly, not proof of broad intelligence. Deterministic direct held-out behavior generation still fails the behavior gate with valid JSON rate 0.545455, action type accuracy 0.818182, requirement pass rate 0.454545, persona consistency 0.666667, social-cue accuracy 0.400000, casual tone 0.500000, tool abstention 1.000, and boundary accuracy 1.000. The next behavior iteration must fix strict action JSON and action-type stability before tone quality can be judged. The saved training report is `training/reports/tiny-transformer-behavior-iter4.report.json`; the current direct gate summary is `training/evals/tiny-transformer-behavior-iter4.det.gate.json`.
 
 Current scratch router report:
 
@@ -202,8 +205,9 @@ Current scratch router report:
 | `tiny-transformer-router-iter1` | 343,050 | 34 / 8 | 8,229 / 2,017 | 6.2163 | 0.3845 | First separate specialist-router smoke run for the MoE-style gate. It learns the tiny router SFT set and has no artifact warnings, but has no comparable baseline and is not a production router. |
 | `tiny-transformer-router-iter2` | 753,802 | 34 / 8 | 8,229 / 2,017 | 5.7557 | 0.1145 / 0.1793 | Wider/deeper router rerun. It fixes invalid route JSON on the deterministic held-out eval and improves route accuracy sharply, but still misses promotion thresholds. |
 | `tiny-transformer-router-iter3` | 773,848 | 60 / 14 | 14,614 / 3,557 | 5.9795 | 0.1232 / 0.1232 | Expanded router-data rerun with 74 accepted rows. Direct deterministic eval improves route accuracy to 0.666667, but expert accuracy regresses to 0.666667 and invalid predictions rise to 2, so this is review evidence only. |
+| `tiny-transformer-router-iter4` | 785,670 | 79 / 19 | 19,237 / 4,831 | 6.1731 | 0.1587 / 0.1664 | Targeted router-data rerun with 98 accepted rows. Direct deterministic eval improves route accuracy, expert accuracy, tool-vs-non-tool accuracy, and invalid predictions over iter3, but still misses promotion thresholds. |
 
-`tiny-transformer-router-iter3` is trained on route-label JSON only, separate from the user-facing assistant protocol. Its purpose is to validate the future MoE gate that chooses between tool protocol, knowledge, persona, casual, social-cue, and boundary specialists. Deterministic direct held-out router generation has route accuracy 0.666667, expert accuracy 0.666667, tool-vs-non-tool accuracy 0.777778, 0 missing predictions, and 2 invalid predictions. The next router iteration should restore invalid predictions to 0 and focus on casual/social/boundary misroutes before this becomes a reliable MoE gate. The saved training report is `training/reports/tiny-transformer-router-iter3.report.json`; the current direct gate summary is `training/evals/tiny-transformer-router-iter3.det.gate.json`.
+`tiny-transformer-router-iter4` is trained on route-label JSON only, separate from the user-facing assistant protocol. Its purpose is to validate the future MoE gate that chooses between tool protocol, knowledge, persona, casual, social-cue, and boundary specialists. Deterministic direct held-out router generation has route accuracy 0.722222, expert accuracy 0.777778, tool-vs-non-tool accuracy 0.888889, 0 missing predictions, and 1 invalid prediction. The next router iteration should drive invalid predictions to 0 and target the remaining tool, knowledge, persona, casual, and social-cue misses before this becomes a reliable MoE gate. The saved training report is `training/reports/tiny-transformer-router-iter4.report.json`; the current direct gate summary is `training/evals/tiny-transformer-router-iter4.det.gate.json`.
 
 Run comparison:
 
@@ -231,8 +235,8 @@ Artifacts:
 - `training/data/mixtures/production-sft.report.json` records source presence, accepted/skipped counts, over-length filtering, synthetic share, hashes, and output sizes.
 - `training/data/mixtures/production-sft.sequence-report.json` records deterministic sequence-length and packed-step estimates for the 2048-token QLoRA budget.
 - `training/data/protocol/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the protocol-only scratch SFT set with exact held-out eval prompts excluded and deterministic paraphrase augmentation recorded.
-- `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the behavior/persona scratch SFT set with exact held-out behavior eval prompts excluded and route metadata preserved. The current generated set has 92 accepted rows: 74 train, 18 validation, 23 seeds, and 69 deterministic augmentations.
-- `training/data/router/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the separate specialist-router SFT set with exact held-out router eval prompts excluded. The current generated set has 74 accepted rows: 60 train, 14 validation, 20 seeds, and 58 deterministic augmentations.
+- `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the behavior/persona scratch SFT set with exact held-out behavior eval prompts excluded and route metadata preserved. The current generated set has 112 accepted rows: 90 train, 22 validation, 28 seeds, and 84 deterministic augmentations.
+- `training/data/router/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the separate specialist-router SFT set with exact held-out router eval prompts excluded. The current generated set has 98 accepted rows: 79 train, 19 validation, 26 seeds, and 76 deterministic augmentations.
 - `training/evals/knowledge.eval.jsonl` is the held-out knowledge suite. It currently has 200 balanced cases from Dolly and OpenAssistant, including context-grounded, technical/code, long-prompt, long-form, and concise-answer coverage protected by `npm run check:knowledge-coverage`.
 - `training/evals/behavior.eval.jsonl` is the held-out persona/social behavior suite. It currently has 11 seed cases covering she/her identity, affective style, Discord-native casual replies, social support/repair, direct safety boundaries, and tool abstention.
 - `training/evals/specialist-routing.eval.jsonl` is the held-out route/expert suite. It currently has 18 balanced cases covering tool protocol, knowledge, persona, casual, social-cue, and boundary routing.
@@ -476,9 +480,9 @@ npm run eval:behavior -- --predictions training/evals/behavior-llm.predictions.j
 npm run eval:behavior:gate -- --candidate training/evals/behavior-llm.report.json --baseline training/evals/current-production-behavior.report.json
 
 # Local scratch checkpoint sample, then score it
-npm run eval:behavior:tiny -- --checkpoint training/runs/tiny-transformer-behavior-iter3/tiny_transformer_lm.best.pt --out training/evals/tiny-transformer-behavior-iter3.det.predictions.jsonl --temperature 0.05 --top-k 1
-npm run eval:behavior -- --predictions training/evals/tiny-transformer-behavior-iter3.det.predictions.jsonl --out training/evals/tiny-transformer-behavior-iter3.det.report.json
-npm run eval:behavior:gate -- --candidate training/evals/tiny-transformer-behavior-iter3.det.report.json --out training/evals/tiny-transformer-behavior-iter3.det.gate.json
+npm run eval:behavior:tiny -- --checkpoint training/runs/tiny-transformer-behavior-iter4/tiny_transformer_lm.best.pt --out training/evals/tiny-transformer-behavior-iter4.det.predictions.jsonl --temperature 0.05 --top-k 1
+npm run eval:behavior -- --predictions training/evals/tiny-transformer-behavior-iter4.det.predictions.jsonl --out training/evals/tiny-transformer-behavior-iter4.det.report.json
+npm run eval:behavior:gate -- --candidate training/evals/tiny-transformer-behavior-iter4.det.report.json --out training/evals/tiny-transformer-behavior-iter4.det.gate.json
 ```
 
 Current behavior eval suite:
@@ -544,9 +548,9 @@ npm run eval:router
 npm run eval:router:gate -- --out training/evals/specialist-routing-oracle.gate.json
 
 # Local scratch checkpoint sample, then score it
-npm run eval:router:tiny -- --checkpoint training/runs/tiny-transformer-router-iter3/tiny_transformer_lm.best.pt --out training/evals/tiny-transformer-router-iter3.det.predictions.jsonl --temperature 0.05 --top-k 1
-npm run eval:router -- --predictions training/evals/tiny-transformer-router-iter3.det.predictions.jsonl --out training/evals/tiny-transformer-router-iter3.det.report.json
-npm run eval:router:gate -- --candidate training/evals/tiny-transformer-router-iter3.det.report.json --out training/evals/tiny-transformer-router-iter3.det.gate.json
+npm run eval:router:tiny -- --checkpoint training/runs/tiny-transformer-router-iter4/tiny_transformer_lm.best.pt --out training/evals/tiny-transformer-router-iter4.det.predictions.jsonl --temperature 0.05 --top-k 1
+npm run eval:router -- --predictions training/evals/tiny-transformer-router-iter4.det.predictions.jsonl --out training/evals/tiny-transformer-router-iter4.det.report.json
+npm run eval:router:gate -- --candidate training/evals/tiny-transformer-router-iter4.det.report.json --out training/evals/tiny-transformer-router-iter4.det.gate.json
 ```
 
 Current router eval suite:
