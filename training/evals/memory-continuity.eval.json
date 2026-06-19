@@ -1,0 +1,76 @@
+{
+  "cases": [
+    {
+      "id": "memory:case:explicit-user-recall",
+      "kind": "explicit_recall",
+      "description": "Explicit USER memories are immediately retrievable for the same user context.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:implicit-preference-capture",
+      "kind": "implicit_capture",
+      "description": "Stable preferences from conversation write-back are retrievable without restart.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:user-scope-isolation",
+      "kind": "scope_isolation",
+      "description": "USER memories never leak into another user's retrieval context.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:guild-scope-isolation",
+      "kind": "scope_isolation",
+      "description": "GUILD memories are shared inside one guild but isolated from other guilds.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:channel-scope-isolation",
+      "kind": "scope_isolation",
+      "description": "CHANNEL memories are visible only in the channel where they were stored.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:owner-forget",
+      "kind": "forget",
+      "description": "A user can delete their own USER memory and it disappears from recall.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:non-owner-forget-denied",
+      "kind": "forget",
+      "description": "A non-admin cannot delete another user's USER memory.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:admin-forget-guild",
+      "kind": "forget",
+      "description": "An admin can delete a GUILD memory and it disappears from recall.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:secret-rejected",
+      "kind": "policy_rejection",
+      "description": "Secrets are rejected even when explicitly submitted as memory.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:oneoff-rejected",
+      "kind": "policy_rejection",
+      "description": "One-off casual chatter is not promoted into durable memory.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:explicit-learned-item",
+      "kind": "learning_capture",
+      "description": "Explicit memory writes create trainable learned items for review.",
+      "metadata": {}
+    },
+    {
+      "id": "memory:case:implicit-learned-item",
+      "kind": "learning_capture",
+      "description": "Implicit memory writes create retrievable but non-trainable learned items.",
+      "metadata": {}
+    }
+  ]
+}

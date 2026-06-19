@@ -279,6 +279,16 @@ npm run eval:skill:gate
 
 The skill retrieval suite checks direct tool matches, paraphrases, no-hit cases, and filtering of unapproved/non-retrievable skill records. Promotion requires perfect recall, precision, top-1 accuracy for expected skills, no-hit accuracy, and zero forbidden hits before changing runtime retrieval behavior.
 
+For memory-continuity regressions, run:
+
+```bash
+npm run build:memory-eval
+npm run eval:memory
+npm run eval:memory:gate
+```
+
+The memory continuity suite checks explicit remember/recall, implicit stable-preference capture, USER/GUILD/CHANNEL scope isolation, owner/admin forget behavior, non-owner delete denial, secret/one-off policy rejection, and learned-item capture. Promotion requires perfect pass, recall, isolation, forget, rejection, and learned-item rates before changing runtime memory behavior.
+
 ## Review Workflow
 
 1. Export and sample-read each file.

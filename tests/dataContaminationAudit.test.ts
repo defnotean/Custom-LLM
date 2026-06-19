@@ -73,6 +73,43 @@ describe("DataContaminationAudit", () => {
     });
   });
 
+  it("loads JSON eval suites that store cases in an object", async () => {
+    dir = await mkdtemp(join(tmpdir(), "contamination-audit-"));
+    await mkdir(dir, { recursive: true });
+    const trainPath = join(dir, "train.jsonl");
+    const evalPath = join(dir, "memory-continuity.eval.json");
+    await writeJsonl(trainPath, [
+      chatRecord("train-json-suite", "How do I bake bread?", "Use flour, water, yeast, salt, and time."),
+    ]);
+    await writeFile(
+      evalPath,
+      `${JSON.stringify(
+        {
+          cases: [
+            {
+              id: "memory:case:owner-forget",
+              kind: "forget",
+              description: "A user can delete their own USER memory and it disappears from recall.",
+              metadata: {},
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const report = await auditDataContamination({
+      trainPaths: [trainPath],
+      evalPaths: [evalPath],
+      ngramSize: 4,
+    });
+
+    expect(report.status).toBe("pass");
+    expect(report.evalRecords).toBe(1);
+  });
+
   async function writeFixture(options: { train: unknown[]; evalRows: unknown[] }): Promise<{
     trainPath: string;
     evalPath: string;

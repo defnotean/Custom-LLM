@@ -541,6 +541,38 @@ Metrics reported:
 - `invalidPredictions`
 - latency stats when predictions include `latencyMs`
 
+## Memory Continuity Eval Harness
+
+Memory/RAG is Irene's immediate learning path, so memory behavior has its own deterministic gate separate from model-weight evals:
+
+```bash
+npm run build:memory-eval
+npm run eval:memory
+npm run eval:memory:gate -- --out training/evals/memory-continuity.gate.json
+```
+
+Current memory continuity suite:
+
+| Kind | Cases | What it checks |
+|---|---:|---|
+| `explicit_recall` | 1 | Explicit USER memories are retrievable in the same user context |
+| `implicit_capture` | 1 | Stable preferences from conversation write-back are retrievable without restart |
+| `scope_isolation` | 3 | USER, GUILD, and CHANNEL memories do not leak across scopes |
+| `forget` | 3 | Owner delete, admin delete, and non-owner delete denial |
+| `policy_rejection` | 2 | Secret-like content and one-off chatter are not stored |
+| `learning_capture` | 2 | Memory writes create learned items with correct retrieval/training retention |
+
+Metrics reported:
+
+- `passRate`
+- `storedExpectedRate`
+- `recallHitRate`
+- `isolationPassRate`
+- `forgetPassRate`
+- `policyRejectionPassRate`
+- `learnedItemPassRate`
+- latency stats
+
 ## Contamination Audit
 
 Run this before treating any eval result as trustworthy:
@@ -560,7 +592,10 @@ against:
 - `training/evals/knowledge.eval.jsonl`
 - `training/evals/tool-routing.eval.jsonl`
 - `training/evals/behavior.eval.jsonl`
+- `training/evals/voice.eval.jsonl`
 - `training/evals/specialist-routing.eval.jsonl`
+- `training/evals/tool-router.eval.jsonl`
+- `training/evals/memory-continuity.eval.json`
 - `training/evals/long-context.eval.jsonl`
 
 It fails on exact eval ID leakage, exact normalized text leakage, or high 13-gram overlap above 0.8. This keeps benchmark examples out of the training input while still allowing validation files and oracle reports to exist locally as ignored artifacts.
@@ -614,6 +649,7 @@ Every model iteration must:
 - Pass `npm run eval:behavior:gate` against the candidate behavior report before promotion.
 - Pass `npm run eval:voice:gate` against the candidate voice report before promoting voice-facing changes.
 - Pass `npm run eval:router:gate` against the candidate router report before promoting any specialist-router checkpoint.
+- Pass `npm run eval:memory:gate` against the memory continuity report before promoting memory or live-learning behavior changes.
 - Pass `npm run eval:long-context:gate` against long-context reports before promoting SubQ/SSA routes or any model advertised for repository-scale context.
 - Keep the held-out eval split out of the training set, and prove it with the contamination audit.
 

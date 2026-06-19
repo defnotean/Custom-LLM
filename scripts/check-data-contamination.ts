@@ -24,6 +24,7 @@ const defaultEvalPaths = [
   "training/evals/voice.eval.jsonl",
   "training/evals/specialist-routing.eval.jsonl",
   "training/evals/tool-router.eval.jsonl",
+  "training/evals/memory-continuity.eval.json",
   "training/evals/long-context.eval.jsonl",
 ];
 

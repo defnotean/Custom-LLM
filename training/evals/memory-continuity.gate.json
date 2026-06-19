@@ -1,0 +1,31 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "minTotalCases": 12,
+    "minPassRate": 1,
+    "minStoredExpectedRate": 1,
+    "minRecallHitRate": 1,
+    "minIsolationPassRate": 1,
+    "minForgetPassRate": 1,
+    "minPolicyRejectionPassRate": 1,
+    "minLearnedItemPassRate": 1,
+    "maxFailures": 0,
+    "maxPassRateRegression": 0,
+    "maxRecallRegression": 0
+  },
+  "candidate": {
+    "suitePath": "training/evals/memory-continuity.eval.json",
+    "total": 12,
+    "passRate": 1,
+    "storedExpectedRate": 1,
+    "recallHitRate": 1,
+    "isolationPassRate": 1,
+    "forgetPassRate": 1,
+    "policyRejectionPassRate": 1,
+    "learnedItemPassRate": 1,
+    "failures": 0,
+    "latencyP95Ms": 8
+  },
+  "failures": [],
+  "warnings": []
+}

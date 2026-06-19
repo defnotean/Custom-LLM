@@ -159,7 +159,7 @@ function bestOverlap(
 async function loadDocuments(paths: string[], ngramSize: number): Promise<LoadedDocument[]> {
   const out: LoadedDocument[] = [];
   for (const path of paths) {
-    const rows = await readJsonl(path);
+    const rows = await readRecords(path);
     rows.forEach((row, index) => {
       const normalized = normalizeRecord(row, path, index);
       if (!normalized) return;
@@ -205,15 +205,40 @@ function normalizeRecord(raw: unknown, path: string, index: number): { id: strin
     return { id, text: cleanText(`${String(raw.input ?? "")}\n${String(raw.output ?? "")}`) };
   }
 
+  const textFragments = ["description", "query", "content", "expected"]
+    .map((field) => raw[field])
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  if (textFragments.length > 0) {
+    return { id, text: cleanText(textFragments.join("\n")) };
+  }
+
   return null;
 }
 
-async function readJsonl(path: string): Promise<unknown[]> {
+async function readRecords(path: string): Promise<unknown[]> {
   const body = await readFile(path, "utf8");
+  const trimmed = body.trim();
+  if (!trimmed) return [];
+  if (!path.endsWith(".jsonl") && (trimmed.startsWith("{") || trimmed.startsWith("["))) {
+    return jsonRecords(JSON.parse(trimmed) as unknown);
+  }
+  return readJsonlBody(body);
+}
+
+function readJsonlBody(body: string): unknown[] {
   return body
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
     .map((line) => JSON.parse(line) as unknown);
+}
+
+function jsonRecords(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (!isRecord(raw)) return [];
+  if (Array.isArray(raw.cases)) return raw.cases;
+  if (Array.isArray(raw.rows)) return raw.rows;
+  if (Array.isArray(raw.data)) return raw.data;
+  return [raw];
 }
 
 function makeNgrams(normalizedText: string, ngramSize: number): Set<string> {

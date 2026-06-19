@@ -10,14 +10,14 @@ A production-grade foundation for a **local-LLM-powered Discord bot**: structure
 - **Local LLM first + SubQ/SSA-ready**: any OpenAI-compatible endpoint (Ollama `/v1`, vLLM, LM Studio, SubQ private API) + native Ollama, with provider fallback; long-context scaling is treated as a subquadratic sparse-attention path, not a dense-context default
 - **Tool system**: Zod-validated args, per-guild disabled-tool policy, permission + cooldown + risk/confirmation gates enforced in code, execution logging — 16 starter tools across moderation/utility/memory/discord/example
 - **Tool routing**: top-10 candidate retrieval per message (never all tools in the prompt), with deterministic keyword routing or opt-in embedding retrieval
-- **Memory**: USER/GUILD/CHANNEL/GLOBAL scopes, policy-gated writes (no secrets, no one-offs), pgvector + Qdrant + in-process stores
+- **Memory**: USER/GUILD/CHANNEL/GLOBAL scopes, policy-gated writes (no secrets, no one-offs), pgvector + Qdrant + in-process stores, plus a deterministic memory-continuity promotion gate
 - **Live learning ledger**: memory writes, rolling channel summaries, successful tool workflows, and eval failures are captured as learned items; approved skills and active parameter modules are retrieved into prompts for immediate reuse; queued learning can be planned, exported, trainer-dispatched to a private control endpoint, staged, promoted, checked, and applied to a hotload control endpoint
 - **Subquadratic sparse-attention path**: SubQ can be configured as a named long-context provider, scratch training has an experimental local/log sparse-attention mode for SSA-style smoke tests, and long-context retrieval has its own promotion gate
 - **Safety**: rate limiting, content screen (placeholder rules), mandatory confirmation for high-risk actions
 - **Training capture**: every turn stored with full trace; JSONL export (ChatML / Alpaca / tool-calling / DPO); deterministic synthetic tool examples
 - **Voice readiness**: opt-in guild/channel voice policy, session state, Discord Voice join/leave path, provider-backed speech queue, HTTP TTS/STT endpoint contracts, Discord playback adapter, admin listening/transcription policy controls, beta Discord audio receive bridge, and a held-out voice eval gate; production VAD/decoding/live Discord validation remain gated
 - **Ops API** (Fastify): `/health`, `/stats`, `/tools`, `/tools/:name`, `/memory/search`, `/learning/review`, `/learning/status`, `/learning/items`, `/learning/items/batch-review`, `/learning/parameter-growth/plan`, `/learning/parameter-growth/dataset`, `/learning/parameter-training/dispatch`, `/learning/parameter-modules`, `/learning/parameter-modules/stage-from-manifest`, `/learning/parameter-hotload/apply`, `/learning/parameter-snapshot`, `POST /training/export`, `POST /training/feedback/preference`
-- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 358 passing tests
+- **Infra**: Prisma + PostgreSQL, Docker Compose (pgvector/Redis/Qdrant), strict TypeScript, 363 passing tests
 
 ## Quickstart
 
@@ -100,6 +100,7 @@ Run `npm run register:discord-commands` after setting `DISCORD_TOKEN` and `DISCO
 | `npm run build:router-eval` / `npm run eval:router:oracle` / `npm run eval:router:tiny` / `npm run eval:router` / `npm run eval:router:gate` | Build and gate held-out specialist routing evals for tool/knowledge/persona/casual/social/boundary routing |
 | `npm run build:tool-router-eval` / `npm run eval:tool-router` / `npm run eval:tool-router:gate` | Build and gate candidate-tool retrieval so expected tools land in top-N and permission-filtered tools stay hidden |
 | `npm run build:skill-eval` / `npm run eval:skill` / `npm run eval:skill:gate` | Build and gate approved-skill retrieval evals so learned workflow hints stay precise and do not leak unapproved skills |
+| `npm run build:memory-eval` / `npm run eval:memory` / `npm run eval:memory:gate` | Build and gate memory continuity evals for remember/recall, scope isolation, forgetting, policy rejection, and learned-item capture |
 | `npm run build:long-context-eval` / `npm run eval:long-context:oracle` / `npm run eval:long-context:llm` / `npm run eval:long-context` / `npm run eval:long-context:gate` | Build and gate synthetic needle, synthetic repo-artifact, real repo snapshot, and multi-file repo reasoning evals for the SubQ/subquadratic sparse-attention path |
 | `npm run check:contamination` | Audit train JSONL against held-out eval suites for exact leakage and high n-gram overlap |
 | `npm run train:tiny-transformer` / `npm run train:tiny-char` | Run local from-scratch training smoke baselines, including assistant-loss masking experiments |
@@ -159,7 +160,7 @@ Full guide (risk levels, permissions, cooldowns, routing): `docs/TOOL_REGISTRY.m
 1. Run the bot; every interaction is captured (`docs/TRAINING_DATA.md`).
 2. `npm run export:training` → ChatML / Alpaca / tool-calling / DPO JSONL.
 3. Review + redact + hold out an eval set.
-4. Build the first reproducible dataset/training iteration (`docs/AI_TRAINING_PLAN.md`), pass `npm run check:dataset-governance`, `npm run check:subq-architecture`, and `npm run check:production-readiness`, then QLoRA-fine-tune the Qwen3 4B Instruct production profile (Unsloth/Axolotl), evaluate protocol, knowledge, router, persona/social behavior, long-context retrieval if using SubQ/SSA, dry-run `npm run dispatch:parameter-training`, plan/import through `npm run run:parameter-trainer`, and run `npm run check:parameter-module-staging` before shipping a trained module.
+4. Build the first reproducible dataset/training iteration (`docs/AI_TRAINING_PLAN.md`), pass `npm run check:dataset-governance`, `npm run check:subq-architecture`, and `npm run check:production-readiness`, then QLoRA-fine-tune the Qwen3 4B Instruct production profile (Unsloth/Axolotl), evaluate protocol, knowledge, router, persona/social behavior, memory continuity, long-context retrieval if using SubQ/SSA, dry-run `npm run dispatch:parameter-training`, plan/import through `npm run run:parameter-trainer`, and run `npm run check:parameter-module-staging` before shipping a trained module.
 
 ⚠️ Use only consented data from servers you control — Discord's Developer Policy prohibits training on scraped message content.
 
