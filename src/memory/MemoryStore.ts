@@ -4,7 +4,8 @@ import type { MemoryScopeName } from "../types/ai";
 /**
  * Vector-backed memory persistence interface. Implementations:
  *  - PgVectorMemoryStore  — Postgres + pgvector (Memory rows via Prisma,
- *    vectors in a raw `memory_vectors` table). Working implementation.
+ *    vectors in a raw `memory_vectors` table). Covered by
+ *    `npm run check:pgvector-memory -- --dims <embedding-dimensions>`.
  *  - QdrantMemoryStore    — Qdrant REST (Memory rows via Prisma when a DB is
  *    present, vectors+payload in Qdrant). Implemented against the REST API;
  *    covered by fake-fetch tests and `npm run check:qdrant-memory`.

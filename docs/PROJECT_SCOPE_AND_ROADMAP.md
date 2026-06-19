@@ -382,8 +382,8 @@ Tasks:
 
 - Serve with vLLM/SGLang or another OpenAI-compatible server after model promotion.
 - Add production logging around route, parse, tool denial, latency, and feedback.
-- Integration-test pgvector memory and run the Qdrant live smoke on target infrastructure.
-- Add provider-backed moderation/AutoMod for untrusted public servers, run Redis and Qdrant runtime smokes on target infrastructure, live-smoke voice integrations, and complete remaining launch placeholders.
+- Run pgvector and Qdrant live memory smokes on target infrastructure.
+- Add provider-backed moderation/AutoMod for untrusted public servers, run Redis and vector-memory runtime smokes on target infrastructure, live-smoke voice integrations, and complete remaining launch placeholders.
 - Document rollback and model switching.
 
 Success criteria:
