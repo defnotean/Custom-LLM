@@ -17,11 +17,11 @@ import type {
  * Qdrant-backed store (REST API, no SDK dependency).
  *
  * STATUS: implemented against the documented REST endpoints (collection
- * ensure, point upsert, filtered search, delete) but NOT yet exercised by
- * integration tests in this repo — treat as beta until you've run it against
- * a real Qdrant (docker compose up provides one). Relational copies of
- * memories are kept in Postgres when available so Qdrant remains a
- * rebuildable index rather than the source of truth.
+ * ensure, point upsert, filtered search, lookup, delete) with fake-fetch
+ * coverage and a live smoke command. Treat as beta until the smoke has passed
+ * against your deployed Qdrant. Relational copies of memories are kept in
+ * Postgres when available so Qdrant remains a rebuildable index rather than
+ * the source of truth.
  */
 export class QdrantMemoryStore implements MemoryStore {
   readonly name = "qdrant";
@@ -190,18 +190,7 @@ export class QdrantMemoryStore implements MemoryStore {
     }
     return parsed.data.result.map((hit) => ({
       score: hit.score,
-      record: {
-        id: String(hit.payload?.memoryId ?? hit.id),
-        scope: (hit.payload?.scope ?? "GLOBAL") as MemoryRecord["scope"],
-        userId: (hit.payload?.userId ?? null) as string | null,
-        guildId: (hit.payload?.guildId ?? null) as string | null,
-        channelId: (hit.payload?.channelId ?? null) as string | null,
-        content: String(hit.payload?.content ?? ""),
-        summary: null,
-        importance: Number(hit.payload?.importance ?? 1),
-        metadata: {},
-        createdAt: String(hit.payload?.createdAt ?? nowIso()),
-      },
+      record: memoryRecordFromPayload(hit.id, hit.payload),
     }));
   }
 
@@ -222,7 +211,18 @@ export class QdrantMemoryStore implements MemoryStore {
         createdAt: row.createdAt.toISOString(),
       };
     }
-    return null;
+    await this.init();
+    const res = await this.request("POST", `/collections/${this.options.collection}/points`, {
+      ids: [id],
+      with_payload: true,
+      with_vector: false,
+    });
+    if (!res.ok) return null;
+    const raw: unknown = await res.json().catch(() => null);
+    const parsed = qdrantPointLookupSchema.safeParse(raw);
+    if (!parsed.success) return null;
+    const point = parsed.data.result[0];
+    return point ? memoryRecordFromPayload(point.id, point.payload) : null;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -279,3 +279,30 @@ const qdrantSearchSchema = z.object({
     }),
   ),
 });
+
+const qdrantPointLookupSchema = z.object({
+  result: z.array(
+    z.object({
+      id: z.union([z.string(), z.number()]),
+      payload: z.record(z.unknown()).nullable().optional(),
+    }),
+  ),
+});
+
+function memoryRecordFromPayload(
+  id: string | number,
+  payload: Record<string, unknown> | null | undefined,
+): MemoryRecord {
+  return {
+    id: String(payload?.memoryId ?? id),
+    scope: (payload?.scope ?? "GLOBAL") as MemoryRecord["scope"],
+    userId: (payload?.userId ?? null) as string | null,
+    guildId: (payload?.guildId ?? null) as string | null,
+    channelId: (payload?.channelId ?? null) as string | null,
+    content: String(payload?.content ?? ""),
+    summary: null,
+    importance: Number(payload?.importance ?? 1),
+    metadata: {},
+    createdAt: String(payload?.createdAt ?? nowIso()),
+  };
+}

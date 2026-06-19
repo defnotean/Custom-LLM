@@ -130,7 +130,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Slash commands (`interactionCreate`) | **Implemented** - `npm run register:discord-commands` publishes `/ai input:<text>` globally or to `DISCORD_GUILD_ID`; handler defers replies, enforces guild text policy, then routes into the same command/agent paths as prefix messages |
 | Memory summarizer worker | **Implemented** - scheduled worker scans active channels, summarizes complete recent turns, stores `CHANNEL` memories with learned-item provenance/fingerprints, skips duplicate windows, and tags large windows for the SubQ/SSA long-context route |
 | Embedding-based tool routing | **Implemented, opt-in** via `TOOL_ROUTER_STRATEGY=embedding`; use a real embedding model for semantic recall and compare eval metrics before promotion |
-| QdrantMemoryStore | **Implemented, not integration-tested** — REST calls per documented API; exercise against `docker compose up qdrant` before relying on it |
+| QdrantMemoryStore | **Implemented, live smoke command available** - REST collection setup, point upsert, scoped search, point lookup, delete, and cleanup are covered by fake-fetch tests and `npm run check:qdrant-memory`; run it against deployed Qdrant before relying on it |
 | `summarize_channel_recent_messages` | Returns raw transcript; the follow-up LLM turn summarizes. Dedicated summarization pass TODO |
 | `get_guild_stats` | Structural stats only; activity metrics (messages/day) TODO |
 | `warn_user` | Records to tool log + DMs; dedicated warnings table TODO |

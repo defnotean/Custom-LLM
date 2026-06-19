@@ -7,7 +7,7 @@ import type { MemoryScopeName } from "../types/ai";
  *    vectors in a raw `memory_vectors` table). Working implementation.
  *  - QdrantMemoryStore    — Qdrant REST (Memory rows via Prisma when a DB is
  *    present, vectors+payload in Qdrant). Implemented against the REST API;
- *    not yet covered by integration tests (documented).
+ *    covered by fake-fetch tests and `npm run check:qdrant-memory`.
  *  - InMemoryMemoryStore  — process-local, non-persistent. Test/dev fallback.
  *
  * MemoryService owns embedding + policy; stores only persist and search.
