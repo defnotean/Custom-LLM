@@ -263,7 +263,7 @@ describe("ProductionTrainingReadiness", () => {
       failures: [],
     });
     await writeJson(longContextEvalReportPath, {
-      total: 25,
+      total: 28,
       answerRate: 1,
       exactMatchRate: 1,
       expectedContainRate: 1,
@@ -374,6 +374,9 @@ async function writeLongContextSuiteFixture(path: string): Promise<void> {
     ["real-repo-multifile", "repo_tool_protocol_readiness_chain"],
     ["real-repo-multifile", "repo_dataset_governance_chain"],
     ["real-repo-multifile", "repo_parameter_growth_chain"],
+    ["real-repo-multifile", "repo_training_readiness_decision"],
+    ["real-repo-multifile", "repo_live_learning_access_decision"],
+    ["real-repo-multifile", "repo_discord_voice_boundary_decision"],
   ] as const;
   const rows = [
     ...required.map(([source, taskType], index) => longContextCase(`lc-required-${index}`, source, taskType)),

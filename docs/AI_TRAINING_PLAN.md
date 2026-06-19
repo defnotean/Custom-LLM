@@ -97,7 +97,7 @@ npm run check:parameter-module-staging -- --manifest training/runs/parameter-mod
 
 ## Long-Context Retrieval Gate
 
-The SubQ/SSA path now has its own held-out gate. It builds deterministic synthetic needle-in-context prompts with early/middle/late answer positions, many similar distractor trace values, increasing context sizes, synthetic repository artifact bundles that ask for exact file paths, environment variables, routing contracts, tool-gate order, voice retention policy, and parameter staging gates, real repository snapshot lookups from `package.json`, `ProductionTrainingReadiness.ts`, and `LLMRouter.ts`, plus multi-file repo reasoning cases that connect package scripts, readiness checks, router behavior, setup docs, dataset governance, parameter-growth handoff, and the SubQ architecture contract. Live predictions are sent through the normal LLM router with `metadata.longContext=true`; pass `--preferred-provider subq` when you want to pin the SubQ route instead of relying on automatic long-context routing.
+The SubQ/SSA path now has its own held-out gate. It builds deterministic synthetic needle-in-context prompts with early/middle/late answer positions, many similar distractor trace values, increasing context sizes, synthetic repository artifact bundles that ask for exact file paths, environment variables, routing contracts, tool-gate order, voice retention policy, and parameter staging gates, real repository snapshot lookups from `package.json`, `ProductionTrainingReadiness.ts`, and `LLMRouter.ts`, plus multi-file repo reasoning cases that connect package scripts, readiness checks, router behavior, setup docs, dataset governance, parameter-growth handoff, live-learning access paths, training-readiness decisions, Discord voice/account boundaries, and the SubQ architecture contract. Live predictions are sent through the normal LLM router with `metadata.longContext=true`; pass `--preferred-provider subq` when you want to pin the SubQ route instead of relying on automatic long-context routing.
 
 `npm run check:subq-architecture` is the static contract gate for this track. It verifies the checked-in long-context suite is tagged with `metadata.longContext=true`, `preferredProvider="subq"`, and `architectureTarget="subquadratic-sparse-attention"`, confirms required synthetic/real repo sources and task types are present, and checks that `LLMRouter` plus the tiny trainer/evaluator still expose the SubQ route and `local-log-sparse` smoke path. `npm run check:production-readiness` includes the same contract as `subq-architecture-contract`.
 
@@ -108,7 +108,7 @@ npm run eval:long-context -- --predictions training/evals/long-context-oracle.pr
 npm run eval:long-context:gate -- --candidate training/evals/long-context-oracle.report.json --out training/evals/long-context-oracle.gate.json
 
 # Live configured long-context route, then score it
-npm run eval:long-context:llm -- --preferred-provider subq --max-cases 25
+npm run eval:long-context:llm -- --preferred-provider subq --max-cases 28
 npm run eval:long-context -- --predictions training/evals/long-context-llm.predictions.jsonl --out training/evals/long-context-llm.report.json
 npm run eval:long-context:gate -- --candidate training/evals/long-context-llm.report.json --baseline training/evals/current-production-long-context.report.json
 

@@ -129,11 +129,11 @@ describe("LongContextEvalSuite", () => {
       workspaceRoot: dir,
     });
 
-    expect(summary.cases).toBe(10);
+    expect(summary.cases).toBe(13);
     expect(summary.bySource).toMatchObject({
       "synthetic-needle-in-context": 1,
       "real-repo-snapshot": 3,
-      "real-repo-multifile": 6,
+      "real-repo-multifile": 9,
     });
     expect(summary.byTaskType).toMatchObject({
       repo_script_lookup: 1,
@@ -145,6 +145,9 @@ describe("LongContextEvalSuite", () => {
       repo_tool_protocol_readiness_chain: 1,
       repo_dataset_governance_chain: 1,
       repo_parameter_growth_chain: 1,
+      repo_training_readiness_decision: 1,
+      repo_live_learning_access_decision: 1,
+      repo_discord_voice_boundary_decision: 1,
     });
 
     const cases = await readJsonl<LongContextEvalCase>(suite);
@@ -172,6 +175,11 @@ async function writeRepoFixture(root: string): Promise<void> {
   await mkdir(join(root, "src", "ai", "llm"), { recursive: true });
   await mkdir(join(root, "docs"), { recursive: true });
   await writeFile(
+    join(root, "README.md"),
+    "Before QLoRA training, pass dataset governance, SubQ architecture, and production readiness. Irene uses a Discord application bot account with opt-in voice receive/transcription.\n",
+    "utf8",
+  );
+  await writeFile(
     join(root, "package.json"),
     JSON.stringify(
       {
@@ -194,7 +202,7 @@ async function writeRepoFixture(root: string): Promise<void> {
       'const toolCheckId = "tool-eval-harness";',
       'const datasetCheckId = "dataset-governance";',
       'const distractor = "router-eval-harness";',
-      "const minLongContextTotal = 25;",
+      "const minLongContextTotal = 28;",
     ].join("\n") + "\n",
     "utf8",
   );
@@ -225,7 +233,12 @@ async function writeRepoFixture(root: string): Promise<void> {
   );
   await writeFile(
     join(root, "docs", "PROJECT_SCOPE_AND_ROADMAP.md"),
-    "ParameterGrowthDatasetBuilder writes handoff rows, ParameterTrainerDispatchService dispatches them, and ParameterModuleStagingGate gates staged artifacts.\n",
+    "ParameterGrowthDatasetBuilder writes handoff rows, ParameterTrainerDispatchService dispatches them, and ParameterModuleStagingGate gates staged artifacts. Live access paths are Memory/RAG path first and Parameter path after training promotion. Discord application bot account is supported; normal user selfbot automation is not.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(root, "docs", "ARCHITECTURE.md"),
+    "Memory/RAG path gives immediate approved knowledge access. Parameter path gives trained adapter or specialist access after staging, promotion, and hotload gates.\n",
     "utf8",
   );
   await writeFile(

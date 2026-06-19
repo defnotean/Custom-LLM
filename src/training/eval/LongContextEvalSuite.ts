@@ -26,7 +26,10 @@ export type LongContextTaskType =
   | "repo_subq_architecture_chain"
   | "repo_tool_protocol_readiness_chain"
   | "repo_dataset_governance_chain"
-  | "repo_parameter_growth_chain";
+  | "repo_parameter_growth_chain"
+  | "repo_training_readiness_decision"
+  | "repo_live_learning_access_decision"
+  | "repo_discord_voice_boundary_decision";
 
 export interface LongContextEvalCase {
   id: string;
@@ -505,6 +508,8 @@ async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongCon
     llmRouter,
     localLlmSetup,
     aiTrainingPlan,
+    readme,
+    architecture,
     projectScope,
     trainingData,
     promotionGate,
@@ -515,6 +520,8 @@ async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongCon
     readRepoFile(workspaceRoot, "src/ai/llm/LLMRouter.ts"),
     readRepoFile(workspaceRoot, "docs/LOCAL_LLM_SETUP.md"),
     readRepoFile(workspaceRoot, "docs/AI_TRAINING_PLAN.md"),
+    readRepoFile(workspaceRoot, "README.md"),
+    readRepoFile(workspaceRoot, "docs/ARCHITECTURE.md"),
     readRepoFile(workspaceRoot, "docs/PROJECT_SCOPE_AND_ROADMAP.md"),
     readRepoFile(workspaceRoot, "docs/TRAINING_DATA.md"),
     readRepoFile(workspaceRoot, "src/training/eval/PromotionGate.ts"),
@@ -654,7 +661,7 @@ async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongCon
         "eval:knowledge:gate -> knowledge-eval-harness -> 200",
         "eval:router:gate -> router-eval-harness -> 18",
         "eval:behavior:gate -> behavior-eval-harness -> 11",
-        "eval:long-context:gate -> long-context-eval-harness -> 25",
+        "eval:long-context:gate -> long-context-eval-harness -> 28",
       ],
       question:
         "Using the actual package.json, PromotionGate.ts, and ProductionTrainingReadiness.ts snapshots together, what script, readiness check id, and minimum protocol case count define the tool protocol promotion gate? Return exactly: <script> -> <check-id> -> <count>.",
@@ -704,6 +711,69 @@ async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongCon
         { path: "docs/PROJECT_SCOPE_AND_ROADMAP.md", content: projectScope },
         { path: "docs/TRAINING_DATA.md", content: trainingData },
         { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+      ],
+    }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-training-readiness-decision",
+      targetKey: "REAL_REPO_MULTIFILE_TRAINING_READINESS_DECISION",
+      targetChars: 34_000,
+      position: "middle",
+      taskType: "repo_training_readiness_decision",
+      expected: "dataset governance -> SubQ architecture -> production readiness",
+      distractorAnswers: [
+        "trainer dispatch -> hotload apply -> production readiness",
+        "build SFT mixture -> skip SubQ architecture -> train",
+        "voice eval -> dataset governance -> Discord login",
+        "contamination only -> train immediately",
+      ],
+      question:
+        "Using README.md and AI_TRAINING_PLAN.md snapshots together, what ordered gates must pass before the first QLoRA fine-tune step? Return exactly: <gate 1> -> <gate 2> -> <gate 3>.",
+      files: [
+        { path: "README.md", content: readme },
+        { path: "docs/AI_TRAINING_PLAN.md", content: aiTrainingPlan },
+        { path: "src/training/quality/ProductionTrainingReadiness.ts", content: readinessChecker },
+      ],
+    }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-live-learning-access-decision",
+      targetKey: "REAL_REPO_MULTIFILE_LIVE_LEARNING_ACCESS_DECISION",
+      targetChars: 30_000,
+      position: "early",
+      taskType: "repo_live_learning_access_decision",
+      expected: "Memory/RAG path -> Parameter path",
+      distractorAnswers: [
+        "Parameter path -> Memory/RAG path",
+        "Training capture -> Discord selfbot",
+        "Voice path -> Tool executor",
+        "Dense context -> SubQ path",
+      ],
+      question:
+        "Using PROJECT_SCOPE_AND_ROADMAP.md and ARCHITECTURE.md snapshots together, which two live access paths let Irene use new knowledge immediately and then trained modules after promotion? Return exactly: <immediate path> -> <trained path>.",
+      files: [
+        { path: "docs/PROJECT_SCOPE_AND_ROADMAP.md", content: projectScope },
+        { path: "docs/ARCHITECTURE.md", content: architecture },
+        { path: "docs/TRAINING_DATA.md", content: trainingData },
+      ],
+    }),
+    makeRealRepoMultifileCase({
+      id: "long-context-real-repo-discord-voice-boundary-decision",
+      targetKey: "REAL_REPO_MULTIFILE_DISCORD_VOICE_BOUNDARY_DECISION",
+      targetChars: 32_000,
+      position: "late",
+      taskType: "repo_discord_voice_boundary_decision",
+      expected: "Discord application bot account -> opt-in voice receive/transcription stack",
+      distractorAnswers: [
+        "normal user token -> selfbot automation",
+        "bot account -> raw audio retained forever",
+        "webhook account -> no voice policy",
+        "OAuth user account -> unrestricted listening",
+      ],
+      question:
+        "Using PROJECT_SCOPE_AND_ROADMAP.md and README.md snapshots together, what supported Discord implementation path gives Irene presence and voice listening without selfbot automation? Return exactly: <account path> -> <voice path>.",
+      files: [
+        { path: "docs/PROJECT_SCOPE_AND_ROADMAP.md", content: projectScope },
+        { path: "README.md", content: readme },
+        { path: "docs/LOCAL_LLM_SETUP.md", content: localLlmSetup },
       ],
     }),
   ];
@@ -781,6 +851,9 @@ function makeRealRepoMultifileCase(input: {
     | "repo_tool_protocol_readiness_chain"
     | "repo_dataset_governance_chain"
     | "repo_parameter_growth_chain"
+    | "repo_training_readiness_decision"
+    | "repo_live_learning_access_decision"
+    | "repo_discord_voice_boundary_decision"
   >;
   expected: string;
   distractorAnswers: string[];

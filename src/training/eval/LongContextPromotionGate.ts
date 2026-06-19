@@ -47,7 +47,7 @@ export interface LongContextPromotionSummary {
 }
 
 export const DEFAULT_LONG_CONTEXT_PROMOTION_THRESHOLDS: LongContextPromotionThresholds = {
-  minTotalCases: 25,
+  minTotalCases: 28,
   minAnswerRate: 0.95,
   minExactMatchRate: 0.9,
   minExpectedContainRate: 0.95,
