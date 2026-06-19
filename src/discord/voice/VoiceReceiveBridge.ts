@@ -6,6 +6,7 @@ import type { GuildSettings } from "../../database/repositories/GuildRepository"
 import type { BotMessageContext } from "../../types/discord";
 import { toErrorMessage } from "../../utils/errors";
 import type { BufferedVoiceAudioInput, VoiceCommandResult } from "./DiscordVoiceService";
+import { assessVoiceSpeakerAttribution } from "./VoiceSpeakerAttribution";
 import type { VoiceSpeechQueue } from "./VoiceSpeechQueue";
 import type { VoiceSession } from "./VoiceSessionPolicy";
 
@@ -47,6 +48,7 @@ export interface VoiceReceiveBridgeOptions {
   silenceDurationMs?: number;
   minAudioBytes?: number;
   maxAudioBytes?: number;
+  maxConcurrentSpeakersForAttribution?: number;
   now?: () => Date;
 }
 
@@ -86,6 +88,14 @@ interface ActiveReceiveSession {
   connection: VoiceReceiveBridgeConnection;
   onStart: (userId: string) => void;
   activeUsers: Set<string>;
+  activeTracks: Map<string, ActiveSpeakerTrack>;
+}
+
+interface ActiveSpeakerTrack {
+  speakerUserId: string;
+  startedAt: Date;
+  overlappingSpeakerUserIds: Set<string>;
+  maxConcurrentSpeakers: number;
 }
 
 const DEFAULT_RECEIVE_FORMAT = "discord-opus-packets";
@@ -110,6 +120,7 @@ export class VoiceReceiveBridge {
       connection,
       onStart: (userId) => this.handleSpeakingStart(input.guildId, userId),
       activeUsers: new Set(),
+      activeTracks: new Map(),
     };
     connection.receiver.speaking.on("start", active.onStart);
     this.sessions.set(input.guildId, active);
@@ -122,6 +133,7 @@ export class VoiceReceiveBridge {
     active.connection.receiver.speaking.off?.("start", active.onStart);
     active.connection.receiver.speaking.removeListener?.("start", active.onStart);
     active.activeUsers.clear();
+    active.activeTracks.clear();
     this.sessions.delete(guildId);
     this.options.logger?.info({ guildId }, "voice receive bridge detached");
   }
@@ -133,11 +145,26 @@ export class VoiceReceiveBridge {
   private handleSpeakingStart(guildId: string, userId: string): void {
     const active = this.sessions.get(guildId);
     if (!active) return;
+    if (!userId.trim()) return;
     if (this.shouldIgnoreUser(userId)) return;
     if (active.activeUsers.has(userId)) return;
-    active.activeUsers.add(userId);
 
     const startedAt = this.options.now?.() ?? new Date();
+    const overlappingAtStart = new Set(active.activeUsers);
+    const nextConcurrentSpeakers = active.activeUsers.size + 1;
+    for (const track of active.activeTracks.values()) {
+      track.overlappingSpeakerUserIds.add(userId);
+      track.maxConcurrentSpeakers = Math.max(track.maxConcurrentSpeakers, nextConcurrentSpeakers);
+    }
+    active.activeUsers.add(userId);
+    const track: ActiveSpeakerTrack = {
+      speakerUserId: userId,
+      startedAt,
+      overlappingSpeakerUserIds: overlappingAtStart,
+      maxConcurrentSpeakers: active.activeUsers.size,
+    };
+    active.activeTracks.set(userId, track);
+
     const chunks: Buffer[] = [];
     let totalBytes = 0;
     let tooLarge = false;
@@ -152,6 +179,7 @@ export class VoiceReceiveBridge {
       });
     } catch (err) {
       active.activeUsers.delete(userId);
+      active.activeTracks.delete(userId);
       this.options.logger?.warn({ err: toErrorMessage(err), guildId, userId }, "voice receive subscribe failed");
       return;
     }
@@ -167,27 +195,33 @@ export class VoiceReceiveBridge {
       chunks.push(buffer);
     });
     stream.once("end", () => {
-      void this.processBufferedSpeech(active, userId, chunks, startedAt).catch((err) => {
+      void this.processBufferedSpeech(active, track, chunks).catch((err) => {
         active.activeUsers.delete(userId);
+        active.activeTracks.delete(userId);
         this.options.logger?.warn({ err: toErrorMessage(err), guildId, userId }, "voice receive processing failed");
       });
     });
     stream.once("error", (err) => {
       active.activeUsers.delete(userId);
+      active.activeTracks.delete(userId);
       this.options.logger?.warn({ err: toErrorMessage(err), guildId, userId }, "voice receive stream failed");
     });
     stream.once("close", () => {
-      if (tooLarge) active.activeUsers.delete(userId);
+      if (tooLarge) {
+        active.activeUsers.delete(userId);
+        active.activeTracks.delete(userId);
+      }
     });
   }
 
   private async processBufferedSpeech(
     active: ActiveReceiveSession,
-    speakerUserId: string,
+    track: ActiveSpeakerTrack,
     chunks: Buffer[],
-    startedAt: Date,
   ): Promise<void> {
+    const speakerUserId = track.speakerUserId;
     active.activeUsers.delete(speakerUserId);
+    active.activeTracks.delete(speakerUserId);
     const audio = Buffer.concat(chunks);
     if (audio.length < (this.options.minAudioBytes ?? DEFAULT_MIN_AUDIO_BYTES)) {
       this.options.logger?.debug({ guildId: active.guildId, speakerUserId, bytes: audio.length }, "voice buffer too small");
@@ -196,14 +230,33 @@ export class VoiceReceiveBridge {
 
     const finishedAt = this.options.now?.() ?? new Date();
     const rawFormat = this.options.receiveFormat ?? DEFAULT_RECEIVE_FORMAT;
-    const rawDurationMs = Math.max(0, finishedAt.getTime() - startedAt.getTime());
-    const preprocessed = await (this.options.preprocessAudio ?? defaultVoiceReceivePreprocessor)({
+    const rawDurationMs = Math.max(0, finishedAt.getTime() - track.startedAt.getTime());
+    const attribution = assessVoiceSpeakerAttribution({
       guildId: active.guildId,
       channelId: active.channelId,
       speakerUserId,
+      startedAt: track.startedAt,
+      finishedAt,
+      overlappingSpeakerUserIds: track.overlappingSpeakerUserIds,
+      maxConcurrentSpeakers: track.maxConcurrentSpeakers,
+      maxAllowedConcurrentSpeakers: this.options.maxConcurrentSpeakersForAttribution,
+      botUserId: this.options.client?.user?.id,
+    });
+    if (!attribution.ok) {
+      this.options.logger?.debug(
+        { guildId: active.guildId, speakerUserId, reason: attribution.reason, metadata: attribution.metadata },
+        "voice speaker attribution skipped transcript",
+      );
+      return;
+    }
+
+    const preprocessed = await (this.options.preprocessAudio ?? defaultVoiceReceivePreprocessor)({
+      guildId: active.guildId,
+      channelId: active.channelId,
+      speakerUserId: attribution.speakerUserId,
       audio,
       format: rawFormat,
-      startedAt,
+      startedAt: track.startedAt,
       finishedAt,
       durationMs: rawDurationMs,
     });
@@ -215,11 +268,11 @@ export class VoiceReceiveBridge {
       return;
     }
 
-    const ctx = await this.buildVoiceContext(active, speakerUserId, "");
+    const ctx = await this.buildVoiceContext(active, attribution.speakerUserId, "");
     const transcriptResult = await this.options.transcribeBufferedAudio(ctx, {
       audio: preprocessed.audio,
       format: preprocessed.format,
-      speakerUserId,
+      speakerUserId: attribution.speakerUserId,
       durationMs: preprocessed.durationMs ?? rawDurationMs,
       metadata: {
         voiceReceive: {
@@ -227,10 +280,11 @@ export class VoiceReceiveBridge {
           processedFormat: preprocessed.format,
           rawBytes: audio.length,
           processedBytes: preprocessed.audio.length,
-          startedAt: startedAt.toISOString(),
+          startedAt: track.startedAt.toISOString(),
           finishedAt: finishedAt.toISOString(),
         },
         ...(preprocessed.metadata ?? {}),
+        speakerAttribution: attribution.metadata,
       },
     });
     if (!transcriptResult.ok || !transcriptResult.transcript?.text.trim()) {
@@ -242,16 +296,16 @@ export class VoiceReceiveBridge {
     }
 
     const transcript = transcriptResult.transcript.text.trim();
-    const routedCtx = await this.buildVoiceContext(active, speakerUserId, transcript);
+    const routedCtx = await this.buildVoiceContext(active, attribution.speakerUserId, transcript);
     const reply = await this.options.agent.handleDiscordMessage(routedCtx, {
-      transcript: `[voice:${speakerUserId}] ${transcript}`,
+      transcript: `[voice:${attribution.speakerUserId}] ${transcript}`,
     });
 
     if (active.session.policy.canSpeak && this.options.speechQueue && reply.content.trim()) {
       const enqueued = this.options.speechQueue.enqueue({
         guildId: active.guildId,
         channelId: active.channelId,
-        requestedByUserId: speakerUserId,
+        requestedByUserId: attribution.speakerUserId,
         text: reply.content,
       });
       if (!enqueued.ok) {

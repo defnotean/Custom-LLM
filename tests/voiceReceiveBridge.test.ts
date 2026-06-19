@@ -261,9 +261,90 @@ describe("VoiceReceiveBridge", () => {
           }),
           vad: { speechProbability: 0.98, speechDetected: true },
           decoder: "test-decoder",
+          speakerAttribution: expect.objectContaining({
+            source: "discord-receiver-speaking-event",
+            speakerUserId: "speaker-1",
+            confidence: "high",
+            overlappingSpeakerUserIds: [],
+          }),
         }),
       }),
     );
+  });
+
+  it("keeps light crosstalk attributable and marks medium-confidence speaker metadata", async () => {
+    const fake = makeConnection();
+    const transcribeBufferedAudio = vi.fn(async () => ({
+      ok: true,
+      message: "transcribed",
+      transcript: { text: "speaker one finished", confidence: 0.9 },
+    }));
+    const agent = { handleDiscordMessage: vi.fn(async () => ({ content: "", trace: {} as never })) };
+    const bridge = new VoiceReceiveBridge({
+      transcribeBufferedAudio,
+      agent,
+      minAudioBytes: 1,
+    });
+
+    bridge.attach({
+      guildId: "guild-1",
+      channelId: "voice-1",
+      connection: fake.connection,
+      session: makeSession(),
+    });
+    fake.speaking.emit("start", "speaker-1");
+    fake.speaking.emit("start", "speaker-2");
+    fake.streams.get("speaker-1")?.end(Buffer.from("speaker-one-opus"));
+    await vi.waitFor(() => expect(agent.handleDiscordMessage).toHaveBeenCalledTimes(1));
+
+    expect(transcribeBufferedAudio).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        speakerUserId: "speaker-1",
+        metadata: expect.objectContaining({
+          speakerAttribution: expect.objectContaining({
+            speakerUserId: "speaker-1",
+            confidence: "medium",
+            overlappingSpeakerUserIds: ["speaker-2"],
+            maxConcurrentSpeakers: 2,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("drops overly ambiguous crosstalk before preprocessing, STT, or agent routing", async () => {
+    const fake = makeConnection();
+    const preprocessAudio = vi.fn(async () => ({
+      shouldTranscribe: true as const,
+      audio: Buffer.from("decoded"),
+      format: "pcm-s16le-48000-mono",
+    }));
+    const transcribeBufferedAudio = vi.fn(async () => ({ ok: false, message: "unused" }));
+    const agent = { handleDiscordMessage: vi.fn(async () => ({ content: "", trace: {} as never })) };
+    const bridge = new VoiceReceiveBridge({
+      preprocessAudio,
+      transcribeBufferedAudio,
+      agent,
+      minAudioBytes: 1,
+      maxConcurrentSpeakersForAttribution: 2,
+    });
+
+    bridge.attach({
+      guildId: "guild-1",
+      channelId: "voice-1",
+      connection: fake.connection,
+      session: makeSession(),
+    });
+    fake.speaking.emit("start", "speaker-1");
+    fake.speaking.emit("start", "speaker-2");
+    fake.speaking.emit("start", "speaker-3");
+    fake.streams.get("speaker-1")?.end(Buffer.from("ambiguous-opus"));
+    await flushAsyncWork();
+
+    expect(preprocessAudio).not.toHaveBeenCalled();
+    expect(transcribeBufferedAudio).not.toHaveBeenCalled();
+    expect(agent.handleDiscordMessage).not.toHaveBeenCalled();
   });
 
   it("drops VAD-rejected audio before STT and agent routing", async () => {
