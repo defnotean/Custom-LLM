@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { checkProductionTrainingReadiness } from "../src/training/quality/ProductionTrainingReadiness";
 import { buildToolRegistry } from "../src/tools";
 import { buildToolEvalCases, type ToolEvalCase } from "../src/training/eval/ToolEvalSuite";
+import { buildBehaviorEvalCases, type BehaviorEvalCase } from "../src/training/eval/BehaviorEvalSuite";
 
 describe("ProductionTrainingReadiness", () => {
   let dir: string | null = null;
@@ -30,6 +31,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "sft-first-party-signal")).toBe("warn");
     expect(checkStatus(report.checks, "sft-token-headroom")).toBe("pass");
     expect(checkStatus(report.checks, "behavior-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "behavior-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "voice-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
@@ -127,6 +129,20 @@ describe("ProductionTrainingReadiness", () => {
 
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "tool-protocol-coverage")).toBe("fail");
+  });
+
+  it("fails production readiness when behavior coverage is incomplete", async () => {
+    const fixture = await writeFixture({
+      behaviorEvalRows: buildBehaviorEvalCases().filter((item) => item.kind !== "persona_identity"),
+    });
+
+    const report = await checkProductionTrainingReadiness({
+      ...fixture.options,
+      behaviorCoverageMinCases: 0,
+    });
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "behavior-coverage")).toBe("fail");
   });
 
   it("fails production readiness when held-out eval data leaks into training data", async () => {
@@ -259,6 +275,7 @@ describe("ProductionTrainingReadiness", () => {
 
     const toolEvalReportPath = join(evalDir, "oracle.report.json");
     const toolEvalSuitePath = join(evalDir, "tool-routing.eval.jsonl");
+    const behaviorEvalSuitePath = join(evalDir, "behavior.eval.jsonl");
     const knowledgeEvalReportPath = join(evalDir, "knowledge-oracle.report.json");
     const behaviorEvalReportPath = join(evalDir, "behavior-oracle.report.json");
     const voiceEvalReportPath = join(evalDir, "voice-oracle.report.json");
@@ -281,6 +298,7 @@ describe("ProductionTrainingReadiness", () => {
       failures: [],
     });
     await writeJsonl(toolEvalSuitePath, overrides.toolEvalRows ?? buildToolEvalCases(buildToolRegistry()));
+    await writeJsonl(behaviorEvalSuitePath, overrides.behaviorEvalRows ?? buildBehaviorEvalCases());
     await writeJson(knowledgeEvalReportPath, {
       total: 200,
       answerRate: 1,
@@ -396,6 +414,7 @@ describe("ProductionTrainingReadiness", () => {
         processedDatasetReportPath,
         datasetPreparerSourcePath,
         toolEvalSuitePath,
+        behaviorEvalSuitePath,
         toolEvalReportPath,
         knowledgeEvalReportPath,
         behaviorEvalReportPath,
@@ -436,6 +455,7 @@ interface FixtureOverrides {
   skillRetrievalGate: Record<string, unknown>;
   contaminationEvalRows: unknown[];
   toolEvalRows: ToolEvalCase[];
+  behaviorEvalRows: BehaviorEvalCase[];
 }
 
 function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {

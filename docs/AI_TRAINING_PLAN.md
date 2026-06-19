@@ -284,6 +284,7 @@ npm run build:voice-eval
 npm run build:router-eval
 npm run build:long-context-eval
 npm run check:contamination
+npm run check:behavior-coverage
 npm run check:training-configs
 npm run check:production-readiness
 
@@ -337,11 +338,12 @@ Production readiness gate:
 ```bash
 npm run check:dataset-governance
 npm run check:tool-protocol-coverage
+npm run check:behavior-coverage
 npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies dataset governance, contamination leakage, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, BFCL-style tool protocol coverage, tool/knowledge/behavior/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance`, `npm run check:contamination`, and `npm run check:tool-protocol-coverage` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, obvious secret/PII scans, held-out eval leakage, and required tool-call scenario coverage. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies dataset governance, contamination leakage, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, BFCL-style tool protocol coverage, behavior/persona coverage, tool/knowledge/behavior/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance`, `npm run check:contamination`, `npm run check:tool-protocol-coverage`, and `npm run check:behavior-coverage` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, obvious secret/PII scans, held-out eval leakage, required tool-call scenario coverage, and required Irene persona/social coverage. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -445,6 +447,7 @@ The behavior suite checks the third specialist surface: persona, casual/social r
 
 ```bash
 npm run build:behavior-eval
+npm run check:behavior-coverage
 npm run eval:behavior:oracle
 npm run eval:behavior -- --predictions training/evals/behavior-oracle.predictions.jsonl --out training/evals/behavior-oracle.report.json
 npm run eval:behavior:gate -- --candidate training/evals/behavior-oracle.report.json --out training/evals/behavior-oracle.gate.json
@@ -469,6 +472,8 @@ Current behavior eval suite:
 | `social_cue` | 4 | Support, celebration, repair after misread, and clarification |
 | `boundary` | 1 | Direct refusal of account theft while offering safe alternatives |
 | `tool_abstain` | 1 | No accidental tool call for no-tool casual prompts |
+
+`npm run check:behavior-coverage` is the structural suite guard. It fails if the held-out suite stops covering Irene/she-her identity, affective expression, Discord-native slang/opinion, support/repair, ambiguous-reference clarification, candid account-theft boundaries, tool abstention, or anti-corporate filler bans.
 
 Metrics reported:
 
@@ -632,6 +637,7 @@ Every dataset build must:
 - Pass `npm run check:dataset-governance` so raw licenses/checksums, processed provenance, eval-seed balance, hashes, gated-source boundaries, and secret/PII scans are healthy.
 - Keep preference/DPO rows explicit: prompt, chosen, and rejected must already exist; do not fabricate rejected answers from ordinary chat logs or plain ratings.
 - Pass `npm run check:contamination` before model promotion so held-out evals are not in train JSONL by exact ID, exact text, or high n-gram overlap.
+- Pass `npm run check:behavior-coverage` before training so Irene's she/her persona, emotional voice, social repair/support, candid boundaries, and tool abstention stay represented in held-out behavior evals.
 - Keep generated datasets and checkpoints out of git.
 
 Every model iteration must:

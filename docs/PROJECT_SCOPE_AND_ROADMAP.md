@@ -207,6 +207,7 @@ Promotion requires all relevant gates, not just lower validation loss.
 | Tool protocol coverage gate | BFCL-style held-out coverage for required args, missing args, permission refusals, risky confirmations, multi-turn changes, adversarial no-tool prompts, large-registry surfaces, and prompt injection |
 | Knowledge gate | Held-out answer quality and regression tracking |
 | Behavior gate | Irene identity, she/her consistency, social support, repair, casual tone, boundary wording, tool abstention |
+| Behavior coverage gate | Structural coverage for Irene/she-her identity, affective expression, Discord-native slang/opinion, social support/repair, ambiguous-reference clarification, candid account-theft boundaries, tool abstention, and anti-corporate filler bans |
 | Router gate | Exact specialist route, broad expert family, tool vs non-tool separation |
 | Voice gate | Speaker attribution, turn-taking, interruption handling, STT quality, TTS latency, no retention-policy violations |
 | Memory growth gate | Accurate recall, scope isolation, correct forgetting, no secrets, no one-off memory spam, learned-item capture, useful summary quality |
@@ -255,6 +256,7 @@ Success criteria:
 - `npm test`
 - `npm run build`
 - `npm run check:contamination`
+- `npm run check:behavior-coverage`
 - `npm run check:dataset-governance`
 - `npm run check:production-readiness`
 - `npm run check:training-configs`

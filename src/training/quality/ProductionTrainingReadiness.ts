@@ -23,6 +23,10 @@ import {
   checkToolProtocolCoverageReadiness,
   type ToolProtocolCoverageReadinessReport,
 } from "./ToolProtocolCoverageReadiness";
+import {
+  checkBehaviorCoverageReadiness,
+  type BehaviorCoverageReadinessReport,
+} from "./BehaviorCoverageReadiness";
 
 const outputFileSchema = z.object({
   path: z.string().min(1),
@@ -191,6 +195,7 @@ export interface ProductionTrainingReadinessOptions {
   sftReportPath?: string;
   preferenceReportPath?: string;
   toolEvalSuitePath?: string;
+  behaviorEvalSuitePath?: string;
   toolEvalReportPath?: string;
   knowledgeEvalReportPath?: string;
   behaviorEvalReportPath?: string;
@@ -218,6 +223,7 @@ export interface ProductionTrainingReadinessOptions {
   maxSftTokenBudgetUsage?: number;
   minSftPackingEfficiency?: number;
   toolProtocolCoverageMinCases?: number;
+  behaviorCoverageMinCases?: number;
   contaminationTrainPaths?: string[];
   contaminationEvalPaths?: string[];
   contaminationNgramSize?: number;
@@ -281,6 +287,7 @@ const DEFAULTS = {
   sftReportPath: "training/data/mixtures/production-sft.report.json",
   preferenceReportPath: "training/data/preferences/production-dpo.report.json",
   toolEvalSuitePath: "training/evals/tool-routing.eval.jsonl",
+  behaviorEvalSuitePath: "training/evals/behavior.eval.jsonl",
   toolEvalReportPath: "training/evals/oracle.report.json",
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
   behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
@@ -306,6 +313,7 @@ const DEFAULTS = {
   maxSftTokenBudgetUsage: 0.95,
   minSftPackingEfficiency: 0.5,
   toolProtocolCoverageMinCases: 250,
+  behaviorCoverageMinCases: 11,
   contaminationTrainPaths: DEFAULT_CONTAMINATION_TRAIN_PATHS,
   contaminationEvalPaths: DEFAULT_CONTAMINATION_EVAL_PATHS,
   contaminationNgramSize: 13,
@@ -351,6 +359,7 @@ export async function checkProductionTrainingReadiness(
     memoryContinuityGate,
     skillRetrievalGate,
     toolProtocolCoverageReport,
+    behaviorCoverageReport,
     subqArchitectureReport,
     datasetGovernanceReport,
     contaminationReport,
@@ -368,6 +377,10 @@ export async function checkProductionTrainingReadiness(
       checkToolProtocolCoverageReadiness({
         suitePath: config.toolEvalSuitePath,
         minTotalCases: config.toolProtocolCoverageMinCases,
+      }),
+      checkBehaviorCoverageReadiness({
+        suitePath: config.behaviorEvalSuitePath,
+        minTotalCases: config.behaviorCoverageMinCases,
       }),
       checkSubquadraticArchitectureReadiness({
         suitePath: config.longContextSuitePath,
@@ -420,6 +433,7 @@ export async function checkProductionTrainingReadiness(
       memoryContinuityGate,
       skillRetrievalGate,
       toolProtocolCoverageReport,
+      behaviorCoverageReport,
       subqArchitectureReport,
     ),
   );
@@ -494,6 +508,33 @@ function toolProtocolCoverageReadinessCheck(report: ToolProtocolCoverageReadines
       })
     : fail("tool-protocol-coverage", "Tool protocol suite is missing required BFCL-style scenario coverage", {
         total: report.summary.total,
+        failingScenarios,
+      });
+}
+
+function behaviorCoverageReadinessCheck(report: BehaviorCoverageReadinessReport): ReadinessCheck {
+  const failingScenarios = report.scenarios
+    .filter((scenario) => scenario.count < scenario.minCases)
+    .map((scenario) => ({
+      id: scenario.id,
+      description: scenario.description,
+      count: scenario.count,
+      minCases: scenario.minCases,
+      sampleIds: scenario.sampleIds,
+    }));
+  return report.status === "pass"
+    ? pass("behavior-coverage", `Behavior suite covers ${report.scenarios.length} required persona/social families`, {
+        total: report.summary.total,
+        byKind: report.summary.byKind,
+        byRoute: report.summary.byRoute,
+        targets: report.summary.targets,
+        noToolContracts: report.summary.noToolContracts,
+        corporateVoiceGuardCases: report.summary.corporateVoiceGuardCases,
+      })
+    : fail("behavior-coverage", "Behavior suite is missing required persona/social coverage", {
+        total: report.summary.total,
+        byKind: report.summary.byKind,
+        byRoute: report.summary.byRoute,
         failingScenarios,
       });
 }
@@ -710,6 +751,7 @@ function evalHarnessChecks(
   memoryContinuityGate: MemoryContinuityGateReport,
   skillRetrievalGate: SkillRetrievalGateReport,
   toolProtocolCoverageReport: ToolProtocolCoverageReadinessReport,
+  behaviorCoverageReport: BehaviorCoverageReadinessReport,
   subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
@@ -761,6 +803,7 @@ function evalHarnessChecks(
           missingPredictions: behaviorReport.missingPredictions,
           failures: behaviorReport.failures.length,
         }),
+    behaviorCoverageReadinessCheck(behaviorCoverageReport),
     voiceReport.total >= 12 &&
     voiceReport.transcriptExactRate >= 0.9 &&
     voiceReport.averageTranscriptTokenF1 >= 0.95 &&

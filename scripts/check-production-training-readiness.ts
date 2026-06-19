@@ -29,6 +29,7 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
     else if (arg === "--sft-report") options.sftReportPath = requireValue(argv[++index], arg);
     else if (arg === "--preference-report") options.preferenceReportPath = requireValue(argv[++index], arg);
     else if (arg === "--tool-eval-suite") options.toolEvalSuitePath = requireValue(argv[++index], arg);
+    else if (arg === "--behavior-eval-suite") options.behaviorEvalSuitePath = requireValue(argv[++index], arg);
     else if (arg === "--tool-eval-report") options.toolEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--knowledge-eval-report") options.knowledgeEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--behavior-eval-report") options.behaviorEvalReportPath = requireValue(argv[++index], arg);
@@ -65,6 +66,8 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
     else if (arg === "--min-sft-packing-efficiency") options.minSftPackingEfficiency = parseRatio(argv[++index], arg);
     else if (arg === "--min-tool-protocol-coverage-cases")
       options.toolProtocolCoverageMinCases = parseNonnegativeInt(argv[++index], arg);
+    else if (arg === "--min-behavior-coverage-cases")
+      options.behaviorCoverageMinCases = parseNonnegativeInt(argv[++index], arg);
     else if (arg === "--min-sft-train-records") options.minSftTrainRecords = parseNonnegativeInt(argv[++index], arg);
     else if (arg === "--min-sft-validation-records")
       options.minSftValidationRecords = parseNonnegativeInt(argv[++index], arg);
