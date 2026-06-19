@@ -124,6 +124,16 @@ describe("VoiceReceiveBridge", () => {
         audio: Buffer.from("opus-aopus-b"),
         format: "discord-opus-packets",
         speakerUserId: "speaker-1",
+        metadata: expect.objectContaining({
+          voiceReceive: expect.objectContaining({
+            rawFormat: "discord-opus-packets",
+            processedFormat: "discord-opus-packets",
+            rawBytes: 12,
+            processedBytes: 12,
+          }),
+          preprocessing: "pass-through",
+          vad: "not-configured",
+        }),
       }),
     );
     expect(agent.handleDiscordMessage).toHaveBeenCalledWith(
@@ -185,5 +195,105 @@ describe("VoiceReceiveBridge", () => {
     expect(fake.subscribe).toHaveBeenCalledTimes(1);
     expect(fake.subscribe).toHaveBeenCalledWith("speaker-1", expect.any(Object));
     expect(transcribeBufferedAudio).not.toHaveBeenCalled();
+  });
+
+  it("lets a production preprocessor replace audio format and pass VAD metadata into STT", async () => {
+    const fake = makeConnection();
+    const preprocessAudio = vi.fn(async () => ({
+      shouldTranscribe: true as const,
+      audio: Buffer.from("pcm-speech"),
+      format: "pcm-s16le-48000-mono",
+      durationMs: 1_250,
+      metadata: {
+        vad: { speechProbability: 0.98, speechDetected: true },
+        decoder: "test-decoder",
+      },
+    }));
+    const transcribeBufferedAudio = vi.fn(async () => ({
+      ok: true,
+      message: "transcribed",
+      transcript: { text: "decoded speech", confidence: 0.95 },
+    }));
+    const agent = { handleDiscordMessage: vi.fn(async () => ({ content: "", trace: {} as never })) };
+    let tick = 0;
+    const bridge = new VoiceReceiveBridge({
+      preprocessAudio,
+      transcribeBufferedAudio,
+      agent,
+      receiveFormat: "discord-opus-packets",
+      minAudioBytes: 1,
+      now: () => new Date(1_000 + tick++),
+    });
+
+    bridge.attach({
+      guildId: "guild-1",
+      channelId: "voice-1",
+      connection: fake.connection,
+      session: makeSession(),
+    });
+    fake.speaking.emit("start", "speaker-1");
+    fake.streams.get("speaker-1")?.end(Buffer.from("opus-packets"));
+    await vi.waitFor(() => expect(agent.handleDiscordMessage).toHaveBeenCalledTimes(1));
+
+    expect(preprocessAudio).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guildId: "guild-1",
+        channelId: "voice-1",
+        speakerUserId: "speaker-1",
+        audio: Buffer.from("opus-packets"),
+        format: "discord-opus-packets",
+        durationMs: 1,
+      }),
+    );
+    expect(transcribeBufferedAudio).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        audio: Buffer.from("pcm-speech"),
+        format: "pcm-s16le-48000-mono",
+        speakerUserId: "speaker-1",
+        durationMs: 1_250,
+        metadata: expect.objectContaining({
+          voiceReceive: expect.objectContaining({
+            rawFormat: "discord-opus-packets",
+            processedFormat: "pcm-s16le-48000-mono",
+            rawBytes: 12,
+            processedBytes: 10,
+          }),
+          vad: { speechProbability: 0.98, speechDetected: true },
+          decoder: "test-decoder",
+        }),
+      }),
+    );
+  });
+
+  it("drops VAD-rejected audio before STT and agent routing", async () => {
+    const fake = makeConnection();
+    const preprocessAudio = vi.fn(async () => ({
+      shouldTranscribe: false as const,
+      reason: "vad-no-speech",
+      metadata: { vad: { speechProbability: 0.02, speechDetected: false } },
+    }));
+    const transcribeBufferedAudio = vi.fn(async () => ({ ok: false, message: "unused" }));
+    const agent = { handleDiscordMessage: vi.fn(async () => ({ content: "", trace: {} as never })) };
+    const bridge = new VoiceReceiveBridge({
+      preprocessAudio,
+      transcribeBufferedAudio,
+      agent,
+      minAudioBytes: 1,
+    });
+
+    bridge.attach({
+      guildId: "guild-1",
+      channelId: "voice-1",
+      connection: fake.connection,
+      session: makeSession(),
+    });
+    fake.speaking.emit("start", "speaker-1");
+    fake.streams.get("speaker-1")?.end(Buffer.from("noise"));
+    await flushAsyncWork();
+
+    expect(preprocessAudio).toHaveBeenCalledTimes(1);
+    expect(transcribeBufferedAudio).not.toHaveBeenCalled();
+    expect(agent.handleDiscordMessage).not.toHaveBeenCalled();
   });
 });

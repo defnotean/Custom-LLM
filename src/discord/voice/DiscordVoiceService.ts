@@ -48,6 +48,7 @@ export interface BufferedVoiceAudioInput {
   speakerUserId?: string;
   language?: string;
   durationMs?: number;
+  metadata?: Record<string, unknown>;
 }
 
 export class DiscordVoiceService {
@@ -369,6 +370,7 @@ export class DiscordVoiceService {
       format: input.format,
       language: input.language,
       metadata: {
+        ...(input.metadata ?? {}),
         durationMs: input.durationMs ?? null,
         retention: {
           rawAudio: policy.rawAudioRetention,

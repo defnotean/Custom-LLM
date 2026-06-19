@@ -247,6 +247,7 @@ describe("DiscordVoiceService", () => {
       format: "ogg-opus",
       speakerUserId: "speaker-1",
       durationMs: 800,
+      metadata: { voiceReceive: { rawFormat: "discord-opus-packets", processedFormat: "ogg-opus" } },
     });
 
     expect(result.ok).toBe(true);
@@ -260,6 +261,7 @@ describe("DiscordVoiceService", () => {
         requestedByUserId: "user-1",
         format: "ogg-opus",
         metadata: {
+          voiceReceive: { rawFormat: "discord-opus-packets", processedFormat: "ogg-opus" },
           durationMs: 800,
           retention: { rawAudio: "transient", transcript: false, summary: false, trainingReviewQueue: false },
         },

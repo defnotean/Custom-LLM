@@ -40,6 +40,7 @@ export interface VoiceReceiveBridgeOptions {
   agent: { handleDiscordMessage(ctx: BotMessageContext, options?: { transcript?: string | null }): Promise<AgentReply> };
   speechQueue?: Pick<VoiceSpeechQueue, "enqueue"> | null;
   getGuildSettings?: (guildId: string) => Promise<GuildSettings>;
+  preprocessAudio?: VoiceReceiveAudioPreprocessor;
   client?: Client;
   logger?: Logger;
   receiveFormat?: string;
@@ -48,6 +49,35 @@ export interface VoiceReceiveBridgeOptions {
   maxAudioBytes?: number;
   now?: () => Date;
 }
+
+export interface VoiceReceiveAudioPreprocessInput {
+  guildId: string;
+  channelId: string;
+  speakerUserId: string;
+  audio: Buffer;
+  format: string;
+  startedAt: Date;
+  finishedAt: Date;
+  durationMs: number;
+}
+
+export type VoiceReceiveAudioPreprocessResult =
+  | {
+      shouldTranscribe: true;
+      audio: Buffer;
+      format: string;
+      durationMs?: number;
+      metadata?: Record<string, unknown>;
+    }
+  | {
+      shouldTranscribe: false;
+      reason: string;
+      metadata?: Record<string, unknown>;
+    };
+
+export type VoiceReceiveAudioPreprocessor = (
+  input: VoiceReceiveAudioPreprocessInput,
+) => Promise<VoiceReceiveAudioPreprocessResult> | VoiceReceiveAudioPreprocessResult;
 
 interface ActiveReceiveSession {
   guildId: string;
@@ -165,12 +195,43 @@ export class VoiceReceiveBridge {
     }
 
     const finishedAt = this.options.now?.() ?? new Date();
+    const rawFormat = this.options.receiveFormat ?? DEFAULT_RECEIVE_FORMAT;
+    const rawDurationMs = Math.max(0, finishedAt.getTime() - startedAt.getTime());
+    const preprocessed = await (this.options.preprocessAudio ?? defaultVoiceReceivePreprocessor)({
+      guildId: active.guildId,
+      channelId: active.channelId,
+      speakerUserId,
+      audio,
+      format: rawFormat,
+      startedAt,
+      finishedAt,
+      durationMs: rawDurationMs,
+    });
+    if (!preprocessed.shouldTranscribe) {
+      this.options.logger?.debug(
+        { guildId: active.guildId, speakerUserId, reason: preprocessed.reason, metadata: preprocessed.metadata },
+        "voice receive preprocessing skipped transcript",
+      );
+      return;
+    }
+
     const ctx = await this.buildVoiceContext(active, speakerUserId, "");
     const transcriptResult = await this.options.transcribeBufferedAudio(ctx, {
-      audio,
-      format: this.options.receiveFormat ?? DEFAULT_RECEIVE_FORMAT,
+      audio: preprocessed.audio,
+      format: preprocessed.format,
       speakerUserId,
-      durationMs: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
+      durationMs: preprocessed.durationMs ?? rawDurationMs,
+      metadata: {
+        voiceReceive: {
+          rawFormat,
+          processedFormat: preprocessed.format,
+          rawBytes: audio.length,
+          processedBytes: preprocessed.audio.length,
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+        },
+        ...(preprocessed.metadata ?? {}),
+      },
     });
     if (!transcriptResult.ok || !transcriptResult.transcript?.text.trim()) {
       this.options.logger?.debug(
@@ -230,4 +291,18 @@ export class VoiceReceiveBridge {
   private shouldIgnoreUser(userId: string): boolean {
     return Boolean(this.options.client?.user?.id && this.options.client.user.id === userId);
   }
+}
+
+function defaultVoiceReceivePreprocessor(input: VoiceReceiveAudioPreprocessInput): VoiceReceiveAudioPreprocessResult {
+  return {
+    shouldTranscribe: true,
+    audio: input.audio,
+    format: input.format,
+    durationMs: input.durationMs,
+    metadata: {
+      preprocessing: "pass-through",
+      vad: "not-configured",
+      decoder: "external-stt-provider",
+    },
+  };
 }
