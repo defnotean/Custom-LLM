@@ -154,6 +154,24 @@ const memoryContinuityGateSchema = z.object({
   warnings: z.array(z.unknown()),
 });
 
+const skillRetrievalGateSchema = z.object({
+  status: z.enum(["pass", "fail"]),
+  candidate: z.object({
+    suitePath: z.string().min(1),
+    total: z.number().int().nonnegative(),
+    recallAtK: z.number().min(0).max(1),
+    precisionAtK: z.number().min(0).max(1),
+    top1Accuracy: z.number().min(0).max(1),
+    noHitAccuracy: z.number().min(0).max(1),
+    forbiddenHits: z.number().int().nonnegative(),
+    missingExpected: z.number().int().nonnegative(),
+    failures: z.number().int().nonnegative(),
+    latencyP95Ms: z.number().nonnegative().nullable(),
+  }),
+  failures: z.array(z.unknown()),
+  warnings: z.array(z.unknown()),
+});
+
 export type ProductionTrainingStage = "sft" | "dpo" | "all";
 export type ReadinessStatus = "ready" | "not_ready";
 export type ReadinessCheckStatus = "pass" | "warn" | "fail";
@@ -170,6 +188,7 @@ export interface ProductionTrainingReadinessOptions {
   toolRouterEvalReportPath?: string;
   longContextEvalReportPath?: string;
   memoryContinuityGatePath?: string;
+  skillRetrievalGatePath?: string;
   rawDatasetManifestPath?: string;
   processedDatasetReportPath?: string;
   datasetPreparerSourcePath?: string;
@@ -236,6 +255,7 @@ type RouterEvalReport = z.infer<typeof routerEvalReportSchema>;
 type ToolRouterEvalReport = z.infer<typeof toolRouterEvalReportSchema>;
 type LongContextEvalReport = z.infer<typeof longContextEvalReportSchema>;
 type MemoryContinuityGateReport = z.infer<typeof memoryContinuityGateSchema>;
+type SkillRetrievalGateReport = z.infer<typeof skillRetrievalGateSchema>;
 
 const DEFAULTS = {
   stage: "sft" as ProductionTrainingStage,
@@ -249,6 +269,7 @@ const DEFAULTS = {
   toolRouterEvalReportPath: "training/evals/tool-router-keyword.report.json",
   longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
   memoryContinuityGatePath: "training/evals/memory-continuity.gate.json",
+  skillRetrievalGatePath: "training/evals/skill-retrieval.gate.json",
   rawDatasetManifestPath: "training/data/raw/dataset_manifest.json",
   processedDatasetReportPath: "training/data/processed/dataset_report.json",
   datasetPreparerSourcePath: "src/training/external/OpenDatasetPreparer.ts",
@@ -300,6 +321,7 @@ export async function checkProductionTrainingReadiness(
     toolRouterEvalReport,
     longContextEvalReport,
     memoryContinuityGate,
+    skillRetrievalGate,
     subqArchitectureReport,
     datasetGovernanceReport,
   ] =
@@ -312,6 +334,7 @@ export async function checkProductionTrainingReadiness(
       readJson(config.toolRouterEvalReportPath, toolRouterEvalReportSchema),
       readJson(config.longContextEvalReportPath, longContextEvalReportSchema),
       readJson(config.memoryContinuityGatePath, memoryContinuityGateSchema),
+      readJson(config.skillRetrievalGatePath, skillRetrievalGateSchema),
       checkSubquadraticArchitectureReadiness({
         suitePath: config.longContextSuitePath,
         routerSourcePath: config.llmRouterSourcePath,
@@ -352,6 +375,7 @@ export async function checkProductionTrainingReadiness(
       toolRouterEvalReport,
       longContextEvalReport,
       memoryContinuityGate,
+      skillRetrievalGate,
       subqArchitectureReport,
     ),
   );
@@ -597,6 +621,7 @@ function evalHarnessChecks(
   toolRouterReport: ToolRouterEvalReport,
   longContextReport: LongContextEvalReport,
   memoryContinuityGate: MemoryContinuityGateReport,
+  skillRetrievalGate: SkillRetrievalGateReport,
   subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
@@ -760,6 +785,37 @@ function evalHarnessChecks(
           learnedItemPassRate: memoryContinuityGate.candidate.learnedItemPassRate,
           failures: memoryContinuityGate.candidate.failures,
           gateFailures: memoryContinuityGate.failures.length,
+        }),
+    skillRetrievalGate.status === "pass" &&
+    skillRetrievalGate.candidate.total >= 10 &&
+    skillRetrievalGate.candidate.recallAtK === 1 &&
+    skillRetrievalGate.candidate.precisionAtK === 1 &&
+    skillRetrievalGate.candidate.top1Accuracy === 1 &&
+    skillRetrievalGate.candidate.noHitAccuracy === 1 &&
+    skillRetrievalGate.candidate.forbiddenHits === 0 &&
+    skillRetrievalGate.candidate.missingExpected === 0 &&
+    skillRetrievalGate.candidate.failures === 0 &&
+    skillRetrievalGate.failures.length === 0
+      ? pass(
+          "skill-retrieval-gate",
+          `Skill retrieval gate is healthy with ${skillRetrievalGate.candidate.total} cases`,
+          {
+            suitePath: skillRetrievalGate.candidate.suitePath,
+            latencyP95Ms: skillRetrievalGate.candidate.latencyP95Ms,
+            warnings: skillRetrievalGate.warnings,
+          },
+        )
+      : fail("skill-retrieval-gate", "Skill retrieval gate does not satisfy promotion expectations", {
+          status: skillRetrievalGate.status,
+          total: skillRetrievalGate.candidate.total,
+          recallAtK: skillRetrievalGate.candidate.recallAtK,
+          precisionAtK: skillRetrievalGate.candidate.precisionAtK,
+          top1Accuracy: skillRetrievalGate.candidate.top1Accuracy,
+          noHitAccuracy: skillRetrievalGate.candidate.noHitAccuracy,
+          forbiddenHits: skillRetrievalGate.candidate.forbiddenHits,
+          missingExpected: skillRetrievalGate.candidate.missingExpected,
+          failures: skillRetrievalGate.candidate.failures,
+          gateFailures: skillRetrievalGate.failures.length,
         }),
     subqArchitectureReport.status === "pass"
       ? pass(

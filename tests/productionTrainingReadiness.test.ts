@@ -33,6 +33,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "memory-continuity-gate")).toBe("pass");
+    expect(checkStatus(report.checks, "skill-retrieval-gate")).toBe("pass");
     expect(checkStatus(report.checks, "subq-architecture-contract")).toBe("pass");
     expect(checkStatus(report.checks, "dataset-governance")).toBe("pass");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("warn");
@@ -81,6 +82,17 @@ describe("ProductionTrainingReadiness", () => {
 
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "memory-continuity-gate")).toBe("fail");
+  });
+
+  it("fails production readiness when the skill retrieval gate fails", async () => {
+    const fixture = await writeFixture({
+      skillRetrievalGate: goodSkillRetrievalGate({ status: "fail", candidate: { recallAtK: 0.8 } }),
+    });
+
+    const report = await checkProductionTrainingReadiness(fixture.options);
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "skill-retrieval-gate")).toBe("fail");
   });
 
   async function writeFixture(overrides: Partial<FixtureOverrides> = {}): Promise<{
@@ -208,6 +220,7 @@ describe("ProductionTrainingReadiness", () => {
     const toolRouterEvalReportPath = join(evalDir, "tool-router-keyword.report.json");
     const longContextEvalReportPath = join(evalDir, "long-context-oracle.report.json");
     const memoryContinuityGatePath = join(evalDir, "memory-continuity.gate.json");
+    const skillRetrievalGatePath = join(evalDir, "skill-retrieval.gate.json");
     const longContextSuitePath = join(evalDir, "long-context.eval.jsonl");
     await writeJson(toolEvalReportPath, {
       total: 200,
@@ -285,6 +298,7 @@ describe("ProductionTrainingReadiness", () => {
       failures: [],
     });
     await writeJson(memoryContinuityGatePath, overrides.memoryContinuityGate ?? goodMemoryContinuityGate());
+    await writeJson(skillRetrievalGatePath, overrides.skillRetrievalGate ?? goodSkillRetrievalGate());
     await writeLongContextSuiteFixture(longContextSuitePath);
 
     const axolotlSftConfigPath = join(configDir, "qwen3-qlora-sft.yaml");
@@ -335,6 +349,7 @@ describe("ProductionTrainingReadiness", () => {
         toolRouterEvalReportPath,
         longContextEvalReportPath,
         memoryContinuityGatePath,
+        skillRetrievalGatePath,
         longContextSuitePath,
         llmRouterSourcePath,
         tinyTrainerPath,
@@ -361,6 +376,7 @@ interface FixtureOverrides {
   unslothSft: string;
   unslothDpo: string;
   memoryContinuityGate: Record<string, unknown>;
+  skillRetrievalGate: Record<string, unknown>;
 }
 
 function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -377,6 +393,31 @@ function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Reco
     learnedItemPassRate: 1,
     failures: 0,
     latencyP95Ms: 3,
+    ...((overrides.candidate as Record<string, unknown> | undefined) ?? {}),
+  };
+  return {
+    status: "pass",
+    thresholds: {},
+    failures: [],
+    warnings: [],
+    ...topLevelOverrides,
+    candidate,
+  };
+}
+
+function goodSkillRetrievalGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const { candidate: _candidate, ...topLevelOverrides } = overrides;
+  const candidate = {
+    suitePath: "training/evals/skill-retrieval.eval.json",
+    total: 10,
+    recallAtK: 1,
+    precisionAtK: 1,
+    top1Accuracy: 1,
+    noHitAccuracy: 1,
+    forbiddenHits: 0,
+    missingExpected: 0,
+    failures: 0,
+    latencyP95Ms: 1,
     ...((overrides.candidate as Record<string, unknown> | undefined) ?? {}),
   };
   return {

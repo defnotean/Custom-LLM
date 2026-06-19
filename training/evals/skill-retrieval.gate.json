@@ -1,0 +1,28 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "minTotalCases": 10,
+    "minRecallAtK": 1,
+    "minPrecisionAtK": 1,
+    "minTop1Accuracy": 1,
+    "minNoHitAccuracy": 1,
+    "maxForbiddenHits": 0,
+    "maxMissingExpected": 0,
+    "maxRecallRegression": 0.01,
+    "maxPrecisionRegression": 0.01
+  },
+  "candidate": {
+    "suitePath": "training/evals/skill-retrieval.eval.json",
+    "total": 10,
+    "recallAtK": 1,
+    "precisionAtK": 1,
+    "top1Accuracy": 1,
+    "noHitAccuracy": 1,
+    "forbiddenHits": 0,
+    "missingExpected": 0,
+    "failures": 0,
+    "latencyP95Ms": 1
+  },
+  "failures": [],
+  "warnings": []
+}

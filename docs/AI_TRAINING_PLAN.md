@@ -340,7 +340,7 @@ npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies dataset governance, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, tool/knowledge/behavior/router/long-context oracle eval reports, the tracked memory-continuity gate, and the SubQ/SSA architecture contract. `npm run check:dataset-governance` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, and obvious secret/PII scans. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies dataset governance, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, tool/knowledge/behavior/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, and obvious secret/PII scans. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -595,6 +595,7 @@ against:
 - `training/evals/voice.eval.jsonl`
 - `training/evals/specialist-routing.eval.jsonl`
 - `training/evals/tool-router.eval.jsonl`
+- `training/evals/skill-retrieval.eval.json`
 - `training/evals/memory-continuity.eval.json`
 - `training/evals/long-context.eval.jsonl`
 
@@ -649,7 +650,8 @@ Every model iteration must:
 - Pass `npm run eval:behavior:gate` against the candidate behavior report before promotion.
 - Pass `npm run eval:voice:gate` against the candidate voice report before promoting voice-facing changes.
 - Pass `npm run eval:router:gate` against the candidate router report before promoting any specialist-router checkpoint.
-- Pass `npm run eval:memory:gate` against the memory continuity report before promoting memory or live-learning behavior changes.
+- Pass `npm run eval:memory:gate` against the memory continuity report before promoting memory behavior changes.
+- Pass `npm run eval:skill:gate` against the skill retrieval report before promoting live-learning or approved-skill retrieval behavior changes.
 - Pass `npm run eval:long-context:gate` against long-context reports before promoting SubQ/SSA routes or any model advertised for repository-scale context.
 - Keep the held-out eval split out of the training set, and prove it with the contamination audit.
 

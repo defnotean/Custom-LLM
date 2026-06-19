@@ -33,6 +33,7 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
     else if (arg === "--behavior-eval-report") options.behaviorEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--router-eval-report") options.routerEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--memory-continuity-gate") options.memoryContinuityGatePath = requireValue(argv[++index], arg);
+    else if (arg === "--skill-retrieval-gate") options.skillRetrievalGatePath = requireValue(argv[++index], arg);
     else if (arg === "--long-context-eval-report") options.longContextEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--raw-dataset-manifest") options.rawDatasetManifestPath = requireValue(argv[++index], arg);
     else if (arg === "--processed-dataset-report") options.processedDatasetReportPath = requireValue(argv[++index], arg);
