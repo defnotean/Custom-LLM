@@ -109,11 +109,23 @@ export interface SpecialistRouteDecision {
 }
 
 export interface SkillRetrievalPort {
-  retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<SkillHint[]>;
+  retrieve(input: {
+    query: string;
+    candidateToolNames?: string[];
+    specialistRoute?: SpecialistRoute | string;
+    specialistExpert?: SpecialistExpert | string;
+    topK?: number;
+  }): Promise<SkillHint[]>;
 }
 
 export interface ParameterActivationPort {
-  retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<ParameterModuleHint[]>;
+  retrieve(input: {
+    query: string;
+    candidateToolNames?: string[];
+    specialistRoute?: SpecialistRoute | string;
+    specialistExpert?: SpecialistExpert | string;
+    topK?: number;
+  }): Promise<ParameterModuleHint[]>;
 }
 
 const CONFIRM_PATTERN = /^(yes|y|yep|yeah|confirm|do it|go ahead|sure|ok|okay)\b/i;
@@ -237,6 +249,12 @@ export class AgentController {
           const skills = await this.skillRetriever.retrieve({
             query: ctx.content,
             candidateToolNames,
+            ...(trace.specialistRouter
+              ? {
+                  specialistRoute: trace.specialistRouter.route,
+                  specialistExpert: trace.specialistRouter.expert,
+                }
+              : {}),
             topK: 3,
           });
           trace.skillsRetrieved = skills;
@@ -255,6 +273,12 @@ export class AgentController {
           const modules = await this.parameterActivator.retrieve({
             query: ctx.content,
             candidateToolNames,
+            ...(trace.specialistRouter
+              ? {
+                  specialistRoute: trace.specialistRouter.route,
+                  specialistExpert: trace.specialistRouter.expert,
+                }
+              : {}),
             topK: 3,
           });
           trace.parameterModulesActivated = modules;

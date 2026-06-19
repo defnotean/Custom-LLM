@@ -1,5 +1,20 @@
 import type { LearnedItem, ParameterModule } from "./LiveLearningRegistry";
 import type { ParameterModuleHint } from "../types/ai";
+import {
+  expertForRoute,
+  isSpecialistRoute,
+  normalizeSpecialistRoute,
+  type SpecialistExpert,
+  type SpecialistRoute,
+} from "../ai/routing/SpecialistRoutingContract";
+
+export interface ParameterActivationInput {
+  query: string;
+  candidateToolNames?: string[];
+  specialistRoute?: SpecialistRoute | string;
+  specialistExpert?: SpecialistExpert | string;
+  topK?: number;
+}
 
 export interface ParameterModuleSource {
   listParameterModules(filter?: {
@@ -15,7 +30,7 @@ export class ParameterActivationService {
     private readonly options: { candidatePoolLimit?: number; sourcePreviewLimit?: number } = {},
   ) {}
 
-  async retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<ParameterModuleHint[]> {
+  async retrieve(input: ParameterActivationInput): Promise<ParameterModuleHint[]> {
     const topK = input.topK ?? 3;
     if (topK <= 0) return [];
 
@@ -24,14 +39,22 @@ export class ParameterActivationService {
       limit: this.options.candidatePoolLimit ?? 50,
     });
     const sourceCache = new Map<string, LearnedItem | null>();
-    const queryTerms = terms([input.query, ...(input.candidateToolNames ?? [])].join(" "));
+    const queryTerms = terms(
+      [input.query, ...(input.candidateToolNames ?? []), input.specialistRoute ?? "", input.specialistExpert ?? ""].join(
+        " ",
+      ),
+    );
     const candidateTools = new Set(input.candidateToolNames ?? []);
+    const routeContext = normalizeOptional(input.specialistRoute);
+    const expertContext = normalizeOptional(input.specialistExpert);
 
     const hints = await Promise.all(
       modules
         .filter((module) => module.status === "active")
         .filter((module) => module.kind !== "base_model")
-        .map(async (module) => this.toScoredHint(module, queryTerms, candidateTools, sourceCache)),
+        .map(async (module) =>
+          this.toScoredHint(module, queryTerms, candidateTools, { routeContext, expertContext }, sourceCache),
+        ),
     );
 
     return hints
@@ -44,6 +67,7 @@ export class ParameterActivationService {
     module: ParameterModule,
     queryTerms: Set<string>,
     candidateTools: Set<string>,
+    routing: { routeContext?: string; expertContext?: string },
     sourceCache: Map<string, LearnedItem | null>,
   ): Promise<ParameterModuleHint> {
     const sourceItems = await this.loadSourceItems(module.sourceLearningItemIds, sourceCache);
@@ -68,6 +92,10 @@ export class ParameterActivationService {
     if (module.route && candidateTools.has(module.route)) relevance += 3;
     const toolName = typeof module.metadata.toolName === "string" ? module.metadata.toolName : undefined;
     if (toolName && candidateTools.has(toolName)) relevance += 3;
+    const moduleRoute = normalizeOptional(module.route);
+    if (routing.routeContext && moduleRoute === routing.routeContext) relevance += 4;
+    const moduleExpert = specialistExpertFor(module);
+    if (routing.expertContext && moduleExpert === routing.expertContext) relevance += 1;
 
     return {
       id: module.id,
@@ -94,6 +122,26 @@ export class ParameterActivationService {
     }
     return items;
   }
+}
+
+function specialistExpertFor(module: ParameterModule): string | undefined {
+  const metadataExpert =
+    typeof module.metadata.specialistExpert === "string"
+      ? module.metadata.specialistExpert
+      : typeof module.metadata.expert === "string"
+        ? module.metadata.expert
+        : undefined;
+  if (metadataExpert) return normalizeOptional(metadataExpert);
+
+  if (!module.route) return undefined;
+  const normalizedRoute = normalizeSpecialistRoute(module.route);
+  return isSpecialistRoute(normalizedRoute) ? expertForRoute(normalizedRoute) : undefined;
+}
+
+function normalizeOptional(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const normalized = normalizeSpecialistRoute(value);
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function terms(value: string): Set<string> {

@@ -38,6 +38,34 @@ describe("SkillRetrievalService", () => {
     expect(hints[0]).toMatchObject({ toolName: "ping", source: "tool_success" });
     expect(hints[0]?.content).toContain("Tool: ping");
   });
+
+  it("uses specialist route context to retrieve matching non-tool skills", async () => {
+    const service = new SkillRetrievalService({
+      listLearnedItems: async () => [
+        learnedSkill({
+          id: "skill-social-repair",
+          content: "Use the short repair pattern when the user says the previous answer missed.",
+          confidence: 0.85,
+          metadata: { specialistRoute: "social_cue" },
+        }),
+        learnedSkill({
+          id: "skill-knowledge",
+          content: "Use a factual explanation pattern.",
+          confidence: 0.95,
+          metadata: { specialistRoute: "knowledge" },
+        }),
+      ],
+    });
+
+    const hints = await service.retrieve({
+      query: "ugh no",
+      specialistRoute: "social_cue",
+      specialistExpert: "conversation",
+      topK: 2,
+    });
+
+    expect(hints.map((hint) => hint.id)).toEqual(["skill-social-repair"]);
+  });
 });
 
 function learnedSkill(overrides: Partial<LearnedItem> = {}): LearnedItem {

@@ -92,6 +92,43 @@ describe("ParameterActivationService", () => {
     expect(hints).toHaveLength(1);
     expect(hints[0]?.sourceSummaries).toEqual([]);
   });
+
+  it("uses specialist route context to activate matching promoted specialists", async () => {
+    const service = new ParameterActivationService({
+      listParameterModules: async () => [
+        parameterModule({
+          id: "persona-specialist",
+          name: "identity response specialist",
+          kind: "specialist",
+          route: "persona",
+          sourceLearningItemIds: ["persona-source"],
+          metadata: { tags: ["identity"] },
+        }),
+        parameterModule({
+          id: "knowledge-specialist",
+          name: "technical answer specialist",
+          kind: "specialist",
+          route: "knowledge",
+          sourceLearningItemIds: ["knowledge-source"],
+          metadata: { tags: ["technical"] },
+        }),
+      ],
+      getLearnedItem: async (id) =>
+        learnedItem({
+          id,
+          content: id === "persona-source" ? "Keep identity answers short and consistent." : "Explain concepts.",
+        }),
+    });
+
+    const hints = await service.retrieve({
+      query: "what should people call you?",
+      specialistRoute: "persona",
+      specialistExpert: "conversation",
+    });
+
+    expect(hints.map((hint) => hint.id)).toEqual(["persona-specialist"]);
+    expect(hints[0]).toMatchObject({ route: "persona", kind: "specialist" });
+  });
 });
 
 function parameterModule(overrides: Partial<ParameterModule> = {}): ParameterModule {

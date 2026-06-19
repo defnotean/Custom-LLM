@@ -78,9 +78,25 @@ function makeController(
     learning?: {
       captureInteraction(trace: InteractionTrace, training?: { conversationId?: string; trainingExampleId?: string }): Promise<void>;
     } | null;
-    skillRetriever?: { retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<SkillHint[]> } | null;
+    skillRetriever?:
+      | {
+          retrieve(input: {
+            query: string;
+            candidateToolNames?: string[];
+            specialistRoute?: string;
+            specialistExpert?: string;
+            topK?: number;
+          }): Promise<SkillHint[]>;
+        }
+      | null;
     parameterActivator?: {
-      retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<ParameterModuleHint[]>;
+      retrieve(input: {
+        query: string;
+        candidateToolNames?: string[];
+        specialistRoute?: string;
+        specialistExpert?: string;
+        topK?: number;
+      }): Promise<ParameterModuleHint[]>;
     } | null;
     specialistRouter?: SpecialistRouterPort | null;
     behaviorGuardrail?: BehaviorGuardrailPort | null;
@@ -190,6 +206,43 @@ describe("AgentController", () => {
       matchedRule: "persona-identity-style",
     });
     expect(traces[0]?.toolCall).toBeUndefined();
+  });
+
+  it("passes specialist route context into learned retrieval ports", async () => {
+    const traces: InteractionTrace[] = [];
+    const skillInputs: unknown[] = [];
+    const parameterInputs: unknown[] = [];
+    const { controller } = makeController(
+      ['{"type":"message","content":"She/her. Keep it simple."}'],
+      traces,
+      {
+        specialistRouter: heuristicSpecialistRouter,
+        skillRetriever: {
+          retrieve: async (input) => {
+            skillInputs.push(input);
+            return [];
+          },
+        },
+        parameterActivator: {
+          retrieve: async (input) => {
+            parameterInputs.push(input);
+            return [];
+          },
+        },
+      },
+    );
+
+    await controller.handleDiscordMessage(makeCtx("what pronouns should people use for you?"));
+
+    expect(skillInputs[0]).toMatchObject({
+      specialistRoute: "persona",
+      specialistExpert: "conversation",
+    });
+    expect(parameterInputs[0]).toMatchObject({
+      specialistRoute: "persona",
+      specialistExpert: "conversation",
+    });
+    expect(traces[0]?.specialistRouter).toMatchObject({ route: "persona" });
   });
 
   it("does not let the behavior guardrail steal tool requests", async () => {
