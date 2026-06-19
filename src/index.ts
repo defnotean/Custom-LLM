@@ -67,6 +67,7 @@ import {
 } from "./training/parameter/ParameterTrainerDispatchService";
 import { buildIreneSystemStatusReport } from "./training/quality/IreneSystemStatusReport";
 import { respondWithHeuristicBehaviorGuardrail } from "./ai/behavior/HeuristicBehaviorResponder";
+import { routeWithHeuristicSpecialistRouter } from "./ai/routing/HeuristicSpecialistRouter";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { VoiceListeningPresenceIndicator } from "./discord/presence";
@@ -306,6 +307,11 @@ async function main(): Promise<void> {
       : null,
     skillRetriever,
     parameterActivator,
+    specialistRouter: env.SPECIALIST_ROUTER_ENABLED
+      ? {
+          route: ({ prompt }) => routeWithHeuristicSpecialistRouter({ prompt }),
+        }
+      : null,
     safetyAgent: env.SAFETY_ENABLED ? new SafetyAgent(safetyService) : null,
     training: trainingLogger,
     learning: learningCapture,

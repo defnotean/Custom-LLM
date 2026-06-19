@@ -69,7 +69,7 @@ This gives us the practical benefits of an MoE system before training a true spa
 
 The SubQ/SSA invariant is hardcoded as a contract: long-context cases must stay pinned to `preferredProvider="subq"` and `architectureTarget="subquadratic-sparse-attention"`, and local sparse smoke runs must stay on `local-log-sparse` unless the architecture gate is intentionally updated with new evidence.
 
-The current practical router fallback is `heuristic_specialist_router_v1`: it passes the 18-case held-out route gate and should be treated as a deterministic guardrail, not as evidence that the learned router model is promotion-ready. The learned router must still match or beat the same gate before it replaces the fallback.
+The current practical router fallback is `heuristic_specialist_router_v1`: it passes the 18-case held-out route gate and is wired into `AgentController` as trace/control-plane evidence after tool-candidate routing. It should be treated as a deterministic guardrail, not as evidence that the learned router model is promotion-ready. The learned router must still match or beat the same gate before it replaces the fallback.
 
 The current practical behavior fallback is `heuristic_behavior_responder_v1`: it passes the current 11-case held-out behavior gate and is wired into `AgentController` for specific no-tool persona/social/casual/boundary cases after safety and tool routing. It should be treated as a deterministic guardrail for response shape, not as evidence that the learned behavior model is promotion-ready. The learned behavior specialist must still match the same gate before it replaces the fallback.
 

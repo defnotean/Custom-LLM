@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { expertForRoute, type SpecialistExpert, type SpecialistRoute } from "../eval/SpecialistRoutingEvalSuite";
+import { expertForRoute, type SpecialistExpert, type SpecialistRoute } from "../../ai/routing/SpecialistRoutingContract";
 
 const evalCaseSchema = z.object({
   prompt: z.string(),

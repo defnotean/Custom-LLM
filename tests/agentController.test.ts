@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { AgentController, type BehaviorGuardrailPort } from "../src/ai/orchestration/AgentController";
+import {
+  AgentController,
+  type BehaviorGuardrailPort,
+  type SpecialistRouterPort,
+} from "../src/ai/orchestration/AgentController";
 import { ToolRouterAgent } from "../src/ai/orchestration/ToolRouterAgent";
 import { SafetyAgent } from "../src/ai/orchestration/SafetyAgent";
 import { ToolRegistry } from "../src/tools/ToolRegistry";
@@ -18,6 +22,7 @@ import type { BotMessageContext } from "../src/types/discord";
 import type { InteractionTrace, ParameterModuleHint, SkillHint } from "../src/types/ai";
 import { MockLLMProvider, testLogger } from "./helpers";
 import { respondWithHeuristicBehaviorGuardrail } from "../src/ai/behavior/HeuristicBehaviorResponder";
+import { routeWithHeuristicSpecialistRouter } from "../src/ai/routing/HeuristicSpecialistRouter";
 
 function makeRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
@@ -77,6 +82,7 @@ function makeController(
     parameterActivator?: {
       retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<ParameterModuleHint[]>;
     } | null;
+    specialistRouter?: SpecialistRouterPort | null;
     behaviorGuardrail?: BehaviorGuardrailPort | null;
     pendingConfirmations?: PendingConfirmationStore;
   },
@@ -97,6 +103,7 @@ function makeController(
     toolRouterAgent: new ToolRouterAgent(registry, new ToolRouter(registry)),
     skillRetriever: options?.skillRetriever ?? null,
     parameterActivator: options?.parameterActivator ?? null,
+    specialistRouter: options?.specialistRouter ?? null,
     safetyAgent: new SafetyAgent(new SafetyService(testLogger, { enabled: true })),
     training: {
       logInteraction: async (trace) => {
@@ -115,6 +122,10 @@ function makeController(
 }
 
 describe("AgentController", () => {
+  const heuristicSpecialistRouter: SpecialistRouterPort = {
+    route: ({ prompt }) => routeWithHeuristicSpecialistRouter({ prompt }),
+  };
+
   it("handles plain conversation (fast path) and logs a trace", async () => {
     const traces: InteractionTrace[] = [];
     const { controller, llm } = makeController(
@@ -158,6 +169,27 @@ describe("AgentController", () => {
       },
       parsedAction: { type: "message", content: "She/her. Keep it simple." },
     });
+  });
+
+  it("traces specialist routing for persona prompts without requiring a tool", async () => {
+    const traces: InteractionTrace[] = [];
+    const { controller, llm } = makeController(
+      ['{"type":"message","content":"She/her. Keep it simple."}'],
+      traces,
+      { specialistRouter: heuristicSpecialistRouter },
+    );
+
+    const reply = await controller.handleDiscordMessage(makeCtx("what pronouns should people use for you?"));
+
+    expect(reply.content).toBe("She/her. Keep it simple.");
+    expect(llm.requests).toHaveLength(1);
+    expect(traces[0]?.specialistRouter).toMatchObject({
+      route: "persona",
+      expert: "conversation",
+      model: "heuristic_specialist_router_v1",
+      matchedRule: "persona-identity-style",
+    });
+    expect(traces[0]?.toolCall).toBeUndefined();
   });
 
   it("does not let the behavior guardrail steal tool requests", async () => {
@@ -245,6 +277,31 @@ describe("AgentController", () => {
     expect(confirmed.content).toBe("done from shared pending state");
     expect(confirmed.trace.toolSuccess).toBe(true);
     expect(confirmed.trace.toolCall).toMatchObject({ name: "risky_wipe" });
+  });
+
+  it("traces tool-protocol specialist routing while preserving normal tool gates", async () => {
+    const traces: InteractionTrace[] = [];
+    const { controller, llm } = makeController(
+      [
+        '{"type":"tool_call","tool":"ping","arguments":{},"reason":"user asked"}',
+        '{"type":"message","content":"pong through the tool path"}',
+      ],
+      traces,
+      { specialistRouter: heuristicSpecialistRouter },
+    );
+
+    const reply = await controller.handleDiscordMessage(makeCtx("ping please, are you alive?"));
+
+    expect(reply.content).toBe("pong through the tool path");
+    expect(llm.requests).toHaveLength(2);
+    expect(traces[0]?.specialistRouter).toMatchObject({
+      route: "tool_protocol",
+      expert: "tool",
+      model: "heuristic_specialist_router_v1",
+      matchedRule: "tool-discord-action",
+    });
+    expect(traces[0]?.toolCall).toMatchObject({ name: "ping" });
+    expect(traces[0]?.toolSuccess).toBe(true);
   });
 
   it("cancels a pending confirmation on 'no'", async () => {

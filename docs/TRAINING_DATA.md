@@ -8,8 +8,8 @@ Every interaction the bot handles is captured with full fidelity so it can becom
 
 1. **Conversation** - the user-facing exchange: message, reply, and metadata.
 2. **TrainingExample** - the full trace:
-   - `inputJson`: system prompt version and full text, user message, recent transcript, retrieved memories, retrieved skills, activated parameter modules, candidate tools shown, router verdict, ids.
-   - `outputJson`: raw model output, parse success, parsed action, tool call and real tool result, denial reason if gated, final response, errors, latencies, model name.
+   - `inputJson`: system prompt version and full text, user message, recent transcript, retrieved memories, retrieved skills, activated parameter modules, candidate tools shown, tool-router verdict, specialist-router verdict, ids.
+   - `outputJson`: raw model output, parse success, parsed action, specialist-router verdict, tool call and real tool result, denial reason if gated, final response, errors, latencies, model name.
    - `qualityScore`: heuristic 0-1 score from `EvaluationAgent`; useful as a filter, not a substitute for review.
    - `reviewed`: defaults false; flip after human review.
 
@@ -278,7 +278,7 @@ npm run check:behavior-router-iteration
 
 This writes a separate router SFT set under `training/data/router/` and a held-out `training/evals/specialist-routing.eval.jsonl` suite. The current default build has 98 accepted rows, with expanded tool-status/cross-channel, knowledge, casual slang/opinion, social repair/support, and account-theft/secret/phishing boundary examples targeted at the behavior/router direct-gate failures. The router rows are not mixed into the main assistant SFT because their assistant output is route-label JSON, not a user-facing assistant action. The current routes are `tool_protocol`, `knowledge`, `persona`, `casual`, `social_cue`, and `boundary`, mapped onto tool, knowledge, conversation, and safety experts.
 
-`npm run eval:router:heuristic` writes predictions from `heuristic_specialist_router_v1`, a deterministic non-parametric fallback that is scored by the same router eval and gate. It gives Irene a reliable current MoE route guardrail while learned router checkpoints are still failing promotion.
+`npm run eval:router:heuristic` writes predictions from `heuristic_specialist_router_v1`, a deterministic non-parametric fallback that is scored by the same router eval and gate. The same route contract and classifier are wired into runtime tracing as `trace.specialistRouter`, giving Irene a reliable current MoE route guardrail while learned router checkpoints are still failing promotion.
 
 `check:behavior-router-iteration` is the pre-training gate for the next behavior/router scratch cycle. It reads `training/data/behavior/sft.all.jsonl`, `training/data/router/sft.all.jsonl`, the held-out behavior/router eval suites, and the current failed direct deterministic gates (`tiny-transformer-behavior-iter4.det.gate.json`, `tiny-transformer-router-iter4.det.gate.json`). It blocks another iteration if the SFT rows are not strict JSON, overlap held-out eval prompts, miss route/kind/expert coverage, or are not tied to the current failed metrics. Use this before spending even local CPU training time on behavior/router iteration 5.
 

@@ -37,6 +37,7 @@ import {
   type PendingConfirmationStore,
   type PendingToolCall,
 } from "./PendingConfirmationStore";
+import type { SpecialistExpert, SpecialistRoute } from "../routing/SpecialistRoutingContract";
 
 export interface AgentReply {
   content: string;
@@ -51,6 +52,7 @@ export interface AgentControllerOptions {
   memoryAgent?: MemoryAgent | null;
   skillRetriever?: SkillRetrievalPort | null;
   parameterActivator?: ParameterActivationPort | null;
+  specialistRouter?: SpecialistRouterPort | null;
   safetyAgent?: SafetyAgent | null;
   training?: TrainingSink | null;
   learning?: InteractionLearningSink | null;
@@ -82,6 +84,25 @@ export interface BehaviorGuardrailPort {
 
 export interface BehaviorGuardrailDecision {
   action: Extract<AssistantAction, { type: "message" | "clarification" }>;
+  model: string;
+  matchedRule: string;
+  latencyMs?: number;
+}
+
+export interface SpecialistRouterPort {
+  route(input: {
+    ctx: BotMessageContext;
+    prompt: string;
+    candidateToolNames: string[];
+    likelyNeedsTool: boolean;
+  }): Promise<SpecialistRouteDecision | null> | SpecialistRouteDecision | null;
+}
+
+export interface SpecialistRouteDecision {
+  route: SpecialistRoute;
+  expert: SpecialistExpert;
+  confidence: number;
+  reason: string;
   model: string;
   matchedRule: string;
   latencyMs?: number;
@@ -122,6 +143,7 @@ export class AgentController {
   private readonly memoryAgent: MemoryAgent | null;
   private readonly skillRetriever: SkillRetrievalPort | null;
   private readonly parameterActivator: ParameterActivationPort | null;
+  private readonly specialistRouter: SpecialistRouterPort | null;
   private readonly safetyAgent: SafetyAgent | null;
   private readonly training: TrainingSink | null;
   private readonly learning: InteractionLearningSink | null;
@@ -142,6 +164,7 @@ export class AgentController {
     this.memoryAgent = options.memoryAgent ?? null;
     this.skillRetriever = options.skillRetriever ?? null;
     this.parameterActivator = options.parameterActivator ?? null;
+    this.specialistRouter = options.specialistRouter ?? null;
     this.safetyAgent = options.safetyAgent ?? null;
     this.training = options.training ?? null;
     this.learning = options.learning ?? null;
@@ -200,6 +223,11 @@ export class AgentController {
         candidateToolNames = selection.routing.candidateTools.map((t) => t.name);
         trace.candidateToolNames = candidateToolNames;
       }
+
+      await this.trySpecialistRouter(ctx, trace, {
+        candidateToolNames,
+        likelyNeedsTool: trace.likelyNeedsTool,
+      });
 
       // 3b. Approved learned-skill retrieval. Skills are prompt hints only;
       // tool execution still goes through normal candidate and executor gates.
@@ -311,6 +339,35 @@ export class AgentController {
 
       case "tool_call":
         return this.handleToolCall(ctx, trace, action);
+    }
+  }
+
+  private async trySpecialistRouter(
+    ctx: BotMessageContext,
+    trace: InteractionTrace,
+    routing: { candidateToolNames: string[]; likelyNeedsTool: boolean },
+  ): Promise<void> {
+    if (!this.specialistRouter) return;
+    try {
+      const decision = await this.specialistRouter.route({
+        ctx,
+        prompt: ctx.content,
+        candidateToolNames: routing.candidateToolNames,
+        likelyNeedsTool: routing.likelyNeedsTool,
+      });
+      if (!decision) return;
+
+      trace.specialistRouter = {
+        route: decision.route,
+        expert: decision.expert,
+        confidence: decision.confidence,
+        reason: decision.reason,
+        model: decision.model,
+        matchedRule: decision.matchedRule,
+        ...(typeof decision.latencyMs === "number" ? { latencyMs: decision.latencyMs } : {}),
+      };
+    } catch (err) {
+      this.logger.warn({ err: toErrorMessage(err) }, "specialist routing failed; continuing without");
     }
   }
 

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import { SPECIALIST_ROUTES, expertForRoute, type SpecialistRoute } from "../eval/SpecialistRoutingEvalSuite";
+import { SPECIALIST_ROUTES, expertForRoute, type SpecialistRoute } from "../../ai/routing/SpecialistRoutingContract";
 
 export type BehaviorRouterIterationStatus = "pass" | "fail";
 

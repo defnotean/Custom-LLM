@@ -2,18 +2,23 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { EvalLatencyStats } from "./ToolEvalSuite";
+import {
+  SPECIALIST_ROUTES,
+  expertForRoute,
+  isSpecialistRoute,
+  normalizeSpecialistRoute,
+  type SpecialistExpert,
+  type SpecialistRoute,
+} from "../../ai/routing/SpecialistRoutingContract";
 
-export const SPECIALIST_ROUTES = [
-  "tool_protocol",
-  "knowledge",
-  "persona",
-  "casual",
-  "social_cue",
-  "boundary",
-] as const;
-
-export type SpecialistRoute = (typeof SPECIALIST_ROUTES)[number];
-export type SpecialistExpert = "tool" | "knowledge" | "conversation" | "safety";
+export {
+  SPECIALIST_ROUTES,
+  expertForRoute,
+  isSpecialistRoute,
+  normalizeSpecialistRoute,
+  type SpecialistExpert,
+  type SpecialistRoute,
+};
 
 export interface SpecialistRoutingEvalCase {
   id: string;
@@ -230,13 +235,6 @@ export async function evaluateSpecialistRoutingPredictions(
   };
 }
 
-export function expertForRoute(route: SpecialistRoute): SpecialistExpert {
-  if (route === "tool_protocol") return "tool";
-  if (route === "knowledge") return "knowledge";
-  if (route === "boundary") return "safety";
-  return "conversation";
-}
-
 function routeCase(
   id: string,
   route: SpecialistRoute,
@@ -260,18 +258,10 @@ function parsePredictedRoute(prediction: SpecialistRoutingPrediction): Specialis
   }
 
   for (const candidate of candidates) {
-    const normalized = normalizeRoute(candidate);
+    const normalized = normalizeSpecialistRoute(candidate);
     if (isSpecialistRoute(normalized)) return normalized;
   }
   return null;
-}
-
-function normalizeRoute(input: string): string {
-  return input.trim().toLowerCase().replace(/[\s-]+/g, "_");
-}
-
-function isSpecialistRoute(value: string): value is SpecialistRoute {
-  return (SPECIALIST_ROUTES as readonly string[]).includes(value);
 }
 
 async function readJsonl(path: string): Promise<unknown[]> {
