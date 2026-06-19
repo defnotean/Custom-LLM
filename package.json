@@ -68,6 +68,7 @@
     "eval:voice:gate": "tsx scripts/check-voice-promotion.ts",
     "build:router-eval": "tsx scripts/build-specialist-routing-eval-suite.ts",
     "eval:router:oracle": "tsx scripts/make-specialist-routing-oracle-predictions.ts",
+    "eval:router:heuristic": "tsx scripts/run-specialist-router-baseline.ts",
     "eval:router": "tsx scripts/evaluate-specialist-routing-predictions.ts",
     "eval:router:gate": "tsx scripts/check-specialist-routing-promotion.ts",
     "build:tool-router-eval": "tsx scripts/build-tool-router-eval-suite.ts",

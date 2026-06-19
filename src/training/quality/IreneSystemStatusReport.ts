@@ -26,6 +26,7 @@ export interface IreneSystemStatusOptions {
   toolProtocolGatePath?: string;
   behaviorScratchGatePath?: string;
   routerScratchGatePath?: string;
+  specialistRouterBaselineGatePath?: string;
   toolRouterGatePath?: string;
   memoryContinuityGatePath?: string;
   skillRetrievalGatePath?: string;
@@ -118,6 +119,7 @@ const DEFAULTS = {
   toolProtocolGatePath: "training/evals/tiny-transformer-protocol-iter16.clean.det.tool.gate.json",
   behaviorScratchGatePath: "training/evals/tiny-transformer-behavior-iter4.det.gate.json",
   routerScratchGatePath: "training/evals/tiny-transformer-router-iter4.det.gate.json",
+  specialistRouterBaselineGatePath: "training/evals/specialist-routing-heuristic.gate.json",
   toolRouterGatePath: "training/evals/tool-router-keyword.gate.json",
   memoryContinuityGatePath: "training/evals/memory-continuity.gate.json",
   skillRetrievalGatePath: "training/evals/skill-retrieval.gate.json",
@@ -169,6 +171,7 @@ export async function buildIreneSystemStatusReport(
     toolProtocolGate,
     behaviorGate,
     routerGate,
+    specialistRouterBaselineGate,
     toolRouterGate,
     memoryGate,
     skillGate,
@@ -178,6 +181,7 @@ export async function buildIreneSystemStatusReport(
     readGate(config.toolProtocolGatePath),
     readGate(config.behaviorScratchGatePath),
     readGate(config.routerScratchGatePath),
+    readGate(config.specialistRouterBaselineGatePath),
     readGate(config.toolRouterGatePath),
     readGate(config.memoryContinuityGatePath),
     readGate(config.skillRetrievalGatePath),
@@ -225,6 +229,16 @@ export async function buildIreneSystemStatusReport(
       metrics: ["routeAccuracy", "expertAccuracy", "toolVsNonToolAccuracy", "invalidPredictions", "latencyP95Ms"],
       passSummary: "Router scratch specialist is promotion-ready on the held-out route suite.",
       failSummary: "Router scratch specialist is not reliable enough to choose tool/knowledge/persona/social/boundary routes.",
+    }),
+    gateSurface({
+      id: "router_heuristic_baseline",
+      label: "Deterministic MoE router baseline",
+      gate: specialistRouterBaselineGate,
+      evidencePath: config.specialistRouterBaselineGatePath,
+      params: null,
+      metrics: ["routeAccuracy", "expertAccuracy", "toolVsNonToolAccuracy", "invalidPredictions", "latencyP95Ms"],
+      passSummary: "Deterministic specialist-router fallback passes the current held-out route gate.",
+      failSummary: "Deterministic specialist-router fallback is not reliable enough for the current route suite.",
     }),
     gateSurface({
       id: "tool_router_retrieval",
@@ -482,7 +496,11 @@ function buildOverall(
   const behaviorPass = surfaces.find((surface) => surface.id === "behavior_scratch")?.status === "pass";
   const routerPass = surfaces.find((surface) => surface.id === "router_scratch")?.status === "pass";
   const foundationPass = surfaces
-    .filter((surface) => ["tool_router_retrieval", "memory_continuity", "skill_retrieval", "long_context_subq", "voice_gate"].includes(surface.id))
+    .filter((surface) =>
+      ["router_heuristic_baseline", "tool_router_retrieval", "memory_continuity", "skill_retrieval", "long_context_subq", "voice_gate"].includes(
+        surface.id,
+      ),
+    )
     .every((surface) => surface.status === "pass");
 
   if (productionReadiness?.status === "ready" && foundationPass) {
@@ -523,9 +541,12 @@ function buildNextActions(
   }
   const routerSurface = surfaces.find((surface) => surface.id === "router_scratch");
   if (routerSurface?.status === "fail") {
+    const baselinePass = surfaces.find((surface) => surface.id === "router_heuristic_baseline")?.status === "pass";
     const invalidPredictions = routerSurface.metrics.invalidPredictions;
     actions.push(
-      invalidPredictions === 0
+      baselinePass
+        ? "Use the deterministic MoE router baseline as the guarded fallback while training the learned router to match it."
+        : invalidPredictions === 0
         ? "Improve route and expert accuracy now that router JSON validity is stable."
         : "Train or replace the route classifier until invalid route predictions are zero.",
     );

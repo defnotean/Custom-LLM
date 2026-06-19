@@ -209,6 +209,8 @@ Current scratch router report:
 
 `tiny-transformer-router-iter4` is trained on route-label JSON only, separate from the user-facing assistant protocol. Its purpose is to validate the future MoE gate that chooses between tool protocol, knowledge, persona, casual, social-cue, and boundary specialists. Deterministic direct held-out router generation has route accuracy 0.722222, expert accuracy 0.777778, tool-vs-non-tool accuracy 0.888889, 0 missing predictions, and 1 invalid prediction. The next router iteration should drive invalid predictions to 0 and target the remaining tool, knowledge, persona, casual, and social-cue misses before this becomes a reliable MoE gate. The saved training report is `training/reports/tiny-transformer-router-iter4.report.json`; the current direct gate summary is `training/evals/tiny-transformer-router-iter4.det.gate.json`.
 
+`heuristic_specialist_router_v1` is the current deterministic fallback for the same MoE route surface. It is not a learned checkpoint and adds no model parameters, but it passes the 18-case specialist-routing gate with route accuracy 1.000, expert accuracy 1.000, tool-vs-non-tool accuracy 1.000, invalid predictions 0, and p95 latency below 1 ms. Use it as a guarded runtime baseline and as teacher/review evidence while the learned router is trained to match the same behavior. The gate summary is `training/evals/specialist-routing-heuristic.gate.json`.
+
 Run comparison:
 
 ```bash
@@ -546,6 +548,9 @@ npm run check:router-coverage
 npm run eval:router:oracle
 npm run eval:router
 npm run eval:router:gate -- --out training/evals/specialist-routing-oracle.gate.json
+npm run eval:router:heuristic
+npm run eval:router -- --predictions training/evals/specialist-routing-heuristic.predictions.jsonl --out training/evals/specialist-routing-heuristic.report.json
+npm run eval:router:gate -- --candidate training/evals/specialist-routing-heuristic.report.json --out training/evals/specialist-routing-heuristic.gate.json
 
 # Local scratch checkpoint sample, then score it
 npm run eval:router:tiny -- --checkpoint training/runs/tiny-transformer-router-iter4/tiny_transformer_lm.best.pt --out training/evals/tiny-transformer-router-iter4.det.predictions.jsonl --temperature 0.05 --top-k 1

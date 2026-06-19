@@ -103,6 +103,7 @@ Run `npm run register:discord-commands` after setting `DISCORD_TOKEN` and `DISCO
 | `npm run check:voice-coverage` | Verify voice suite coverage for transcription, speaker/crosstalk attribution, turn-taking, latency, social timing, raw-audio retention, and training-review policy |
 | `npm run build:router-eval` / `npm run eval:router:oracle` / `npm run eval:router:tiny` / `npm run eval:router` / `npm run eval:router:gate` | Build and gate held-out specialist routing evals for tool/knowledge/persona/casual/social/boundary routing |
 | `npm run check:router-coverage` | Verify MoE router suite coverage across tool protocol, knowledge, persona, casual, social-cue, boundary, and expert-family routes |
+| `npm run eval:router:heuristic` | Generate deterministic specialist-router baseline predictions for the current MoE route suite |
 | `npm run check:behavior-router-iteration` | Preflight behavior/router iteration data before the next scratch run: strict JSON, held-out overlap, route/kind/expert balance, and current failed-gate repair targets |
 | `npm run build:tool-router-eval` / `npm run eval:tool-router` / `npm run eval:tool-router:gate` | Build and gate candidate-tool retrieval so expected tools land in top-N and permission-filtered tools stay hidden |
 | `npm run build:skill-eval` / `npm run eval:skill` / `npm run eval:skill:gate` | Build and gate approved-skill retrieval evals so learned workflow hints stay precise and do not leak unapproved skills |
