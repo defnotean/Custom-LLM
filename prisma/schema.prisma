@@ -98,6 +98,25 @@ model ToolLog {
   @@index([success])
 }
 
+model ModerationWarning {
+  id                 String   @id @default(cuid())
+  guildId            String
+  channelId          String
+  moderatorUserId    String
+  warnedUserId       String
+  warnedUsername     String?
+  reason             String
+  dmDelivered        Boolean  @default(false)
+  moderatorMessageId String?
+  metadataJson       Json     @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([guildId, warnedUserId, createdAt])
+  @@index([guildId, moderatorUserId, createdAt])
+  @@index([createdAt])
+}
+
 enum TrainingSource {
   CONVERSATION
   TOOL_CALL
