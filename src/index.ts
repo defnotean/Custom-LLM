@@ -74,7 +74,7 @@ import { HttpSttProvider } from "./discord/voice/VoiceSttTranscription";
 import type { CommandServices } from "./discord/commands";
 
 import { buildApiServer, startApiServer } from "./server/api";
-import { InProcessJobQueue } from "./jobs/queue";
+import { InProcessJobQueue, RedisJobQueue, type JobQueue } from "./jobs/queue";
 import { registerMemorySummarizerWorker } from "./jobs/workers/memorySummarizerWorker";
 import { registerDatasetExportWorker } from "./jobs/workers/datasetExportWorker";
 import { registerParameterGrowthPlannerWorker } from "./jobs/workers/parameterGrowthPlannerWorker";
@@ -386,7 +386,7 @@ async function main(): Promise<void> {
   await startApiServer(api, { port: env.API_PORT, host: env.API_HOST }, childLogger("api"));
 
   // ── Background jobs ────────────────────────────────────────────────────
-  const queue = new InProcessJobQueue(childLogger("jobs"));
+  const queue = buildJobQueue(redisRuntimeState);
   registerMemorySummarizerWorker(queue, {
     conversations: conversationRepo,
     memory: memoryService,
@@ -510,6 +510,15 @@ function buildToolRetrievalStrategy(
   return new EmbeddingToolRetrievalStrategy(registry, toolEmbeddings, {
     fallback: keyword,
     logger,
+  });
+}
+
+function buildJobQueue(redisRuntimeState: RedisRuntimeState | null): JobQueue {
+  if (!redisRuntimeState) return new InProcessJobQueue(childLogger("jobs"));
+  return new RedisJobQueue({
+    client: redisRuntimeState.client,
+    keyPrefix: env.REDIS_KEY_PREFIX,
+    logger: childLogger("jobs"),
   });
 }
 
