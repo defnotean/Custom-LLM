@@ -98,6 +98,7 @@
     "check:redis-runtime": "tsx scripts/check-redis-runtime.ts",
     "check:pgvector-memory": "tsx scripts/check-pgvector-memory.ts",
     "check:qdrant-memory": "tsx scripts/check-qdrant-memory.ts",
+    "check:voice-runtime": "tsx scripts/check-voice-runtime.ts",
     "check:dataset-governance": "tsx scripts/check-dataset-governance.ts",
     "train:tiny-transformer": "py -3.11 training/train_tiny_transformer_lm.py",
     "train:tiny-char": "py -3.11 training/train_tiny_char_lm.py",

@@ -53,7 +53,7 @@ DISCORD_PRESENCE_ACTIVITY_NAME=for tool calls
 
 Supported activity types are `Playing`, `Listening`, `Watching`, `Competing`, and `Custom`.
 
-Voice join/leave commands are shipped behind an opt-in policy. `!ai voice say` uses a configurable HTTP TTS endpoint plus Discord Voice playback when `VOICE_TTS_ENDPOINT` is set. `!ai voice listen status|enable|disable` manages the opt-in listening/transcription policy and requires `VOICE_STT_ENDPOINT` before listening can be enabled. The current voice code requires guild/channel opt-in, transient raw audio by default, visible listening presence while actively transcribing, and review before transcripts can feed training. When listening is enabled before `!ai voice join`, the receive bridge subscribes to Discord speaking events, buffers transient per-speaker Opus packets, optionally sends them through a private HTTP decoder/VAD preprocessor, sends processed audio to STT, routes transcripts through the normal agent/tool/memory path, and can queue a TTS reply. `npm run eval:voice:gate` covers deterministic transcript, speaker, turn-taking, latency, social-timing, and retention checks. Live decoder/VAD service validation, speaker-attribution hardening against live audio, and live Discord/STT validation are still TODO.
+Voice join/leave commands are shipped behind an opt-in policy. `!ai voice say` uses a configurable HTTP TTS endpoint plus Discord Voice playback when `VOICE_TTS_ENDPOINT` is set. `!ai voice listen status|enable|disable` manages the opt-in listening/transcription policy and requires `VOICE_STT_ENDPOINT` before listening can be enabled. The current voice code requires guild/channel opt-in, transient raw audio by default, visible listening presence while actively transcribing, and review before transcripts can feed training. When listening is enabled before `!ai voice join`, the receive bridge subscribes to Discord speaking events, buffers transient per-speaker Opus packets, optionally sends them through a private HTTP decoder/VAD preprocessor, sends processed audio to STT, routes transcripts through the normal agent/tool/memory path, and can queue a TTS reply. `npm run check:voice-runtime` live-smokes the configured TTS, STT, and optional decoder/VAD preprocessing endpoints before a Discord voice test. `npm run eval:voice:gate` covers deterministic transcript, speaker, turn-taking, latency, social-timing, and retention checks. Speaker-attribution hardening against live audio and live Discord voice-session validation are still TODO.
 
 ```env
 # Contract: POST JSON {text, voice, format, metadata}; return audio bytes or JSON {audioBase64}.
@@ -84,6 +84,14 @@ VOICE_STT_TIMEOUT_MS=30000
 Set `VOICE_TTS_STREAM_TYPE` to match the bytes your TTS service returns. `ogg/opus` is the cleanest Discord path; `arbitrary` depends on the local FFmpeg/runtime support available to `@discordjs/voice`.
 `VOICE_RECEIVE_FORMAT` describes the raw bytes captured from Discord receive before preprocessing. The built-in receive bridge forwards Discord Opus packet buffers when no preprocessor is configured.
 `VOICE_RECEIVE_PREPROCESS_ENDPOINT` is optional. If set, Irene POSTs transient receive audio as JSON `{audioBase64, format, guildId, channelId, speakerUserId, startedAt, finishedAt, durationMs}`. The private service should return either `{shouldTranscribe:false, reason, metadata?}` to drop non-speech or `{shouldTranscribe:true, audioBase64?, format?, durationMs?, metadata?}` to pass decoded/muxed audio and VAD metadata into STT.
+
+Before trying a live Discord voice session, smoke the configured voice services:
+
+```bash
+npm run check:voice-runtime -- --audio-file ./sample.ogg --receive-format ogg-opus
+```
+
+The command fails if no voice endpoint is configured. With `VOICE_TTS_ENDPOINT`, `VOICE_STT_ENDPOINT`, or `VOICE_RECEIVE_PREPROCESS_ENDPOINT` set, it verifies that the reachable endpoints return non-empty TTS audio, a usable preprocessor speech/no-speech decision, and non-empty STT text.
 
 To enable Irene for the voice channel you are currently in:
 
