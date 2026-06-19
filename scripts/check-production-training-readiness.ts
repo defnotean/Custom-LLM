@@ -38,6 +38,7 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
     else if (arg === "--voice-eval-report") options.voiceEvalReportPath = requireValue(argv[++index], arg);
     else if (arg === "--router-eval-suite") options.routerEvalSuitePath = requireValue(argv[++index], arg);
     else if (arg === "--router-eval-report") options.routerEvalReportPath = requireValue(argv[++index], arg);
+    else if (arg === "--memory-continuity-suite") options.memoryContinuitySuitePath = requireValue(argv[++index], arg);
     else if (arg === "--memory-continuity-gate") options.memoryContinuityGatePath = requireValue(argv[++index], arg);
     else if (arg === "--skill-retrieval-gate") options.skillRetrievalGatePath = requireValue(argv[++index], arg);
     else if (arg === "--long-context-eval-report") options.longContextEvalReportPath = requireValue(argv[++index], arg);
@@ -78,6 +79,8 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
       options.routerCoverageMinCases = parseNonnegativeInt(argv[++index], arg);
     else if (arg === "--min-voice-coverage-cases")
       options.voiceCoverageMinCases = parseNonnegativeInt(argv[++index], arg);
+    else if (arg === "--min-memory-coverage-cases")
+      options.memoryCoverageMinCases = parseNonnegativeInt(argv[++index], arg);
     else if (arg === "--min-sft-train-records") options.minSftTrainRecords = parseNonnegativeInt(argv[++index], arg);
     else if (arg === "--min-sft-validation-records")
       options.minSftValidationRecords = parseNonnegativeInt(argv[++index], arg);

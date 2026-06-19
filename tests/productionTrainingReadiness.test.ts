@@ -13,6 +13,10 @@ import {
   type SpecialistRoutingEvalCase,
 } from "../src/training/eval/SpecialistRoutingEvalSuite";
 import type { KnowledgeEvalCase } from "../src/training/eval/KnowledgeEvalSuite";
+import {
+  writeMemoryContinuityEvalSuite,
+  type MemoryContinuityEvalCase,
+} from "../src/training/eval/MemoryContinuityEvalSuite";
 
 describe("ProductionTrainingReadiness", () => {
   let dir: string | null = null;
@@ -47,6 +51,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "tool-protocol-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "memory-continuity-gate")).toBe("pass");
+    expect(checkStatus(report.checks, "memory-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "skill-retrieval-gate")).toBe("pass");
     expect(checkStatus(report.checks, "subq-architecture-contract")).toBe("pass");
     expect(report.checks.find((check) => check.id === "subq-architecture-contract")?.details).toMatchObject({
@@ -104,6 +109,20 @@ describe("ProductionTrainingReadiness", () => {
 
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "memory-continuity-gate")).toBe("fail");
+  });
+
+  it("fails production readiness when memory coverage is incomplete", async () => {
+    const fixture = await writeFixture({
+      memoryContinuityRows: buildMemoryContinuityRows().filter((item) => item.kind !== "policy_rejection"),
+    });
+
+    const report = await checkProductionTrainingReadiness({
+      ...fixture.options,
+      memoryCoverageMinCases: 0,
+    });
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "memory-coverage")).toBe("fail");
   });
 
   it("fails production readiness when the skill retrieval gate fails", async () => {
@@ -365,6 +384,7 @@ describe("ProductionTrainingReadiness", () => {
     const routerEvalReportPath = join(evalDir, "specialist-routing-oracle.report.json");
     const toolRouterEvalReportPath = join(evalDir, "tool-router-keyword.report.json");
     const longContextEvalReportPath = join(evalDir, "long-context-oracle.report.json");
+    const memoryContinuitySuitePath = join(evalDir, "memory-continuity.eval.json");
     const memoryContinuityGatePath = join(evalDir, "memory-continuity.gate.json");
     const skillRetrievalGatePath = join(evalDir, "skill-retrieval.gate.json");
     const longContextSuitePath = join(evalDir, "long-context.eval.jsonl");
@@ -447,6 +467,8 @@ describe("ProductionTrainingReadiness", () => {
       falsePositiveRate: 0,
       failures: [],
     });
+    if (overrides.memoryContinuityRows) await writeJson(memoryContinuitySuitePath, { cases: overrides.memoryContinuityRows });
+    else await writeMemoryContinuityEvalSuite(memoryContinuitySuitePath);
     await writeJson(memoryContinuityGatePath, overrides.memoryContinuityGate ?? goodMemoryContinuityGate());
     await writeJson(skillRetrievalGatePath, overrides.skillRetrievalGate ?? goodSkillRetrievalGate());
     if (overrides.voiceEvalRows) await writeJsonl(voiceEvalSuitePath, overrides.voiceEvalRows);
@@ -513,6 +535,7 @@ describe("ProductionTrainingReadiness", () => {
         routerEvalReportPath,
         toolRouterEvalReportPath,
         longContextEvalReportPath,
+        memoryContinuitySuitePath,
         memoryContinuityGatePath,
         skillRetrievalGatePath,
         longContextSuitePath,
@@ -543,6 +566,7 @@ interface FixtureOverrides {
   unslothSft: string;
   unslothDpo: string;
   memoryContinuityGate: Record<string, unknown>;
+  memoryContinuityRows: MemoryContinuityEvalCase[];
   skillRetrievalGate: Record<string, unknown>;
   contaminationEvalRows: unknown[];
   toolEvalRows: ToolEvalCase[];
@@ -588,6 +612,59 @@ function knowledgeCase(id: string, source: string, prompt: string, expected: str
       expectedHash: createHash("sha256").update(expected).digest("hex"),
     },
   };
+}
+
+function buildMemoryContinuityRows(): MemoryContinuityEvalCase[] {
+  return [
+    memoryCase(
+      "memory:case:explicit-user-recall",
+      "explicit_recall",
+      "Explicit USER memories are immediately retrievable for the same user context.",
+    ),
+    memoryCase(
+      "memory:case:implicit-preference-capture",
+      "implicit_capture",
+      "Stable preferences from conversation write-back are retrievable without restart.",
+    ),
+    memoryCase(
+      "memory:case:user-scope-isolation",
+      "scope_isolation",
+      "USER memories never leak into another user's retrieval context.",
+    ),
+    memoryCase(
+      "memory:case:guild-scope-isolation",
+      "scope_isolation",
+      "GUILD memories are shared inside one guild but isolated from other guilds.",
+    ),
+    memoryCase(
+      "memory:case:channel-scope-isolation",
+      "scope_isolation",
+      "CHANNEL memories are visible only in the channel where they were stored.",
+    ),
+    memoryCase("memory:case:owner-forget", "forget", "A user can delete their own USER memory and it disappears from recall."),
+    memoryCase("memory:case:non-owner-forget-denied", "forget", "A non-admin cannot delete another user's USER memory."),
+    memoryCase("memory:case:admin-forget-guild", "forget", "An admin can delete a GUILD memory and it disappears from recall."),
+    memoryCase("memory:case:secret-rejected", "policy_rejection", "Secrets are rejected even when explicitly submitted as memory."),
+    memoryCase("memory:case:oneoff-rejected", "policy_rejection", "One-off casual chatter is not promoted into durable memory."),
+    memoryCase(
+      "memory:case:explicit-learned-item",
+      "learning_capture",
+      "Explicit memory writes create trainable learned items for review.",
+    ),
+    memoryCase(
+      "memory:case:implicit-learned-item",
+      "learning_capture",
+      "Implicit memory writes create retrievable but non-trainable learned items.",
+    ),
+  ];
+}
+
+function memoryCase(
+  id: string,
+  kind: MemoryContinuityEvalCase["kind"],
+  description: string,
+): MemoryContinuityEvalCase {
+  return { id, kind, description, metadata: {} };
 }
 
 function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {

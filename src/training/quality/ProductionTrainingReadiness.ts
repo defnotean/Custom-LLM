@@ -32,6 +32,10 @@ import {
   type KnowledgeCoverageReadinessReport,
 } from "./KnowledgeCoverageReadiness";
 import {
+  checkMemoryContinuityCoverageReadiness,
+  type MemoryContinuityCoverageReadinessReport,
+} from "./MemoryContinuityCoverageReadiness";
+import {
   checkSpecialistRoutingCoverageReadiness,
   type SpecialistRoutingCoverageReadinessReport,
 } from "./SpecialistRoutingCoverageReadiness";
@@ -218,6 +222,7 @@ export interface ProductionTrainingReadinessOptions {
   routerEvalReportPath?: string;
   toolRouterEvalReportPath?: string;
   longContextEvalReportPath?: string;
+  memoryContinuitySuitePath?: string;
   memoryContinuityGatePath?: string;
   skillRetrievalGatePath?: string;
   rawDatasetManifestPath?: string;
@@ -242,6 +247,7 @@ export interface ProductionTrainingReadinessOptions {
   behaviorCoverageMinCases?: number;
   routerCoverageMinCases?: number;
   voiceCoverageMinCases?: number;
+  memoryCoverageMinCases?: number;
   contaminationTrainPaths?: string[];
   contaminationEvalPaths?: string[];
   contaminationNgramSize?: number;
@@ -316,6 +322,7 @@ const DEFAULTS = {
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
   toolRouterEvalReportPath: "training/evals/tool-router-keyword.report.json",
   longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
+  memoryContinuitySuitePath: "training/evals/memory-continuity.eval.json",
   memoryContinuityGatePath: "training/evals/memory-continuity.gate.json",
   skillRetrievalGatePath: "training/evals/skill-retrieval.gate.json",
   rawDatasetManifestPath: "training/data/raw/dataset_manifest.json",
@@ -338,6 +345,7 @@ const DEFAULTS = {
   behaviorCoverageMinCases: 11,
   routerCoverageMinCases: 18,
   voiceCoverageMinCases: 12,
+  memoryCoverageMinCases: 12,
   contaminationTrainPaths: DEFAULT_CONTAMINATION_TRAIN_PATHS,
   contaminationEvalPaths: DEFAULT_CONTAMINATION_EVAL_PATHS,
   contaminationNgramSize: 13,
@@ -387,6 +395,7 @@ export async function checkProductionTrainingReadiness(
     behaviorCoverageReport,
     routerCoverageReport,
     voiceCoverageReport,
+    memoryCoverageReport,
     subqArchitectureReport,
     datasetGovernanceReport,
     contaminationReport,
@@ -420,6 +429,10 @@ export async function checkProductionTrainingReadiness(
       checkVoiceCoverageReadiness({
         suitePath: config.voiceEvalSuitePath,
         minTotalCases: config.voiceCoverageMinCases,
+      }),
+      checkMemoryContinuityCoverageReadiness({
+        suitePath: config.memoryContinuitySuitePath,
+        minTotalCases: config.memoryCoverageMinCases,
       }),
       checkSubquadraticArchitectureReadiness({
         suitePath: config.longContextSuitePath,
@@ -476,6 +489,7 @@ export async function checkProductionTrainingReadiness(
       behaviorCoverageReport,
       routerCoverageReport,
       voiceCoverageReport,
+      memoryCoverageReport,
       subqArchitectureReport,
     ),
   );
@@ -669,6 +683,39 @@ function voiceCoverageReadinessCheck(report: VoiceCoverageReadinessReport): Read
         byKind: report.summary.byKind,
         rawAudioRetainedCases: report.summary.rawAudioRetainedCases,
         trainingQueuedCases: report.summary.trainingQueuedCases,
+        failingScenarios,
+      });
+}
+
+function memoryCoverageReadinessCheck(report: MemoryContinuityCoverageReadinessReport): ReadinessCheck {
+  const failingScenarios = report.scenarios
+    .filter((scenario) => scenario.count < scenario.minCases)
+    .map((scenario) => ({
+      id: scenario.id,
+      description: scenario.description,
+      count: scenario.count,
+      minCases: scenario.minCases,
+      sampleIds: scenario.sampleIds,
+    }));
+  const failingChecks = report.checks
+    .filter((check) => check.status === "fail" && !check.id.startsWith("memory-coverage-scenario:"))
+    .map((check) => ({ id: check.id, summary: check.summary, details: check.details }));
+  return report.status === "pass"
+    ? pass("memory-coverage", `Memory continuity suite covers ${report.scenarios.length} required live-learning families`, {
+        total: report.summary.total,
+        byKind: report.summary.byKind,
+        immediateRecallCases: report.summary.immediateRecallCases,
+        scopeIsolationCases: report.summary.scopeIsolationCases,
+        forgetCases: report.summary.forgetCases,
+        policyRejectionCases: report.summary.policyRejectionCases,
+        learnedItemCases: report.summary.learnedItemCases,
+      })
+    : fail("memory-coverage", "Memory continuity suite is missing required live-learning coverage", {
+        total: report.summary.total,
+        byKind: report.summary.byKind,
+        duplicateIds: report.summary.duplicateIds,
+        invalidCases: report.summary.invalidCases,
+        failingChecks,
         failingScenarios,
       });
 }
@@ -889,6 +936,7 @@ function evalHarnessChecks(
   behaviorCoverageReport: BehaviorCoverageReadinessReport,
   routerCoverageReport: SpecialistRoutingCoverageReadinessReport,
   voiceCoverageReport: VoiceCoverageReadinessReport,
+  memoryCoverageReport: MemoryContinuityCoverageReadinessReport,
   subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
@@ -1057,6 +1105,7 @@ function evalHarnessChecks(
           failures: memoryContinuityGate.candidate.failures,
           gateFailures: memoryContinuityGate.failures.length,
         }),
+    memoryCoverageReadinessCheck(memoryCoverageReport),
     skillRetrievalGate.status === "pass" &&
     skillRetrievalGate.candidate.total >= 10 &&
     skillRetrievalGate.candidate.recallAtK === 1 &&

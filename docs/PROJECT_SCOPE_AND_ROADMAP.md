@@ -214,6 +214,7 @@ Promotion requires all relevant gates, not just lower validation loss.
 | Voice gate | Speaker attribution, turn-taking, interruption handling, STT quality, TTS latency, no retention-policy violations |
 | Voice coverage gate | Structural Discord voice coverage for transcription, speaker attribution, crosstalk, no-response turns, latency, social timing, raw-audio retention, and training-review policy |
 | Memory growth gate | Accurate recall, scope isolation, correct forgetting, no secrets, no one-off memory spam, learned-item capture, useful summary quality |
+| Memory coverage gate | Structural live-memory coverage for explicit recall, implicit preference capture, USER/GUILD/CHANNEL isolation, owner/admin/non-owner forgetting, secret and one-off rejection, and explicit/implicit learned-item capture |
 | Skill growth gate | Learned workflow succeeds on repeat tasks and does not bypass permissions or confirmations |
 | Parameter growth gate | New trainable params are counted and justified by eval improvement |
 | Parameter module staging gate | Trainer artifacts are hash-verified, tied to source learned items, eval-passing, and rollback-ready before registration |
@@ -263,6 +264,7 @@ Success criteria:
 - `npm run check:behavior-coverage`
 - `npm run check:voice-coverage`
 - `npm run check:router-coverage`
+- `npm run check:memory-coverage`
 - `npm run check:dataset-governance`
 - `npm run check:production-readiness`
 - `npm run check:training-configs`

@@ -289,6 +289,7 @@ npm run check:knowledge-coverage
 npm run check:behavior-coverage
 npm run check:voice-coverage
 npm run check:router-coverage
+npm run check:memory-coverage
 npm run check:training-configs
 npm run check:production-readiness
 
@@ -346,11 +347,12 @@ npm run check:knowledge-coverage
 npm run check:behavior-coverage
 npm run check:voice-coverage
 npm run check:router-coverage
+npm run check:memory-coverage
 npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies dataset governance, contamination leakage, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, BFCL-style tool protocol coverage, knowledge source/answer-shape coverage, behavior/persona coverage, voice coverage, specialist-router coverage, tool/knowledge/behavior/voice/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance`, `npm run check:contamination`, `npm run check:tool-protocol-coverage`, `npm run check:knowledge-coverage`, `npm run check:behavior-coverage`, `npm run check:voice-coverage`, and `npm run check:router-coverage` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, obvious secret/PII scans, held-out eval leakage, required tool-call scenario coverage, balanced knowledge-source and answer-shape coverage, required Irene persona/social coverage, required Discord voice coverage, and required MoE route coverage. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies dataset governance, contamination leakage, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, BFCL-style tool protocol coverage, knowledge source/answer-shape coverage, behavior/persona coverage, voice coverage, specialist-router coverage, memory continuity coverage, tool/knowledge/behavior/voice/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance`, `npm run check:contamination`, `npm run check:tool-protocol-coverage`, `npm run check:knowledge-coverage`, `npm run check:behavior-coverage`, `npm run check:voice-coverage`, `npm run check:router-coverage`, and `npm run check:memory-coverage` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, obvious secret/PII scans, held-out eval leakage, required tool-call scenario coverage, balanced knowledge-source and answer-shape coverage, required Irene persona/social coverage, required Discord voice coverage, required MoE route coverage, and required live-memory continuity coverage. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -569,6 +571,7 @@ Memory/RAG is Irene's immediate learning path, so memory behavior has its own de
 
 ```bash
 npm run build:memory-eval
+npm run check:memory-coverage
 npm run eval:memory
 npm run eval:memory:gate -- --out training/evals/memory-continuity.gate.json
 ```
@@ -583,6 +586,8 @@ Current memory continuity suite:
 | `forget` | 3 | Owner delete, admin delete, and non-owner delete denial |
 | `policy_rejection` | 2 | Secret-like content and one-off chatter are not stored |
 | `learning_capture` | 2 | Memory writes create learned items with correct retrieval/training retention |
+
+`npm run check:memory-coverage` is the structural live-memory guard. It fails if the suite stops covering immediate explicit recall, implicit preference capture without restart, USER/GUILD/CHANNEL isolation, owner/admin/non-owner forgetting behavior, secret and one-off rejection, or explicit/implicit learned-item capture.
 
 Metrics reported:
 
@@ -656,6 +661,7 @@ Every dataset build must:
 - Pass `npm run check:knowledge-coverage` before training so held-out answer-quality evals keep balanced source, context-grounded, technical/code, long-prompt, long-form, concise-answer, and reference-hash coverage.
 - Pass `npm run check:behavior-coverage` before training so Irene's she/her persona, emotional voice, social repair/support, candid boundaries, and tool abstention stay represented in held-out behavior evals.
 - Pass `npm run check:voice-coverage` before promoting voice-facing changes so transcription, speaker attribution, turn-taking, latency, social timing, and retention-policy cases stay represented.
+- Pass `npm run check:memory-coverage` before changing memory or live-learning behavior so immediate recall, isolation, forgetting, policy rejection, and learned-item capture stay represented.
 - Keep generated datasets and checkpoints out of git.
 
 Every model iteration must:
@@ -677,6 +683,7 @@ Every model iteration must:
 - Pass `npm run eval:voice:gate` against the candidate voice report before promoting voice-facing changes.
 - Pass `npm run eval:router:gate` against the candidate router report before promoting any specialist-router checkpoint.
 - Pass `npm run check:router-coverage` before training or rebuilding router evals so the MoE route suite keeps every required route/expert family represented.
+- Pass `npm run check:memory-coverage` before rebuilding or promoting memory evals so live-learning continuity remains structurally covered.
 - Pass `npm run eval:memory:gate` against the memory continuity report before promoting memory behavior changes.
 - Pass `npm run eval:skill:gate` against the skill retrieval report before promoting live-learning or approved-skill retrieval behavior changes.
 - Pass `npm run eval:long-context:gate` against long-context reports before promoting SubQ/SSA routes or any model advertised for repository-scale context.
