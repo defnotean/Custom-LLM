@@ -135,6 +135,25 @@ const longContextEvalReportSchema = z.object({
   failures: z.array(z.unknown()),
 });
 
+const memoryContinuityGateSchema = z.object({
+  status: z.enum(["pass", "fail"]),
+  candidate: z.object({
+    suitePath: z.string().min(1),
+    total: z.number().int().nonnegative(),
+    passRate: z.number().min(0).max(1),
+    storedExpectedRate: z.number().min(0).max(1),
+    recallHitRate: z.number().min(0).max(1),
+    isolationPassRate: z.number().min(0).max(1),
+    forgetPassRate: z.number().min(0).max(1),
+    policyRejectionPassRate: z.number().min(0).max(1),
+    learnedItemPassRate: z.number().min(0).max(1),
+    failures: z.number().int().nonnegative(),
+    latencyP95Ms: z.number().nonnegative().nullable(),
+  }),
+  failures: z.array(z.unknown()),
+  warnings: z.array(z.unknown()),
+});
+
 export type ProductionTrainingStage = "sft" | "dpo" | "all";
 export type ReadinessStatus = "ready" | "not_ready";
 export type ReadinessCheckStatus = "pass" | "warn" | "fail";
@@ -150,6 +169,7 @@ export interface ProductionTrainingReadinessOptions {
   routerEvalReportPath?: string;
   toolRouterEvalReportPath?: string;
   longContextEvalReportPath?: string;
+  memoryContinuityGatePath?: string;
   rawDatasetManifestPath?: string;
   processedDatasetReportPath?: string;
   datasetPreparerSourcePath?: string;
@@ -215,6 +235,7 @@ type VoiceEvalReport = z.infer<typeof voiceEvalReportSchema>;
 type RouterEvalReport = z.infer<typeof routerEvalReportSchema>;
 type ToolRouterEvalReport = z.infer<typeof toolRouterEvalReportSchema>;
 type LongContextEvalReport = z.infer<typeof longContextEvalReportSchema>;
+type MemoryContinuityGateReport = z.infer<typeof memoryContinuityGateSchema>;
 
 const DEFAULTS = {
   stage: "sft" as ProductionTrainingStage,
@@ -227,6 +248,7 @@ const DEFAULTS = {
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
   toolRouterEvalReportPath: "training/evals/tool-router-keyword.report.json",
   longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
+  memoryContinuityGatePath: "training/evals/memory-continuity.gate.json",
   rawDatasetManifestPath: "training/data/raw/dataset_manifest.json",
   processedDatasetReportPath: "training/data/processed/dataset_report.json",
   datasetPreparerSourcePath: "src/training/external/OpenDatasetPreparer.ts",
@@ -277,6 +299,7 @@ export async function checkProductionTrainingReadiness(
     routerEvalReport,
     toolRouterEvalReport,
     longContextEvalReport,
+    memoryContinuityGate,
     subqArchitectureReport,
     datasetGovernanceReport,
   ] =
@@ -288,6 +311,7 @@ export async function checkProductionTrainingReadiness(
       readJson(config.routerEvalReportPath, routerEvalReportSchema),
       readJson(config.toolRouterEvalReportPath, toolRouterEvalReportSchema),
       readJson(config.longContextEvalReportPath, longContextEvalReportSchema),
+      readJson(config.memoryContinuityGatePath, memoryContinuityGateSchema),
       checkSubquadraticArchitectureReadiness({
         suitePath: config.longContextSuitePath,
         routerSourcePath: config.llmRouterSourcePath,
@@ -327,6 +351,7 @@ export async function checkProductionTrainingReadiness(
       routerEvalReport,
       toolRouterEvalReport,
       longContextEvalReport,
+      memoryContinuityGate,
       subqArchitectureReport,
     ),
   );
@@ -571,6 +596,7 @@ function evalHarnessChecks(
   routerReport: RouterEvalReport,
   toolRouterReport: ToolRouterEvalReport,
   longContextReport: LongContextEvalReport,
+  memoryContinuityGate: MemoryContinuityGateReport,
   subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
@@ -701,6 +727,39 @@ function evalHarnessChecks(
           missingPredictions: longContextReport.missingPredictions,
           falsePositiveRate: longContextReport.falsePositiveRate,
           failures: longContextReport.failures.length,
+        }),
+    memoryContinuityGate.status === "pass" &&
+    memoryContinuityGate.candidate.total >= 12 &&
+    memoryContinuityGate.candidate.passRate === 1 &&
+    memoryContinuityGate.candidate.storedExpectedRate === 1 &&
+    memoryContinuityGate.candidate.recallHitRate === 1 &&
+    memoryContinuityGate.candidate.isolationPassRate === 1 &&
+    memoryContinuityGate.candidate.forgetPassRate === 1 &&
+    memoryContinuityGate.candidate.policyRejectionPassRate === 1 &&
+    memoryContinuityGate.candidate.learnedItemPassRate === 1 &&
+    memoryContinuityGate.candidate.failures === 0 &&
+    memoryContinuityGate.failures.length === 0
+      ? pass(
+          "memory-continuity-gate",
+          `Memory continuity gate is healthy with ${memoryContinuityGate.candidate.total} cases`,
+          {
+            suitePath: memoryContinuityGate.candidate.suitePath,
+            latencyP95Ms: memoryContinuityGate.candidate.latencyP95Ms,
+            warnings: memoryContinuityGate.warnings,
+          },
+        )
+      : fail("memory-continuity-gate", "Memory continuity gate does not satisfy promotion expectations", {
+          status: memoryContinuityGate.status,
+          total: memoryContinuityGate.candidate.total,
+          passRate: memoryContinuityGate.candidate.passRate,
+          storedExpectedRate: memoryContinuityGate.candidate.storedExpectedRate,
+          recallHitRate: memoryContinuityGate.candidate.recallHitRate,
+          isolationPassRate: memoryContinuityGate.candidate.isolationPassRate,
+          forgetPassRate: memoryContinuityGate.candidate.forgetPassRate,
+          policyRejectionPassRate: memoryContinuityGate.candidate.policyRejectionPassRate,
+          learnedItemPassRate: memoryContinuityGate.candidate.learnedItemPassRate,
+          failures: memoryContinuityGate.candidate.failures,
+          gateFailures: memoryContinuityGate.failures.length,
         }),
     subqArchitectureReport.status === "pass"
       ? pass(

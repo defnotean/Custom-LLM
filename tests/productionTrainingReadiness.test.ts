@@ -32,6 +32,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "memory-continuity-gate")).toBe("pass");
     expect(checkStatus(report.checks, "subq-architecture-contract")).toBe("pass");
     expect(checkStatus(report.checks, "dataset-governance")).toBe("pass");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("warn");
@@ -69,6 +70,17 @@ describe("ProductionTrainingReadiness", () => {
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "dpo-preference-volume")).toBe("fail");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("fail");
+  });
+
+  it("fails production readiness when the memory continuity gate fails", async () => {
+    const fixture = await writeFixture({
+      memoryContinuityGate: goodMemoryContinuityGate({ status: "fail", candidate: { recallHitRate: 0.75 } }),
+    });
+
+    const report = await checkProductionTrainingReadiness(fixture.options);
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "memory-continuity-gate")).toBe("fail");
   });
 
   async function writeFixture(overrides: Partial<FixtureOverrides> = {}): Promise<{
@@ -195,6 +207,7 @@ describe("ProductionTrainingReadiness", () => {
     const routerEvalReportPath = join(evalDir, "specialist-routing-oracle.report.json");
     const toolRouterEvalReportPath = join(evalDir, "tool-router-keyword.report.json");
     const longContextEvalReportPath = join(evalDir, "long-context-oracle.report.json");
+    const memoryContinuityGatePath = join(evalDir, "memory-continuity.gate.json");
     const longContextSuitePath = join(evalDir, "long-context.eval.jsonl");
     await writeJson(toolEvalReportPath, {
       total: 200,
@@ -271,6 +284,7 @@ describe("ProductionTrainingReadiness", () => {
       falsePositiveRate: 0,
       failures: [],
     });
+    await writeJson(memoryContinuityGatePath, overrides.memoryContinuityGate ?? goodMemoryContinuityGate());
     await writeLongContextSuiteFixture(longContextSuitePath);
 
     const axolotlSftConfigPath = join(configDir, "qwen3-qlora-sft.yaml");
@@ -320,6 +334,7 @@ describe("ProductionTrainingReadiness", () => {
         routerEvalReportPath,
         toolRouterEvalReportPath,
         longContextEvalReportPath,
+        memoryContinuityGatePath,
         longContextSuitePath,
         llmRouterSourcePath,
         tinyTrainerPath,
@@ -345,6 +360,33 @@ interface FixtureOverrides {
   axolotlDpo: string;
   unslothSft: string;
   unslothDpo: string;
+  memoryContinuityGate: Record<string, unknown>;
+}
+
+function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const { candidate: _candidate, ...topLevelOverrides } = overrides;
+  const candidate = {
+    suitePath: "training/evals/memory-continuity.eval.json",
+    total: 12,
+    passRate: 1,
+    storedExpectedRate: 1,
+    recallHitRate: 1,
+    isolationPassRate: 1,
+    forgetPassRate: 1,
+    policyRejectionPassRate: 1,
+    learnedItemPassRate: 1,
+    failures: 0,
+    latencyP95Ms: 3,
+    ...((overrides.candidate as Record<string, unknown> | undefined) ?? {}),
+  };
+  return {
+    status: "pass",
+    thresholds: {},
+    failures: [],
+    warnings: [],
+    ...topLevelOverrides,
+    candidate,
+  };
 }
 
 function checkStatus(checks: Array<{ id: string; status: string }>, id: string): string | undefined {
