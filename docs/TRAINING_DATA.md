@@ -62,8 +62,9 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-modules/<module-id>/promot
 npm run build:parameter-hotload
 npm run check:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json
 npm run apply:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json --dry-run
+npm run serve:model-adapter-sidecar -- --provider vllm --model-server-base-url http://127.0.0.1:8000 --api-key sidecar-dev
 npm run serve:parameter-hotload -- --host 127.0.0.1 --port 8088 --api-key local-dev
-npm run serve:parameter-hotload -- --host 127.0.0.1 --port 8088 --api-key local-dev --backend http --backend-url http://127.0.0.1:9099/parameter-modules
+npm run serve:parameter-hotload -- --host 127.0.0.1 --port 8088 --api-key local-dev --backend http --backend-url http://127.0.0.1:9099/parameter-modules --backend-api-key sidecar-dev
 npm run apply:parameter-hotload -- --manifest training/plans/parameter-hotload/latest.json --endpoint-url http://127.0.0.1:8088/parameter-hotload
 
 curl -X POST http://127.0.0.1:3000/learning/parameter-hotload/apply \
@@ -93,7 +94,7 @@ The scheduled worker also writes parameter-growth plans to `training/plans/param
 
 `apply:parameter-hotload` and `POST /learning/parameter-hotload/apply` run the same quality gate first. Dry runs return the exact `parameter-module-hotload-apply-v1` payload without calling a loader. Non-dry-run applies require `PARAMETER_HOTLOAD_ENDPOINT` or `--endpoint-url`; the service posts the checked manifest to that private model-server control endpoint and reports accepted/rejected module ids. If the manifest is blocked or hash-invalid, the loader is never called.
 
-`serve:parameter-hotload` starts the local compatible control endpoint used during development or serving-integration tests. It accepts `POST /parameter-hotload`, verifies the payload and artifact hashes again server-side, delegates accepted loads/rollbacks to a `ParameterHotloadBackend`, records loaded module state only after backend acceptance, exposes `GET /parameter-hotload/status`, and supports `POST /parameter-hotload/rollback`. The default backend is `state-only`: it exercises the control-plane contract and rollback bookkeeping. Use `--backend http --backend-url <private model-server adapter URL>` or `PARAMETER_HOTLOAD_BACKEND=http` plus `PARAMETER_HOTLOAD_BACKEND_URL` to delegate checked loads/rollbacks through the `parameter-hotload-backend-v1` contract. That HTTP adapter is generic; the private sidecar still has to perform the concrete vLLM/Ollama/LM Studio LoRA or specialist attachment.
+`serve:parameter-hotload` starts the local compatible control endpoint used during development or serving-integration tests. It accepts `POST /parameter-hotload`, verifies the payload and artifact hashes again server-side, delegates accepted loads/rollbacks to a `ParameterHotloadBackend`, records loaded module state only after backend acceptance, exposes `GET /parameter-hotload/status`, and supports `POST /parameter-hotload/rollback`. The default backend is `state-only`: it exercises the control-plane contract and rollback bookkeeping. Use `--backend http --backend-url <private model-server adapter URL>` or `PARAMETER_HOTLOAD_BACKEND=http` plus `PARAMETER_HOTLOAD_BACKEND_URL` to delegate checked loads/rollbacks through the `parameter-hotload-backend-v1` contract. `serve:model-adapter-sidecar` is the included private receiver for that backend: the `vllm` provider calls runtime LoRA load/unload endpoints, and the `ollama` provider creates adapter models from a Modelfile and unloads them from memory on rollback. Live validation against a real serving process is still required before promotion; direct LM Studio LoRA hot-swap remains a later provider-specific integration.
 
 ## Export Formats
 

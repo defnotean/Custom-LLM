@@ -74,6 +74,25 @@ npm run eval:long-context -- --predictions training/evals/long-context-llm.predi
 npm run eval:long-context:gate -- --candidate training/evals/long-context-llm.report.json
 ```
 
+## Adapter hotload sidecar
+
+After a parameter module is staged and promoted, `npm run serve:model-adapter-sidecar` can receive checked `parameter-hotload-backend-v1` load/rollback requests from `npm run serve:parameter-hotload -- --backend http`.
+
+For vLLM, start `vllm serve` with runtime LoRA updating enabled in an isolated trusted environment, then run:
+
+```bash
+npm run serve:model-adapter-sidecar -- --provider vllm --model-server-base-url http://127.0.0.1:8000 --api-key sidecar-dev
+npm run serve:parameter-hotload -- --backend http --backend-url http://127.0.0.1:9099/parameter-modules --backend-api-key sidecar-dev
+```
+
+For Ollama local testing, pass the base model used to train the adapter:
+
+```bash
+npm run serve:model-adapter-sidecar -- --provider ollama --model-server-base-url http://127.0.0.1:11434 --base-model qwen2.5:7b-instruct --api-key sidecar-dev
+```
+
+The sidecar uses the hotload manifest's adapter/checkpoint artifact directory as the vLLM `lora_path` or Ollama `ADAPTER` path. Live validation against the actual serving process is still required before promoting a module.
+
 ## Testing the endpoint
 
 ```bash
