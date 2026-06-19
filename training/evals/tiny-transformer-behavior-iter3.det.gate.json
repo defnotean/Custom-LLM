@@ -1,0 +1,66 @@
+{
+  "status": "fail",
+  "thresholds": {
+    "minTotalCases": 10,
+    "minValidJsonRate": 0.98,
+    "minActionTypeAccuracy": 0.95,
+    "minRequirementPassRate": 0.9,
+    "minPersonaConsistencyRate": 1,
+    "minSocialCueAccuracy": 0.9,
+    "minCasualToneAccuracy": 0.9,
+    "minToolAbstainAccuracy": 1,
+    "minBoundaryAccuracy": 1,
+    "maxMissingPredictions": 0,
+    "maxScoreRegression": 0.02,
+    "maxMissingPredictionIncrease": 0
+  },
+  "candidate": {
+    "suitePath": "training/evals/behavior.eval.jsonl",
+    "predictionsPath": "training/evals/tiny-transformer-behavior-iter3.det.predictions.jsonl",
+    "total": 11,
+    "validJsonRate": 0.545455,
+    "actionTypeAccuracy": 1,
+    "requirementPassRate": 0.545455,
+    "personaConsistencyRate": 0.333333,
+    "socialCueAccuracy": 0.8,
+    "casualToneAccuracy": 0.5,
+    "toolAbstainAccuracy": 1,
+    "boundaryAccuracy": 1,
+    "missingPredictions": 0,
+    "failures": 10,
+    "latencyP95Ms": 1064.648
+  },
+  "failures": [
+    {
+      "metric": "validJsonRate",
+      "actual": 0.545455,
+      "expected": ">= 0.98",
+      "message": "validJsonRate is below promotion threshold"
+    },
+    {
+      "metric": "requirementPassRate",
+      "actual": 0.545455,
+      "expected": ">= 0.9",
+      "message": "requirementPassRate is below promotion threshold"
+    },
+    {
+      "metric": "personaConsistencyRate",
+      "actual": 0.333333,
+      "expected": ">= 1",
+      "message": "personaConsistencyRate is below promotion threshold"
+    },
+    {
+      "metric": "socialCueAccuracy",
+      "actual": 0.8,
+      "expected": ">= 0.9",
+      "message": "socialCueAccuracy is below promotion threshold"
+    },
+    {
+      "metric": "casualToneAccuracy",
+      "actual": 0.5,
+      "expected": ">= 0.9",
+      "message": "casualToneAccuracy is below promotion threshold"
+    }
+  ],
+  "warnings": []
+}

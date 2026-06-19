@@ -57,8 +57,8 @@ describe("IreneSystemStatusReport", () => {
       largestScratchCheckpointParams: 2_715_772,
       largestScratchCheckpointRun: "tiny-transformer-iter6-expanded-sft",
       bestProtocolScratchParams: 775_358,
-      behaviorScratchParams: 819_819,
-      routerScratchParams: 753_802,
+      behaviorScratchParams: 840_122,
+      routerScratchParams: 773_848,
     });
     expect(report.learning).toMatchObject({
       enabled: true,
@@ -78,13 +78,13 @@ describe("IreneSystemStatusReport", () => {
     });
     expect(surface(report, "behavior_scratch")).toMatchObject({
       status: "fail",
-      params: 819_819,
-      metrics: { validJsonRate: 0, requirementPassRate: 0.090909 },
+      params: 840_122,
+      metrics: { validJsonRate: 0.545455, requirementPassRate: 0.545455 },
     });
     expect(surface(report, "router_scratch")).toMatchObject({
       status: "fail",
-      params: 753_802,
-      metrics: { routeAccuracy: 0.611111, invalidPredictions: 0 },
+      params: 773_848,
+      metrics: { routeAccuracy: 0.666667, invalidPredictions: 2 },
     });
     expect(surface(report, "memory_continuity")).toMatchObject({
       status: "pass",
@@ -94,7 +94,7 @@ describe("IreneSystemStatusReport", () => {
     expect(report.nextActions).toEqual(
       expect.arrayContaining([
         "Fix behavior/persona JSON stability before judging social quality.",
-        "Improve route and expert accuracy now that router JSON validity is stable.",
+        "Train or replace the route classifier until invalid route predictions are zero.",
         "Keep expanding BFCL-style tool cases so the perfect-tool-call target stays measurable.",
       ]),
     );
@@ -136,8 +136,10 @@ describe("IreneSystemStatusReport", () => {
     await writeMetrics(runRoot, "tiny-transformer-protocol-iter16", 775_358, 235, 58, 6.0791, 0.0511);
     await writeMetrics(runRoot, "tiny-transformer-behavior-iter1", 392_619, 45, 11, 6.4848, 0.2655);
     await writeMetrics(runRoot, "tiny-transformer-behavior-iter2", 819_819, 45, 11, 6.3389, 0.1024);
+    await writeMetrics(runRoot, "tiny-transformer-behavior-iter3", 840_122, 74, 18, 6.4123, 0.1215);
     await writeMetrics(runRoot, "tiny-transformer-router-iter1", 343_050, 34, 8, 6.2163, 0.3845);
     await writeMetrics(runRoot, "tiny-transformer-router-iter2", 753_802, 34, 8, 5.7557, 0.1145);
+    await writeMetrics(runRoot, "tiny-transformer-router-iter3", 773_848, 60, 14, 5.9795, 0.1232);
     await writeMetrics(runRoot, "tiny-transformer-iter6-expanded-sft", 2_715_772, 8_000, 1_000, 9.0983, 4.5789);
 
     const gates = {
@@ -167,23 +169,23 @@ describe("IreneSystemStatusReport", () => {
       gates.behavior,
       gate("fail", {
         total: 11,
-        validJsonRate: 0,
-        requirementPassRate: 0.090909,
-        personaConsistencyRate: 0,
-        socialCueAccuracy: 0,
-        casualToneAccuracy: 0,
-        boundaryAccuracy: 0,
+        validJsonRate: 0.545455,
+        requirementPassRate: 0.545455,
+        personaConsistencyRate: 0.333333,
+        socialCueAccuracy: 0.8,
+        casualToneAccuracy: 0.5,
+        boundaryAccuracy: 1,
       }),
     );
     await writeJson(
       gates.router,
       gate("fail", {
         total: 18,
-        routeAccuracy: 0.611111,
-        expertAccuracy: 0.722222,
-        toolVsNonToolAccuracy: 0.888889,
-        invalidPredictions: 0,
-        latencyP95Ms: 1408.3,
+        routeAccuracy: 0.666667,
+        expertAccuracy: 0.666667,
+        toolVsNonToolAccuracy: 0.777778,
+        invalidPredictions: 2,
+        latencyP95Ms: 926.596,
       }),
     );
     await writeJson(
