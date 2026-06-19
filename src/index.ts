@@ -251,6 +251,7 @@ async function main(): Promise<void> {
     safetyAgent: env.SAFETY_ENABLED ? new SafetyAgent(safetyService) : null,
     training: trainingLogger,
     learning: learningCapture,
+    pendingConfirmations: redisRuntimeState?.pendingConfirmationStore,
     logger: childLogger("agent"),
     botName: DEFAULT_BOT_NAME,
     toolCallingEnabled: env.TOOL_CALLING_ENABLED,

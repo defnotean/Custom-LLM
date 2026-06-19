@@ -2,6 +2,7 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { RateLimitService } from "../src/safety/RateLimitService";
 import {
   RedisCooldownStore,
+  RedisPendingConfirmationStore,
   RedisRateLimitStore,
   type RedisRuntimeClient,
 } from "../src/state/RedisRuntimeState";
@@ -52,6 +53,46 @@ describe("Redis runtime state stores", () => {
     now += 3_001;
     expect(await service.check("msg:user-1")).toEqual({ allowed: true, retryAfterMs: 0 });
   });
+
+  it("backs pending confirmations with Redis JSON and TTL expiry", async () => {
+    let now = 10_000;
+    const redis = new FakeRedis(() => now);
+    const store = new RedisPendingConfirmationStore(redis, { keyPrefix: "test", now: () => now });
+
+    await store.set(
+      "channel-1:user-1",
+      {
+        tool: "risky_wipe",
+        arguments: { reason: "test" },
+        expiresAt: now + 120_000,
+        originalUserMessage: "wipe everything",
+      },
+      120_000,
+    );
+
+    expect(redis.rawKeys()).toEqual(["test:pending-confirmation:channel-1:user-1"]);
+    expect(await store.get("channel-1:user-1")).toMatchObject({
+      tool: "risky_wipe",
+      arguments: { reason: "test" },
+      originalUserMessage: "wipe everything",
+    });
+
+    await store.delete("channel-1:user-1");
+    expect(await store.get("channel-1:user-1")).toBeNull();
+
+    await store.set(
+      "channel-1:user-1",
+      {
+        tool: "risky_wipe",
+        arguments: {},
+        expiresAt: now + 1_000,
+        originalUserMessage: "wipe everything",
+      },
+      1_000,
+    );
+    now += 1_001;
+    expect(await store.get("channel-1:user-1")).toBeNull();
+  });
 });
 
 class FakeRedis implements RedisRuntimeClient {
@@ -76,6 +117,12 @@ class FakeRedis implements RedisRuntimeClient {
       expiresAtMs: options?.PX ? this.now() + options.PX : null,
     });
     return "OK";
+  }
+
+  async del(key: string): Promise<number> {
+    const existed = this.strings.delete(key);
+    this.sortedSets.delete(key);
+    return existed ? 1 : 0;
   }
 
   async eval(_script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown> {

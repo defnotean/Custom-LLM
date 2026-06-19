@@ -38,7 +38,7 @@ The product identity is intentionally hardcoded to `Irene` / `she/her` in runtim
 
 | Area | Current state | Evidence |
 |---|---|---|
-| Runtime bot platform | Working foundation with Discord, LLM providers, tool routing, memory stores, safety hooks, optional Redis-backed cooldown/rate-limit state, training capture, ops API, and tests. | `README.md`, `docs/ARCHITECTURE.md`, `npm test` |
+| Runtime bot platform | Working foundation with Discord, LLM providers, tool routing, memory stores, safety hooks, optional Redis-backed cooldown/rate-limit/confirmation state, training capture, ops API, and tests. | `README.md`, `docs/ARCHITECTURE.md`, `npm test` |
 | Runtime identity | Default bot name now resolves to `Irene`; system prompt enforces she/her and affective persona. | `src/ai/prompts/systemPrompt.ts`, `src/index.ts` |
 | Tool protocol scratch specialist | Strong protocol proof, not a general assistant. | `tiny-transformer-protocol-iter16`: 775,358 params, valid JSON 1.000, action/tool/argument/no-tool accuracy 1.000, hallucinated tool rate 0.000 |
 | Knowledge scratch model | Not useful yet. | Tiny scratch knowledge reports have 0 exact match and very low overlap; QLoRA path is required for production quality |
@@ -383,7 +383,7 @@ Tasks:
 - Serve with vLLM/SGLang or another OpenAI-compatible server after model promotion.
 - Add production logging around route, parse, tool denial, latency, and feedback.
 - Integration-test Qdrant/pgvector memory.
-- Replace placeholder moderation, move pending confirmations/jobs to Redis-backed storage, and complete remaining launch placeholders.
+- Replace placeholder moderation, move jobs to Redis-backed durable storage, and complete remaining launch placeholders.
 - Document rollback and model switching.
 
 Success criteria:

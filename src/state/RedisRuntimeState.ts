@@ -1,5 +1,9 @@
 import type { Logger } from "pino";
 import { createClient, type RedisClientType } from "redis";
+import type {
+  PendingConfirmationStore,
+  PendingToolCall,
+} from "../ai/orchestration/PendingConfirmationStore";
 import type { RateLimitResult, RateLimitStore, RateLimitStoreCheckOptions } from "../safety/RateLimitService";
 import type { CooldownStore } from "../tools/ToolCooldownService";
 import { toErrorMessage } from "../utils/errors";
@@ -7,6 +11,7 @@ import { toErrorMessage } from "../utils/errors";
 export interface RedisRuntimeClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options?: { PX?: number }): Promise<unknown>;
+  del(key: string): Promise<number>;
   eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>;
   quit?(): Promise<unknown>;
 }
@@ -15,6 +20,7 @@ export interface RedisRuntimeState {
   client: RedisRuntimeClient;
   cooldownStore: RedisCooldownStore;
   rateLimitStore: RedisRateLimitStore;
+  pendingConfirmationStore: RedisPendingConfirmationStore;
   close(): Promise<void>;
 }
 
@@ -43,6 +49,7 @@ export async function connectRedisRuntimeState(options: RedisRuntimeStateOptions
     client: runtimeClient,
     cooldownStore: new RedisCooldownStore(runtimeClient, { keyPrefix }),
     rateLimitStore: new RedisRateLimitStore(runtimeClient, { keyPrefix }),
+    pendingConfirmationStore: new RedisPendingConfirmationStore(runtimeClient, { keyPrefix }),
     close: async () => {
       await runtimeClient.quit?.();
     },
@@ -113,6 +120,55 @@ export class RedisRateLimitStore implements RateLimitStore {
   }
 }
 
+export class RedisPendingConfirmationStore implements PendingConfirmationStore {
+  private readonly keyPrefix: string;
+  private readonly now: () => number;
+
+  constructor(
+    private readonly client: RedisRuntimeClient,
+    options?: { keyPrefix?: string; now?: () => number },
+  ) {
+    this.keyPrefix = options?.keyPrefix ?? DEFAULT_KEY_PREFIX;
+    this.now = options?.now ?? (() => Date.now());
+  }
+
+  async get(key: string): Promise<PendingToolCall | null> {
+    const redisKey = this.key(key);
+    const raw = await this.client.get(redisKey);
+    if (raw === null) return null;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      await this.client.del(redisKey);
+      return null;
+    }
+
+    if (!isPendingToolCall(parsed)) {
+      await this.client.del(redisKey);
+      return null;
+    }
+    if (parsed.expiresAt < this.now()) {
+      await this.client.del(redisKey);
+      return null;
+    }
+    return parsed;
+  }
+
+  async set(key: string, pending: PendingToolCall, ttlMs: number): Promise<void> {
+    await this.client.set(this.key(key), JSON.stringify(pending), { PX: Math.max(1, ttlMs) });
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.client.del(this.key(key));
+  }
+
+  private key(key: string): string {
+    return `${this.keyPrefix}:pending-confirmation:${key}`;
+  }
+}
+
 const RATE_LIMIT_SCRIPT = `
 local key = KEYS[1]
 local now = tonumber(ARGV[1])
@@ -146,4 +202,20 @@ function normalizeRedisEvalArray(value: unknown): number[] {
     if (!Number.isFinite(parsed)) throw new Error("Redis rate-limit script returned a non-numeric result");
     return parsed;
   });
+}
+
+function isPendingToolCall(value: unknown): value is PendingToolCall {
+  return (
+    isRecord(value) &&
+    typeof value.tool === "string" &&
+    value.tool.length > 0 &&
+    isRecord(value.arguments) &&
+    typeof value.expiresAt === "number" &&
+    Number.isFinite(value.expiresAt) &&
+    typeof value.originalUserMessage === "string"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

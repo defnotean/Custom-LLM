@@ -10,6 +10,10 @@ import { ToolPermissionService } from "../src/tools/ToolPermissionService";
 import { ToolCooldownService } from "../src/tools/ToolCooldownService";
 import { defineTool, toolOk } from "../src/tools/ToolDefinition";
 import { SafetyService } from "../src/safety/SafetyService";
+import {
+  InMemoryPendingConfirmationStore,
+  type PendingConfirmationStore,
+} from "../src/ai/orchestration/PendingConfirmationStore";
 import type { BotMessageContext } from "../src/types/discord";
 import type { InteractionTrace, ParameterModuleHint, SkillHint } from "../src/types/ai";
 import { MockLLMProvider, testLogger } from "./helpers";
@@ -72,6 +76,7 @@ function makeController(
     parameterActivator?: {
       retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<ParameterModuleHint[]>;
     } | null;
+    pendingConfirmations?: PendingConfirmationStore;
   },
 ) {
   const registry = makeRegistry();
@@ -98,6 +103,7 @@ function makeController(
       },
     },
     learning: options?.learning ?? null,
+    pendingConfirmations: options?.pendingConfirmations,
     logger: testLogger,
     botName: "TestBot",
     toolCallingEnabled: true,
@@ -163,6 +169,30 @@ describe("AgentController", () => {
     const second = await controller.handleDiscordMessage(makeCtx("yes"));
     expect(second.content).toBe("done — wiped.");
     expect(second.trace.toolSuccess).toBe(true);
+  });
+
+  it("resolves pending confirmations from a shared confirmation store", async () => {
+    const pendingConfirmations = new InMemoryPendingConfirmationStore();
+    const firstTraces: InteractionTrace[] = [];
+    const secondTraces: InteractionTrace[] = [];
+    const first = makeController(
+      ['{"type":"tool_call","tool":"risky_wipe","arguments":{},"reason":"requested"}'],
+      firstTraces,
+      { pendingConfirmations },
+    );
+    const second = makeController(
+      ['{"type":"message","content":"done from shared pending state"}'],
+      secondTraces,
+      { pendingConfirmations },
+    );
+
+    const confirmation = await first.controller.handleDiscordMessage(makeCtx("wipe everything now"));
+    expect(confirmation.trace.toolDenied).toBe("confirmation_required");
+
+    const confirmed = await second.controller.handleDiscordMessage(makeCtx("yes"));
+    expect(confirmed.content).toBe("done from shared pending state");
+    expect(confirmed.trace.toolSuccess).toBe(true);
+    expect(confirmed.trace.toolCall).toMatchObject({ name: "risky_wipe" });
   });
 
   it("cancels a pending confirmation on 'no'", async () => {

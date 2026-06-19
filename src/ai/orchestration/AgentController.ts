@@ -32,17 +32,15 @@ import type { ToolRouterAgent } from "./ToolRouterAgent";
 import type { MemoryAgent } from "./MemoryAgent";
 import type { SafetyAgent } from "./SafetyAgent";
 import { EvaluationAgent } from "./EvaluationAgent";
+import {
+  InMemoryPendingConfirmationStore,
+  type PendingConfirmationStore,
+  type PendingToolCall,
+} from "./PendingConfirmationStore";
 
 export interface AgentReply {
   content: string;
   trace: InteractionTrace;
-}
-
-interface PendingToolCall {
-  tool: string;
-  arguments: Record<string, unknown>;
-  expiresAt: number;
-  originalUserMessage: string;
 }
 
 export interface AgentControllerOptions {
@@ -56,6 +54,7 @@ export interface AgentControllerOptions {
   safetyAgent?: SafetyAgent | null;
   training?: TrainingSink | null;
   learning?: InteractionLearningSink | null;
+  pendingConfirmations?: PendingConfirmationStore;
   logger: Logger;
   botName?: string;
   toolCallingEnabled?: boolean;
@@ -115,7 +114,7 @@ export class AgentController {
   private readonly conversation: ConversationAgent;
   private readonly evaluation = new EvaluationAgent();
   private readonly toolContextExtras: AgentControllerOptions["toolContextExtras"];
-  private readonly pending = new Map<string, PendingToolCall>();
+  private readonly pendingConfirmations: PendingConfirmationStore;
 
   constructor(options: AgentControllerOptions) {
     this.llm = options.llm;
@@ -133,6 +132,7 @@ export class AgentController {
     this.toolCallingEnabled = options.toolCallingEnabled ?? true;
     this.conversation = new ConversationAgent(options.llm, options.logger);
     this.toolContextExtras = options.toolContextExtras ?? {};
+    this.pendingConfirmations = options.pendingConfirmations ?? new InMemoryPendingConfirmationStore();
   }
 
   async handleDiscordMessage(
@@ -273,7 +273,7 @@ export class AgentController {
         return action.content;
 
       case "confirmation_request": {
-        this.setPending(ctx, {
+        await this.setPending(ctx, {
           tool: action.pending_tool_call.tool,
           arguments: action.pending_tool_call.arguments,
           expiresAt: Date.now() + PENDING_TTL_MS,
@@ -308,7 +308,7 @@ export class AgentController {
     );
 
     if (outcome.status === "denied" && outcome.denialReason === "confirmation_required") {
-      this.setPending(ctx, {
+      await this.setPending(ctx, {
         tool: action.tool,
         arguments: action.arguments,
         expiresAt: Date.now() + PENDING_TTL_MS,
@@ -387,8 +387,8 @@ export class AgentController {
     return `${ctx.channelId}:${ctx.userId}`;
   }
 
-  private setPending(ctx: BotMessageContext, pending: PendingToolCall): void {
-    this.pending.set(this.pendingKey(ctx), pending);
+  private async setPending(ctx: BotMessageContext, pending: PendingToolCall): Promise<void> {
+    await this.pendingConfirmations.set(this.pendingKey(ctx), pending, Math.max(1, pending.expiresAt - Date.now()));
   }
 
   /** Returns a reply when this message resolved a pending confirmation, else null. */
@@ -397,17 +397,17 @@ export class AgentController {
     trace: InteractionTrace,
   ): Promise<string | null> {
     const key = this.pendingKey(ctx);
-    const pending = this.pending.get(key);
+    const pending = await this.pendingConfirmations.get(key);
     if (!pending) return null;
 
     if (pending.expiresAt < Date.now()) {
-      this.pending.delete(key);
+      await this.pendingConfirmations.delete(key);
       return null;
     }
 
     const content = ctx.content.trim();
     if (CANCEL_PATTERN.test(content)) {
-      this.pending.delete(key);
+      await this.pendingConfirmations.delete(key);
       return "Cancelled — nothing was executed.";
     }
     if (!CONFIRM_PATTERN.test(content)) {
@@ -416,7 +416,7 @@ export class AgentController {
       return null;
     }
 
-    this.pending.delete(key);
+    await this.pendingConfirmations.delete(key);
     trace.toolCall = { name: pending.tool, arguments: pending.arguments, reason: "user confirmed" };
 
     const outcome = await this.executor.execute(
