@@ -110,7 +110,8 @@ const envSchema = z.object({
 
   // API server
   API_PORT: z.coerce.number().int().min(0).max(65535).default(3000),
-  API_HOST: z.string().default("0.0.0.0"),
+  API_HOST: z.string().default("127.0.0.1"),
+  API_AUTH_TOKEN: z.string().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;

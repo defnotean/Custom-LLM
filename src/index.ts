@@ -469,8 +469,13 @@ async function main(): Promise<void> {
     getHealth,
     getStats,
     logger: childLogger("api"),
+    apiAuthToken: env.API_AUTH_TOKEN || null,
   });
-  await startApiServer(api, { port: env.API_PORT, host: env.API_HOST }, childLogger("api"));
+  await startApiServer(
+    api,
+    { port: env.API_PORT, host: env.API_HOST, authToken: env.API_AUTH_TOKEN || null },
+    childLogger("api"),
+  );
 
   // ── Background jobs ────────────────────────────────────────────────────
   const queue = buildJobQueue(redisRuntimeState);

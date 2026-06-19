@@ -126,7 +126,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | 7 | Tool-role messages mapped to labeled user messages for OpenAI-compatible providers | Maximum compatibility across local servers with inconsistent `tool` role support; native tool wire-format is a future optimization |
 | 8 | Training capture stores the full system prompt per example | Disk-cheap, fidelity-expensive to lose; exports can filter/dedupe later |
 | 9 | DPO export only emits explicit pairs (synthetic valid-vs-hallucinated, reviewed feedback preferred-vs-rejected) | Never fabricate preference data |
-| 10 | `API_PORT`/`API_HOST` added beyond the spec env list | The API server needs a bind address; documented in `.env.example` |
+| 10 | `API_PORT`/`API_HOST`/`API_AUTH_TOKEN` added beyond the spec env list | The API server needs a bind address, defaults to loopback, and refuses non-loopback startup unless bearer auth is configured |
 | 11 | discord.js permission names normalized to UPPER_SNAKE | Spec/tool definitions use `MODERATE_MEMBERS` style; conversion at the Discord boundary (`toUpperSnake`) |
 | 12 | Bot identity name "Irene" hardcoded at composition root | Product identity is intentionally fixed to Irene/she-her for consistency; per-guild style overrides can still live in `GuildProfile.settingsJson` later without changing identity |
 | 13 | SubQ/SSA is a named long-context architecture target, not a blanket replacement | Use subquadratic sparse attention for large-context work, smoke it locally, and gate it with exact long-context retrieval before replacing ordinary local/open-weight serving |
