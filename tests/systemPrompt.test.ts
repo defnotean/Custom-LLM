@@ -9,7 +9,7 @@ import {
 describe("systemPrompt", () => {
   it("hardcodes the she/her persona and strict JSON protocol", () => {
     const prompt = buildSystemPrompt({ botName: "Irene", isDM: true });
-    expect(SYSTEM_PROMPT_VERSION).toBe("v1.4.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("v1.4.1");
     expect(DEFAULT_BOT_NAME).toBe("Irene");
     expect(DEFAULT_BOT_PRONOUNS).toBe("she/her");
     expect(prompt).toContain("You present as she/her");

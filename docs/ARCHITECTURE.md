@@ -44,7 +44,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 | Tools | `src/tools/` | Registry, router, executor, permission/cooldown services, categories |
 | Memory | `src/memory/` | Service + policy + embedding providers + stores (pgvector/Qdrant/in-memory) |
 | Live Learning | `src/learning/`, `src/database/repositories/LiveLearningRepository.ts` | Runtime learning ledger, persisted learned-item records, immediate memory/skill access, parameter-module accounting and activation |
-| Safety | `src/safety/` | Async rate limiting and confirmation state with in-memory or Redis-backed storage, moderation screen (placeholder), confirmation gating |
+| Safety | `src/safety/` | Async rate limiting and confirmation state with in-memory or Redis-backed storage, operational boundary screen, confirmation gating |
 | Training | `src/training/` | Full-fidelity interaction capture, JSONL exporters, synthetic generation, parameter-growth planning and staging gates |
 | Persistence | `src/database/`, `prisma/` | Prisma models + repositories |
 | API | `src/server/` | Fastify ops API (health/tools/memory/learning/training/stats) |
@@ -126,7 +126,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 
 | Area | Status |
 |---|---|
-| Content moderation (`ModerationRules`) | **Placeholder** — minimal regex screen. Production: Llama Guard via local endpoint + Discord AutoMod + provider moderation |
+| Content moderation (`ModerationRules`) | **Implemented narrow boundary screen** - blocks obvious credentials, secret exfiltration, mass mentions, doxxing, credential theft/phishing, and tool-gate bypass attempts without generic filter wording for allowed prompts. Production public servers should still add Llama Guard via local endpoint, Discord AutoMod, and/or provider moderation |
 | Slash commands (`interactionCreate`) | **Implemented** - `npm run register:discord-commands` publishes `/ai input:<text>` globally or to `DISCORD_GUILD_ID`; handler defers replies, enforces guild text policy, then routes into the same command/agent paths as prefix messages |
 | Memory summarizer worker | **Implemented** - scheduled worker scans active channels, summarizes complete recent turns, stores `CHANNEL` memories with learned-item provenance/fingerprints, skips duplicate windows, and tags large windows for the SubQ/SSA long-context route |
 | Embedding-based tool routing | **Implemented, opt-in** via `TOOL_ROUTER_STRATEGY=embedding`; use a real embedding model for semantic recall and compare eval metrics before promotion |

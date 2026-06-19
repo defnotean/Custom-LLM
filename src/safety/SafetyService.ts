@@ -6,7 +6,7 @@ import { ModerationRules } from "./ModerationRules";
 /**
  * Safety layer, defense-in-depth position #2 (after the prompt, before the
  * executor's own gates):
- *  - ingress: per-user rate limiting + content screen (placeholder rules)
+ *  - ingress: per-user rate limiting + operational boundary screen
  *  - tool gating: high/critical-risk tools require user confirmation
  *  - refusal helper for consistent, non-preachy refusals
  *
@@ -54,7 +54,7 @@ export class SafetyService implements SafetyPort {
     const screen = this.moderation.screen(input.content);
     if (screen.flagged) {
       this.logger.warn(
-        { userId: input.userId, categories: screen.categories },
+        { userId: input.userId, categories: screen.categories, matches: screen.matches },
         "message flagged by moderation rules",
       );
       return {

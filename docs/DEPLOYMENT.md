@@ -34,7 +34,7 @@ Bare-metal alternative: `npm run build && node dist/src/index.js` under systemd/
 | Logs | pino JSON to stdout → your aggregator. `LOG_LEVEL=info` |
 | Cooldowns/rate limits/confirmations/jobs | In-process by default. Set `RUNTIME_STATE_STORE=redis` plus `REDIS_URL` to share tool cooldowns, message rate limits, pending high-risk tool confirmations, and scheduled/repeating worker jobs across replicas. Run `npm run check:redis-runtime` against the target Redis before enabling multiple replicas |
 | Job retries/dead letters | Current Redis queue logs failures and keeps recurring jobs moving. Add BullMQ-style retry/dead-letter dashboards when production operations require them |
-| Moderation | Regex placeholder — wire a real moderation model before opening to untrusted servers (see ARCHITECTURE.md) |
+| Moderation | Narrow boundary screen is built in for credentials, secret exfiltration, mass mentions, doxxing, credential theft, and tool-gate bypass attempts. Add a local moderation model and Discord AutoMod before opening to untrusted public servers |
 | Sharding | Required at 2,500 guilds; do the Redis migration first, then discord.js sharding is straightforward |
 | Health monitoring | `GET /health` + `GET /stats`; alert on `status != ok` |
 | Graceful shutdown | SIGTERM handled (queue stop → API close → Discord destroy → DB disconnect) — works with rolling deploys |

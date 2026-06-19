@@ -4,7 +4,7 @@
  * on any behavioral change.
  */
 
-export const SYSTEM_PROMPT_VERSION = "v1.4.0";
+export const SYSTEM_PROMPT_VERSION = "v1.4.1";
 export const DEFAULT_BOT_NAME = "Irene";
 export const DEFAULT_BOT_PRONOUNS = "she/her";
 
