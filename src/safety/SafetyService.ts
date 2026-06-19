@@ -1,7 +1,9 @@
 import type { Logger } from "pino";
 import type { SafetyPort, SafetyVerdict } from "../types/ai";
+import { toErrorMessage } from "../utils/errors";
 import { RateLimitService } from "./RateLimitService";
 import { ModerationRules } from "./ModerationRules";
+import type { ModerationProvider } from "./ModerationProvider";
 
 /**
  * Safety layer, defense-in-depth position #2 (after the prompt, before the
@@ -17,6 +19,8 @@ import { ModerationRules } from "./ModerationRules";
 export class SafetyService implements SafetyPort {
   private readonly rateLimit: RateLimitService;
   private readonly moderation: ModerationRules;
+  private readonly moderationProvider?: ModerationProvider;
+  private readonly moderationFailClosed: boolean;
   private readonly enabled: boolean;
 
   constructor(
@@ -25,11 +29,15 @@ export class SafetyService implements SafetyPort {
       enabled?: boolean;
       rateLimit?: RateLimitService;
       moderation?: ModerationRules;
+      moderationProvider?: ModerationProvider;
+      moderationFailClosed?: boolean;
     },
   ) {
     this.enabled = options?.enabled ?? true;
     this.rateLimit = options?.rateLimit ?? new RateLimitService();
     this.moderation = options?.moderation ?? new ModerationRules();
+    this.moderationProvider = options?.moderationProvider;
+    this.moderationFailClosed = options?.moderationFailClosed ?? false;
   }
 
   async precheckMessage(input: {
@@ -64,7 +72,48 @@ export class SafetyService implements SafetyPort {
       };
     }
 
+    const providerVerdict = await this.checkModerationProvider(input);
+    if (!providerVerdict.allowed) return providerVerdict;
+
     return { allowed: true };
+  }
+
+  private async checkModerationProvider(input: {
+    userId: string;
+    guildId: string | null;
+    channelId: string;
+    content: string;
+  }): Promise<SafetyVerdict> {
+    if (!this.moderationProvider) return { allowed: true };
+
+    try {
+      const decision = await this.moderationProvider.check(input);
+      if (decision.action === "allow") return { allowed: true };
+
+      const reason = decision.reason ?? decision.labels?.join(",") ?? "external moderation provider";
+      this.logger.warn(
+        { userId: input.userId, guildId: input.guildId, channelId: input.channelId, labels: decision.labels, reason },
+        "message blocked by moderation provider",
+      );
+      return {
+        allowed: false,
+        reason,
+        userReply: this.refusalMessage(reason),
+      };
+    } catch (err) {
+      const message = toErrorMessage(err);
+      this.logger.warn(
+        { userId: input.userId, guildId: input.guildId, channelId: input.channelId, err: message },
+        "moderation provider failed",
+      );
+      if (!this.moderationFailClosed) return { allowed: true };
+
+      return {
+        allowed: false,
+        reason: "moderation_provider_unavailable",
+        userReply: "Moderation check is unavailable right now; try again in a bit.",
+      };
+    }
   }
 
   /**

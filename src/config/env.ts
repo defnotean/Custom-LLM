@@ -98,6 +98,10 @@ const envSchema = z.object({
   TOOL_ROUTER_STRATEGY: z.enum(["keyword", "embedding"]).default("keyword"),
   TRAINING_LOGGING_ENABLED: booleanString.default("true"),
   SAFETY_ENABLED: booleanString.default("true"),
+  SAFETY_MODERATION_ENDPOINT: z.string().default(""),
+  SAFETY_MODERATION_API_KEY: z.string().default(""),
+  SAFETY_MODERATION_TIMEOUT_MS: z.coerce.number().int().min(1).max(600_000).default(3_000),
+  SAFETY_MODERATION_FAIL_CLOSED: booleanString.default("false"),
 
   // API server
   API_PORT: z.coerce.number().int().min(0).max(65535).default(3000),

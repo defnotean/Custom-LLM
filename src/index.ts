@@ -44,6 +44,7 @@ import {
 
 import { SafetyService } from "./safety/SafetyService";
 import { RateLimitService } from "./safety/RateLimitService";
+import { HttpModerationProvider } from "./safety/ModerationProvider";
 import { connectRedisRuntimeState, type RedisRuntimeState } from "./state/RedisRuntimeState";
 import { InMemoryRecentConversationWindow } from "./state/RecentConversationWindow";
 import { TrainingDataLogger } from "./training/TrainingDataLogger";
@@ -129,12 +130,28 @@ async function main(): Promise<void> {
   }
 
   // ── Safety ─────────────────────────────────────────────────────────────
+  const moderationProvider = env.SAFETY_MODERATION_ENDPOINT
+    ? new HttpModerationProvider({
+        endpointUrl: env.SAFETY_MODERATION_ENDPOINT,
+        ...(env.SAFETY_MODERATION_API_KEY ? { apiKey: env.SAFETY_MODERATION_API_KEY } : {}),
+        timeoutMs: env.SAFETY_MODERATION_TIMEOUT_MS,
+      })
+    : undefined;
   const safetyService = new SafetyService(childLogger("safety"), {
     enabled: env.SAFETY_ENABLED,
     rateLimit: new RateLimitService({
       ...(redisRuntimeState ? { store: redisRuntimeState.rateLimitStore } : {}),
     }),
+    ...(moderationProvider ? { moderationProvider, moderationFailClosed: env.SAFETY_MODERATION_FAIL_CLOSED } : {}),
   });
+  logger.info(
+    {
+      safetyEnabled: env.SAFETY_ENABLED,
+      moderationProviderConfigured: Boolean(moderationProvider),
+      moderationFailClosed: env.SAFETY_MODERATION_FAIL_CLOSED,
+    },
+    "safety service ready",
+  );
 
   // ── Tools ──────────────────────────────────────────────────────────────
   const registry = buildToolRegistry();

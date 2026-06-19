@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ModerationRules } from "../src/safety/ModerationRules";
+import type { ModerationProvider } from "../src/safety/ModerationProvider";
 import { RateLimitService } from "../src/safety/RateLimitService";
 import { SafetyService } from "../src/safety/SafetyService";
 import { testLogger } from "./helpers";
@@ -36,10 +37,12 @@ describe("ModerationRules", () => {
 });
 
 describe("SafetyService", () => {
-  function service(): SafetyService {
+  function service(options?: { moderationProvider?: ModerationProvider; moderationFailClosed?: boolean }): SafetyService {
     return new SafetyService(testLogger, {
       enabled: true,
       rateLimit: new RateLimitService({ maxEvents: 100, windowMs: 1_000 }),
+      ...(options?.moderationProvider ? { moderationProvider: options.moderationProvider } : {}),
+      ...(options?.moderationFailClosed !== undefined ? { moderationFailClosed: options.moderationFailClosed } : {}),
     });
   }
 
@@ -65,5 +68,63 @@ describe("SafetyService", () => {
     });
 
     expect(verdict).toEqual({ allowed: true });
+  });
+
+  it("blocks when the optional moderation provider blocks", async () => {
+    const verdict = await service({
+      moderationProvider: {
+        async check() {
+          return { action: "block", reason: "llama_guard:S4", labels: ["S4"] };
+        },
+      },
+    }).precheckMessage({
+      userId: "u1",
+      guildId: "g1",
+      channelId: "c1",
+      content: "ordinary message that the provider owns policy for",
+    });
+
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.reason).toBe("llama_guard:S4");
+    expect(verdict.userReply).toMatch(/llama_guard:S4/);
+  });
+
+  it("fails open by default when the optional moderation provider is unavailable", async () => {
+    const verdict = await service({
+      moderationProvider: {
+        async check() {
+          throw new Error("provider offline");
+        },
+      },
+    }).precheckMessage({
+      userId: "u1",
+      guildId: "g1",
+      channelId: "c1",
+      content: "allowed message",
+    });
+
+    expect(verdict).toEqual({ allowed: true });
+  });
+
+  it("can fail closed when the optional moderation provider is unavailable", async () => {
+    const verdict = await service({
+      moderationFailClosed: true,
+      moderationProvider: {
+        async check() {
+          throw new Error("provider offline");
+        },
+      },
+    }).precheckMessage({
+      userId: "u1",
+      guildId: "g1",
+      channelId: "c1",
+      content: "allowed message",
+    });
+
+    expect(verdict).toEqual({
+      allowed: false,
+      reason: "moderation_provider_unavailable",
+      userReply: "Moderation check is unavailable right now; try again in a bit.",
+    });
   });
 });
