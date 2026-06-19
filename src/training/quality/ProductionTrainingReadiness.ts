@@ -31,6 +31,10 @@ import {
   checkSpecialistRoutingCoverageReadiness,
   type SpecialistRoutingCoverageReadinessReport,
 } from "./SpecialistRoutingCoverageReadiness";
+import {
+  checkVoiceCoverageReadiness,
+  type VoiceCoverageReadinessReport,
+} from "./VoiceCoverageReadiness";
 
 const outputFileSchema = z.object({
   path: z.string().min(1),
@@ -203,6 +207,7 @@ export interface ProductionTrainingReadinessOptions {
   toolEvalReportPath?: string;
   knowledgeEvalReportPath?: string;
   behaviorEvalReportPath?: string;
+  voiceEvalSuitePath?: string;
   voiceEvalReportPath?: string;
   routerEvalSuitePath?: string;
   routerEvalReportPath?: string;
@@ -230,6 +235,7 @@ export interface ProductionTrainingReadinessOptions {
   toolProtocolCoverageMinCases?: number;
   behaviorCoverageMinCases?: number;
   routerCoverageMinCases?: number;
+  voiceCoverageMinCases?: number;
   contaminationTrainPaths?: string[];
   contaminationEvalPaths?: string[];
   contaminationNgramSize?: number;
@@ -297,6 +303,7 @@ const DEFAULTS = {
   toolEvalReportPath: "training/evals/oracle.report.json",
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
   behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
+  voiceEvalSuitePath: "training/evals/voice.eval.jsonl",
   voiceEvalReportPath: "training/evals/voice-oracle.report.json",
   routerEvalSuitePath: "training/evals/specialist-routing.eval.jsonl",
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
@@ -322,6 +329,7 @@ const DEFAULTS = {
   toolProtocolCoverageMinCases: 250,
   behaviorCoverageMinCases: 11,
   routerCoverageMinCases: 18,
+  voiceCoverageMinCases: 12,
   contaminationTrainPaths: DEFAULT_CONTAMINATION_TRAIN_PATHS,
   contaminationEvalPaths: DEFAULT_CONTAMINATION_EVAL_PATHS,
   contaminationNgramSize: 13,
@@ -369,6 +377,7 @@ export async function checkProductionTrainingReadiness(
     toolProtocolCoverageReport,
     behaviorCoverageReport,
     routerCoverageReport,
+    voiceCoverageReport,
     subqArchitectureReport,
     datasetGovernanceReport,
     contaminationReport,
@@ -394,6 +403,10 @@ export async function checkProductionTrainingReadiness(
       checkSpecialistRoutingCoverageReadiness({
         suitePath: config.routerEvalSuitePath,
         minTotalCases: config.routerCoverageMinCases,
+      }),
+      checkVoiceCoverageReadiness({
+        suitePath: config.voiceEvalSuitePath,
+        minTotalCases: config.voiceCoverageMinCases,
       }),
       checkSubquadraticArchitectureReadiness({
         suitePath: config.longContextSuitePath,
@@ -448,6 +461,7 @@ export async function checkProductionTrainingReadiness(
       toolProtocolCoverageReport,
       behaviorCoverageReport,
       routerCoverageReport,
+      voiceCoverageReport,
       subqArchitectureReport,
     ),
   );
@@ -575,6 +589,37 @@ function routerCoverageReadinessCheck(report: SpecialistRoutingCoverageReadiness
         total: report.summary.total,
         byRoute: report.summary.byRoute,
         byExpert: report.summary.byExpert,
+        failingScenarios,
+      });
+}
+
+function voiceCoverageReadinessCheck(report: VoiceCoverageReadinessReport): ReadinessCheck {
+  const failingScenarios = report.scenarios
+    .filter((scenario) => scenario.count < scenario.minCases)
+    .map((scenario) => ({
+      id: scenario.id,
+      description: scenario.description,
+      count: scenario.count,
+      minCases: scenario.minCases,
+      sampleIds: scenario.sampleIds,
+    }));
+  return report.status === "pass"
+    ? pass("voice-coverage", `Voice suite covers ${report.scenarios.length} required Discord voice families`, {
+        total: report.summary.total,
+        byKind: report.summary.byKind,
+        targets: report.summary.targets,
+        voiceResponses: report.summary.voiceResponses,
+        noResponses: report.summary.noResponses,
+        rawAudioRetainedCases: report.summary.rawAudioRetainedCases,
+        trainingQueuedCases: report.summary.trainingQueuedCases,
+        multiSpeakerCases: report.summary.multiSpeakerCases,
+        timingGuardCases: report.summary.timingGuardCases,
+      })
+    : fail("voice-coverage", "Voice suite is missing required Discord voice coverage", {
+        total: report.summary.total,
+        byKind: report.summary.byKind,
+        rawAudioRetainedCases: report.summary.rawAudioRetainedCases,
+        trainingQueuedCases: report.summary.trainingQueuedCases,
         failingScenarios,
       });
 }
@@ -793,6 +838,7 @@ function evalHarnessChecks(
   toolProtocolCoverageReport: ToolProtocolCoverageReadinessReport,
   behaviorCoverageReport: BehaviorCoverageReadinessReport,
   routerCoverageReport: SpecialistRoutingCoverageReadinessReport,
+  voiceCoverageReport: VoiceCoverageReadinessReport,
   subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
@@ -868,6 +914,7 @@ function evalHarnessChecks(
           missingPredictions: voiceReport.missingPredictions,
           failures: voiceReport.failures.length,
         }),
+    voiceCoverageReadinessCheck(voiceCoverageReport),
     routerReport.total >= 18 &&
     routerReport.routeAccuracy >= 0.95 &&
     routerReport.expertAccuracy >= 0.95 &&

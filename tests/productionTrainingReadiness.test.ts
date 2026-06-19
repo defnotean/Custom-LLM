@@ -7,6 +7,7 @@ import { checkProductionTrainingReadiness } from "../src/training/quality/Produc
 import { buildToolRegistry } from "../src/tools";
 import { buildToolEvalCases, type ToolEvalCase } from "../src/training/eval/ToolEvalSuite";
 import { buildBehaviorEvalCases, type BehaviorEvalCase } from "../src/training/eval/BehaviorEvalSuite";
+import { writeVoiceEvalSuite, type VoiceEvalCase } from "../src/training/eval/VoiceEvalSuite";
 import {
   writeSpecialistRoutingEvalSuite,
   type SpecialistRoutingEvalCase,
@@ -37,6 +38,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "behavior-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "behavior-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "voice-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "voice-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "router-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
@@ -148,6 +150,41 @@ describe("ProductionTrainingReadiness", () => {
 
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "behavior-coverage")).toBe("fail");
+  });
+
+  it("fails production readiness when voice coverage is incomplete", async () => {
+    const fixture = await writeFixture({
+      voiceEvalRows: [
+        {
+          id: "voice:transcript:only",
+          kind: "transcription_quality",
+          prompt: "hello voice",
+          input: {
+            guildId: "guild-1",
+            channelId: "voice-1",
+            speakers: [{ userId: "speaker-1", displayName: "Ava" }],
+            utterances: [{ speakerUserId: "speaker-1", startsAtMs: 0, endsAtMs: 1000, transcript: "hello voice" }],
+          },
+          expected: {
+            transcript: "hello voice",
+            speakerUserId: "speaker-1",
+            shouldRespond: true,
+            responseMode: "voice",
+            retainRawAudio: false,
+            queueForTraining: false,
+          },
+          metadata: { target: "command_transcript_without_text_message" },
+        },
+      ],
+    });
+
+    const report = await checkProductionTrainingReadiness({
+      ...fixture.options,
+      voiceCoverageMinCases: 0,
+    });
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "voice-coverage")).toBe("fail");
   });
 
   it("fails production readiness when specialist router coverage is incomplete", async () => {
@@ -305,6 +342,7 @@ describe("ProductionTrainingReadiness", () => {
     const behaviorEvalSuitePath = join(evalDir, "behavior.eval.jsonl");
     const knowledgeEvalReportPath = join(evalDir, "knowledge-oracle.report.json");
     const behaviorEvalReportPath = join(evalDir, "behavior-oracle.report.json");
+    const voiceEvalSuitePath = join(evalDir, "voice.eval.jsonl");
     const voiceEvalReportPath = join(evalDir, "voice-oracle.report.json");
     const routerEvalSuitePath = join(evalDir, "specialist-routing.eval.jsonl");
     const routerEvalReportPath = join(evalDir, "specialist-routing-oracle.report.json");
@@ -393,6 +431,8 @@ describe("ProductionTrainingReadiness", () => {
     });
     await writeJson(memoryContinuityGatePath, overrides.memoryContinuityGate ?? goodMemoryContinuityGate());
     await writeJson(skillRetrievalGatePath, overrides.skillRetrievalGate ?? goodSkillRetrievalGate());
+    if (overrides.voiceEvalRows) await writeJsonl(voiceEvalSuitePath, overrides.voiceEvalRows);
+    else await writeVoiceEvalSuite(voiceEvalSuitePath);
     if (overrides.routerEvalRows) await writeJsonl(routerEvalSuitePath, overrides.routerEvalRows);
     else await writeSpecialistRoutingEvalSuite(routerEvalSuitePath);
     await writeLongContextSuiteFixture(longContextSuitePath);
@@ -448,6 +488,7 @@ describe("ProductionTrainingReadiness", () => {
         toolEvalReportPath,
         knowledgeEvalReportPath,
         behaviorEvalReportPath,
+        voiceEvalSuitePath,
         voiceEvalReportPath,
         routerEvalSuitePath,
         routerEvalReportPath,
@@ -487,6 +528,7 @@ interface FixtureOverrides {
   contaminationEvalRows: unknown[];
   toolEvalRows: ToolEvalCase[];
   behaviorEvalRows: BehaviorEvalCase[];
+  voiceEvalRows: VoiceEvalCase[];
   routerEvalRows: SpecialistRoutingEvalCase[];
 }
 
