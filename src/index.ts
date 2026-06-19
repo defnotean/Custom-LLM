@@ -336,6 +336,10 @@ async function main(): Promise<void> {
     stageParameterModuleFromManifest: parameterModuleStaging
       ? (input) => parameterModuleStaging.stageFromManifest(input)
       : null,
+    buildParameterGrowthPlan: parameterGrowthPlanner ? (options) => parameterGrowthPlanner.buildPlan(options) : null,
+    writeParameterGrowthPlan: parameterGrowthPlanner
+      ? (outDir, options) => parameterGrowthPlanner.writePlan(outDir, options)
+      : null,
     applyParameterHotloadManifest: (input) => parameterHotloadService.apply(input),
     promoteParameterModule: learningRepo ? (id, options) => learningRepo.promoteParameterModule(id, options) : null,
     retireParameterModule: learningRepo ? (id) => learningRepo.retireParameterModule(id) : null,

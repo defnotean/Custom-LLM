@@ -23,6 +23,16 @@ import {
   PARAMETER_MODULE_STAGING_EVAL_KINDS,
   type ParameterModuleStagingEvalKind,
 } from "../../training/parameter/ParameterModuleStagingGate";
+import {
+  applyParameterGrowthPlanGate,
+  type ParameterGrowthGateResult,
+  type ParameterGrowthGateThresholds,
+} from "../../training/parameter/ParameterGrowthPlanGate";
+import type {
+  ParameterGrowthPlan,
+  ParameterGrowthPlannerOptions,
+  WrittenParameterGrowthPlan,
+} from "../../training/parameter/ParameterGrowthPlanner";
 import { toJsonValue, type JsonObject, type LearningStatsPayload } from "../../types/common";
 
 export interface LearningRouteDeps {
@@ -68,6 +78,11 @@ export interface LearningRouteDeps {
   stageParameterModuleFromManifest?: ((
     input: StageParameterModuleFromManifestInput,
   ) => Promise<StageParameterModuleFromManifestResult>) | null;
+  buildParameterGrowthPlan?: ((options?: ParameterGrowthPlannerOptions) => Promise<ParameterGrowthPlan>) | null;
+  writeParameterGrowthPlan?: ((
+    outDir: string,
+    options?: ParameterGrowthPlannerOptions,
+  ) => Promise<WrittenParameterGrowthPlan>) | null;
   applyParameterHotloadManifest?: ((
     input: ApplyParameterModuleHotloadInput,
   ) => Promise<ParameterModuleHotloadApplyReport>) | null;
@@ -103,6 +118,14 @@ const evalReportKindSchema = z.enum([
   "composite",
 ]);
 const stagingEvalKindSchema = z.enum(PARAMETER_MODULE_STAGING_EVAL_KINDS);
+const trainableGrowthKindSettingsSchema = z
+  .object({
+    adapter: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+    router: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+    specialist: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+    expert: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+  })
+  .strict();
 
 const listQuerySchema = z.object({
   kind: kindSchema.optional(),
@@ -214,6 +237,27 @@ const applyParameterHotloadBodySchema = z
     manifestPath: z.string().trim().min(1).max(2_048),
     dryRun: z.boolean().optional(),
     requestId: z.string().trim().min(1).max(256).optional(),
+  })
+  .strict();
+
+const parameterGrowthPlanBodySchema = z
+  .object({
+    outDir: z.string().trim().min(1).max(2_048).optional(),
+    limit: z.number().int().min(1).max(5_000).optional(),
+    minItems: z.number().int().positive().max(5_000).optional(),
+    minItemsByKind: trainableGrowthKindSettingsSchema.optional(),
+    parameterBudgets: trainableGrowthKindSettingsSchema.optional(),
+    gate: z
+      .object({
+        minReadyBatches: z.number().int().nonnegative().max(1_000).optional(),
+        minRecordsPerReadyBatch: z.number().int().nonnegative().max(10_000).optional(),
+        maxEstimatedNewParameters: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+        allowRiskReview: z.boolean().optional(),
+        requiredGates: z.array(z.string().trim().min(1).max(128)).min(1).max(50).optional(),
+      })
+      .strict()
+      .optional(),
+    execute: z.boolean().optional(),
   })
   .strict();
 
@@ -350,6 +394,37 @@ export function registerLearningRoutes(app: FastifyInstance, deps: LearningRoute
       .map((id) => id.trim())
       .filter(Boolean);
     return deps.getParameterSnapshot(selectedModuleIds?.length ? { selectedModuleIds } : undefined);
+  });
+
+  app.post("/learning/parameter-growth/plan", async (request, reply) => {
+    const body = parameterGrowthPlanBodySchema.safeParse(request.body ?? {});
+    if (!body.success) {
+      return reply.status(400).send({ error: "invalid parameter growth plan payload", details: body.error.flatten() });
+    }
+    const execute = body.data.execute ?? false;
+    if (execute && !deps.writeParameterGrowthPlan) {
+      return reply.status(503).send({ error: "parameter growth plan writer disabled" });
+    }
+    if (!execute && !deps.buildParameterGrowthPlan) {
+      return reply.status(503).send({ error: "parameter growth planner disabled" });
+    }
+
+    const plannerOptions = toParameterGrowthPlannerOptions(body.data);
+    const written = execute
+      ? await deps.writeParameterGrowthPlan!(body.data.outDir ?? "training/plans/parameter-growth", plannerOptions)
+      : undefined;
+    const plan = written?.plan ?? (await deps.buildParameterGrowthPlan!(plannerOptions));
+    const gateReport = applyParameterGrowthPlanGate({ plan, thresholds: toParameterGrowthGateThresholds(body.data.gate) });
+    return {
+      runtimeContract: "parameter-growth-plan-run-v1",
+      status: execute ? "written" : "planned",
+      generatedAt: new Date().toISOString(),
+      dryRun: !execute,
+      ...(written ? { path: written.path, latestPath: written.latestPath } : {}),
+      plan,
+      gateReport,
+      nextActions: parameterGrowthPlanNextActions(plan, gateReport, Boolean(written)),
+    };
   });
 
   app.get("/learning/parameter-modules", async (request, reply) => {
@@ -691,6 +766,64 @@ function queueSkipReasonFor(
     return "learning item is not approved or high-confidence enough for training";
   }
   return null;
+}
+
+type ParameterGrowthPlanBody = z.infer<typeof parameterGrowthPlanBodySchema>;
+type ParameterGrowthGateBody = NonNullable<ParameterGrowthPlanBody["gate"]>;
+
+function toParameterGrowthPlannerOptions(input: ParameterGrowthPlanBody): ParameterGrowthPlannerOptions {
+  const minItemsByKind = input.minItems
+    ? {
+        adapter: input.minItems,
+        router: input.minItems,
+        specialist: input.minItems,
+        expert: input.minItems,
+      }
+    : stripUndefined(input.minItemsByKind);
+  return {
+    ...(input.limit !== undefined ? { limit: input.limit } : {}),
+    ...(minItemsByKind ? { minItemsByKind } : {}),
+    ...(input.parameterBudgets ? { parameterBudgets: stripUndefined(input.parameterBudgets) } : {}),
+  };
+}
+
+function toParameterGrowthGateThresholds(input: ParameterGrowthGateBody | undefined): Partial<ParameterGrowthGateThresholds> {
+  if (!input) return {};
+  return {
+    ...(input.minReadyBatches !== undefined ? { minReadyBatches: input.minReadyBatches } : {}),
+    ...(input.minRecordsPerReadyBatch !== undefined ? { minRecordsPerReadyBatch: input.minRecordsPerReadyBatch } : {}),
+    ...(input.maxEstimatedNewParameters !== undefined ? { maxEstimatedNewParameters: input.maxEstimatedNewParameters } : {}),
+    ...(input.allowRiskReview !== undefined ? { requireRiskReview: !input.allowRiskReview } : {}),
+    ...(input.requiredGates ? { requiredGateRequirements: input.requiredGates } : {}),
+  };
+}
+
+function parameterGrowthPlanNextActions(
+  plan: ParameterGrowthPlan,
+  gateReport: ParameterGrowthGateResult,
+  written: boolean,
+): string[] {
+  if (gateReport.status !== "pass") {
+    return [
+      "review gate failures before building parameter-growth datasets",
+      "batch-review and queue more approved trainable learned items if the plan needs more data",
+    ];
+  }
+  return written
+    ? [
+        "run npm run build:parameter-growth-data against the written latest plan",
+        "run npm run check:parameter-growth-data before dispatching trainer compute",
+      ]
+    : [
+        "rerun with execute:true to write the parameter-growth plan",
+        "then build and check parameter-growth data before trainer dispatch",
+      ];
+}
+
+function stripUndefined<T extends Record<string, unknown>>(value: T | undefined): Partial<T> | undefined {
+  if (!value) return undefined;
+  const entries = Object.entries(value).filter((entry): entry is [string, Exclude<T[keyof T], undefined>] => entry[1] !== undefined);
+  return entries.length > 0 ? Object.fromEntries(entries) as Partial<T> : undefined;
 }
 
 function parameterMutationError(reply: FastifyReply, err: unknown) {

@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 import { registerLearningRoutes } from "../src/server/routes/learning";
 import type { LearnedItem, ParameterModule } from "../src/learning/LiveLearningRegistry";
+import type { ParameterGrowthPlan } from "../src/training/parameter/ParameterGrowthPlanner";
 
 describe("learning routes", () => {
   it("returns live learning and parameter-growth status", async () => {
@@ -430,6 +431,116 @@ describe("learning routes", () => {
     await app.close();
   });
 
+  it("dry-runs on-demand parameter-growth planning with a gate report", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      buildParameterGrowthPlan: async (options) => {
+        calls.push({ method: "build", options });
+        return parameterGrowthPlan();
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-growth/plan",
+      payload: {
+        limit: 50,
+        minItems: 2,
+        gate: { allowRiskReview: true, requiredGates: ["contamination", "parameter_growth", "training_report"] },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      runtimeContract: "parameter-growth-plan-run-v1",
+      status: "planned",
+      dryRun: true,
+      plan: { id: "parameter-growth-fixture", status: "ready", summary: { readyBatches: 1 } },
+      gateReport: { status: "pass", summary: { planId: "parameter-growth-fixture" } },
+      nextActions: expect.arrayContaining(["rerun with execute:true to write the parameter-growth plan"]),
+    });
+    expect(calls).toEqual([
+      {
+        method: "build",
+        options: {
+          limit: 50,
+          minItemsByKind: { adapter: 2, router: 2, specialist: 2, expert: 2 },
+        },
+      },
+    ]);
+    await app.close();
+  });
+
+  it("writes on-demand parameter-growth plans only when execute is explicit", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      writeParameterGrowthPlan: async (outDir, options) => {
+        calls.push({ method: "write", outDir, options });
+        return {
+          path: `${outDir}/parameter-growth-fixture.json`,
+          latestPath: `${outDir}/latest.json`,
+          plan: parameterGrowthPlan(),
+        };
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-growth/plan",
+      payload: {
+        outDir: "training/plans/parameter-growth",
+        limit: 25,
+        parameterBudgets: { expert: 500000 },
+        gate: { allowRiskReview: true },
+        execute: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "written",
+      dryRun: false,
+      path: "training/plans/parameter-growth/parameter-growth-fixture.json",
+      latestPath: "training/plans/parameter-growth/latest.json",
+      gateReport: { status: "pass" },
+      nextActions: expect.arrayContaining(["run npm run build:parameter-growth-data against the written latest plan"]),
+    });
+    expect(calls).toEqual([
+      {
+        method: "write",
+        outDir: "training/plans/parameter-growth",
+        options: { limit: 25, parameterBudgets: { expert: 500000 } },
+      },
+    ]);
+    await app.close();
+  });
+
+  it("reports unavailable parameter-growth planning when the planner is not configured", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, { getStats: null });
+
+    const dryRun = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-growth/plan",
+      payload: { limit: 25 },
+    });
+    const execute = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-growth/plan",
+      payload: { execute: true },
+    });
+
+    expect(dryRun.statusCode).toBe(503);
+    expect(dryRun.json()).toEqual({ error: "parameter growth planner disabled" });
+    expect(execute.statusCode).toBe(503);
+    expect(execute.json()).toEqual({ error: "parameter growth plan writer disabled" });
+    await app.close();
+  });
+
   it("stages parameter modules from a verified staging manifest", async () => {
     const app = Fastify({ logger: false });
     const calls: unknown[] = [];
@@ -709,5 +820,63 @@ function parameterModule(overrides: Partial<ParameterModule> = {}): ParameterMod
     createdAt: "2026-06-18T15:00:00.000Z",
     metadata: {},
     ...overrides,
+  };
+}
+
+function parameterGrowthPlan(overrides: Partial<ParameterGrowthPlan> = {}): ParameterGrowthPlan {
+  return {
+    id: "parameter-growth-fixture",
+    generatedAt: "2026-06-18T16:30:00.000Z",
+    status: "ready",
+    summary: {
+      queuedCandidates: 2,
+      trainableCandidates: 2,
+      blockedCandidates: 0,
+      batches: 1,
+      readyBatches: 1,
+      estimatedNewParameters: 775_358,
+    },
+    batches: [
+      {
+        id: "growth-batch-expert-ping",
+        status: "ready",
+        purpose: "tool skill expert for ping",
+        targetKind: "expert",
+        route: "ping",
+        moduleName: "irene-expert-ping",
+        datasetId: "learned-expert-ping",
+        estimatedNewParameters: 775_358,
+        activeParameters: 775_358,
+        trainableParameters: 775_358,
+        sourceLearningItemIds: ["skill-1", "skill-2"],
+        sourceKinds: ["skill"],
+        datasetHashes: ["hash-1", "hash-2"],
+        records: [
+          planRecord("skill-1", "hash-1"),
+          planRecord("skill-2", "hash-2"),
+        ],
+        gateRequirements: ["contamination", "parameter_growth", "skill", "training_report"],
+        riskFlags: [],
+        blockers: [],
+        nextActions: ["export reviewed source rows into a training split"],
+      },
+    ],
+    blockedCandidates: [],
+    assumptions: ["fixture"],
+    ...overrides,
+  };
+}
+
+function planRecord(itemId: string, contentHash: string): ParameterGrowthPlan["batches"][number]["records"][number] {
+  return {
+    itemId,
+    kind: "skill",
+    source: "tool_trace",
+    confidence: 0.95,
+    contentHash,
+    metadataHash: `${contentHash}-metadata`,
+    canRetrieve: true,
+    canTrain: true,
+    contentPreview: "use ping tool with checked arguments",
   };
 }
