@@ -1,0 +1,46 @@
+{
+  "status": "fail",
+  "thresholds": {
+    "minTotalCases": 18,
+    "minRouteAccuracy": 0.95,
+    "minExpertAccuracy": 0.95,
+    "minToolVsNonToolAccuracy": 1,
+    "maxMissingPredictions": 0,
+    "maxInvalidPredictions": 0,
+    "maxRouteAccuracyRegression": 0.02,
+    "maxExpertAccuracyRegression": 0.02
+  },
+  "candidate": {
+    "suitePath": "training/evals/specialist-routing.eval.jsonl",
+    "predictionsPath": "training/evals/tiny-transformer-router-iter2.det.predictions.jsonl",
+    "total": 18,
+    "routeAccuracy": 0.611111,
+    "expertAccuracy": 0.722222,
+    "toolVsNonToolAccuracy": 0.888889,
+    "missingPredictions": 0,
+    "invalidPredictions": 0,
+    "failures": 7,
+    "latencyP95Ms": 1408.3
+  },
+  "failures": [
+    {
+      "metric": "routeAccuracy",
+      "actual": 0.611111,
+      "expected": ">= 0.95",
+      "message": "routeAccuracy below threshold"
+    },
+    {
+      "metric": "expertAccuracy",
+      "actual": 0.722222,
+      "expected": ">= 0.95",
+      "message": "expertAccuracy below threshold"
+    },
+    {
+      "metric": "toolVsNonToolAccuracy",
+      "actual": 0.888889,
+      "expected": ">= 1",
+      "message": "toolVsNonToolAccuracy below threshold"
+    }
+  ],
+  "warnings": []
+}

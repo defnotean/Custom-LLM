@@ -41,7 +41,7 @@ describe("BehaviorRouterIterationReadiness", () => {
     expect(checkStatus(report.checks, "router-assistant-json-schema")).toBe("pass");
     expect(checkStatus(report.checks, "behavior-current-failure-target")).toBe("pass");
     expect(checkStatus(report.checks, "router-current-failure-target")).toBe("pass");
-    expect(report.nextActions.join(" ")).toContain("behavior/router iteration-2 training");
+    expect(report.nextActions.join(" ")).toContain("next behavior/router scratch training");
   });
 
   it("fails when data overlaps held-out evals or breaks strict JSON contracts", async () => {

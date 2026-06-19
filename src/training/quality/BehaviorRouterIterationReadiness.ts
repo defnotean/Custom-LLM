@@ -44,10 +44,10 @@ export interface BehaviorRouterIterationCheck {
 const DEFAULTS = {
   behaviorDatasetPath: "training/data/behavior/sft.all.jsonl",
   behaviorEvalSuitePath: "training/evals/behavior.eval.jsonl",
-  behaviorGatePath: "training/evals/tiny-transformer-behavior-iter1.gate.json",
+  behaviorGatePath: "training/evals/tiny-transformer-behavior-iter2.det.gate.json",
   routerDatasetPath: "training/data/router/sft.all.jsonl",
   routerEvalSuitePath: "training/evals/specialist-routing.eval.jsonl",
-  routerGatePath: "training/evals/tiny-transformer-router-iter1.gate.json",
+  routerGatePath: "training/evals/tiny-transformer-router-iter2.det.gate.json",
   minBehaviorRecords: 56,
   minRouterRecords: 42,
   minRecordsPerBehaviorRoute: 4,
@@ -406,7 +406,7 @@ function nextActions(status: BehaviorRouterIterationStatus, behaviorFailures: st
   return [
     `Behavior iteration targets current failed metrics: ${behaviorFailures.join(", ") || "none"}.`,
     `Router iteration targets current failed metrics: ${routerFailures.join(", ") || "none"}.`,
-    "After this preflight, run the planned behavior/router iteration-2 training commands and attach direct eval gate evidence before promotion.",
+    "After this preflight, run the planned next behavior/router scratch training commands and attach direct eval gate evidence before promotion.",
   ];
 }
 

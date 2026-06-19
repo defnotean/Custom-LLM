@@ -116,8 +116,8 @@ const DEFAULTS = {
   runRoot: "training/runs",
   plannedProductionBaseParams: 4_000_000_000,
   toolProtocolGatePath: "training/evals/tiny-transformer-protocol-iter16.clean.det.tool.gate.json",
-  behaviorScratchGatePath: "training/evals/tiny-transformer-behavior-iter1.gate.json",
-  routerScratchGatePath: "training/evals/tiny-transformer-router-iter1.gate.json",
+  behaviorScratchGatePath: "training/evals/tiny-transformer-behavior-iter2.det.gate.json",
+  routerScratchGatePath: "training/evals/tiny-transformer-router-iter2.det.gate.json",
   toolRouterGatePath: "training/evals/tool-router-keyword.gate.json",
   memoryContinuityGatePath: "training/evals/memory-continuity.gate.json",
   skillRetrievalGatePath: "training/evals/skill-retrieval.gate.json",
@@ -162,8 +162,8 @@ export async function buildIreneSystemStatusReport(
     null,
   );
   const bestProtocol = findRun(runsByName, "tiny-transformer-protocol-iter16");
-  const behaviorRun = findRun(runsByName, "tiny-transformer-behavior-iter1");
-  const routerRun = findRun(runsByName, "tiny-transformer-router-iter1");
+  const behaviorRun = findLatestRunByPrefix(scratchRuns, "tiny-transformer-behavior-iter");
+  const routerRun = findLatestRunByPrefix(scratchRuns, "tiny-transformer-router-iter");
 
   const [
     toolProtocolGate,
@@ -521,8 +521,14 @@ function buildNextActions(
   if (surfaces.find((surface) => surface.id === "behavior_scratch")?.status === "fail") {
     actions.push("Fix behavior/persona JSON stability before judging social quality.");
   }
-  if (surfaces.find((surface) => surface.id === "router_scratch")?.status === "fail") {
-    actions.push("Train or replace the route classifier until invalid route predictions are zero.");
+  const routerSurface = surfaces.find((surface) => surface.id === "router_scratch");
+  if (routerSurface?.status === "fail") {
+    const invalidPredictions = routerSurface.metrics.invalidPredictions;
+    actions.push(
+      invalidPredictions === 0
+        ? "Improve route and expert accuracy now that router JSON validity is stable."
+        : "Train or replace the route classifier until invalid route predictions are zero.",
+    );
   }
   if (surfaces.find((surface) => surface.id === "tool_protocol_scratch")?.status === "pass") {
     actions.push("Keep expanding BFCL-style tool cases so the perfect-tool-call target stays measurable.");
@@ -538,6 +544,24 @@ function buildNextActions(
 
 function findRun(runsByName: Map<string, ScratchRunSummary>, runName: string): ScratchRunSummary | null {
   return runsByName.get(runName) ?? null;
+}
+
+function findLatestRunByPrefix(runs: ScratchRunSummary[], prefix: string): ScratchRunSummary | null {
+  const candidates = runs.filter((run) => run.runName.startsWith(prefix));
+  if (candidates.length === 0) return null;
+  return [...candidates].sort((a, b) => compareRunIteration(b.runName, a.runName) || b.parameters - a.parameters)[0] ?? null;
+}
+
+function compareRunIteration(left: string, right: string): number {
+  const leftIteration = trailingIteration(left);
+  const rightIteration = trailingIteration(right);
+  if (leftIteration !== rightIteration) return leftIteration - rightIteration;
+  return left.localeCompare(right);
+}
+
+function trailingIteration(runName: string): number {
+  const match = /(?:^|-)iter(\d+)$/u.exec(runName);
+  return match ? Number(match[1]) : -1;
 }
 
 function metricValue(candidate: Record<string, unknown>, metric: string): number | string | null {

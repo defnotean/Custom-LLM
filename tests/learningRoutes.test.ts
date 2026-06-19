@@ -1150,8 +1150,8 @@ function ireneStatusReport(overrides: Partial<IreneSystemStatusReport> = {}): Ir
       largestScratchCheckpointRun: "tiny-transformer-iter3",
       bestProtocolScratchParams: 775_358,
       bestProtocolScratchRun: "tiny-transformer-protocol-iter16",
-      behaviorScratchParams: 392_619,
-      routerScratchParams: 343_050,
+      behaviorScratchParams: 819_819,
+      routerScratchParams: 753_802,
     },
     learning: {
       enabled: true,
