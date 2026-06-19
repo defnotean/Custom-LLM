@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join } from "node:path";
 import type { ParameterModuleKind } from "../../learning/LiveLearningRegistry";
@@ -14,7 +15,7 @@ import {
   type ParameterTrainerDispatchRequest,
 } from "./ParameterTrainerDispatchService";
 
-export type ParameterTrainerRunnerMode = "plan" | "import-artifacts";
+export type ParameterTrainerRunnerMode = "plan" | "execute-training" | "import-artifacts";
 export type ParameterTrainerRunnerFramework = "axolotl" | "unsloth" | "custom";
 
 export interface ParameterTrainerRunnerArtifactInput {
@@ -33,6 +34,13 @@ export interface ParameterTrainerRunnerOptions {
   requestPath: string;
   mode?: ParameterTrainerRunnerMode;
   framework?: ParameterTrainerRunnerFramework;
+  execute?: boolean;
+  command?: string;
+  commandArgs?: string[];
+  cwd?: string;
+  timeoutMs?: number;
+  env?: Record<string, string>;
+  trainingReportPath?: string;
   artifactDir?: string;
   artifacts?: ParameterTrainerRunnerArtifactInput[];
   evalReports?: ParameterTrainerRunnerEvalReportInput[];
@@ -48,13 +56,18 @@ export interface ParameterTrainerRunnerOptions {
 }
 
 export interface ParameterTrainerRunnerReport {
-  status: "planned" | "staged";
+  status: "planned" | "training_dry_run" | "trained" | "staged";
   generatedAt: string;
   mode: ParameterTrainerRunnerMode;
   framework: ParameterTrainerRunnerFramework;
   requestId: string;
   trainerProfile: string;
   planPath: string;
+  trainingCommand?: ParameterTrainerRunnerCommandReport;
+  trainingReportPath?: string;
+  stdoutPath?: string;
+  stderrPath?: string;
+  exitCode?: number | null;
   stagingManifestPath?: string;
   moduleName?: string;
   moduleKind?: ParameterModuleKind;
@@ -64,6 +77,34 @@ export interface ParameterTrainerRunnerReport {
 
 const DEFAULT_FRAMEWORK: ParameterTrainerRunnerFramework = "axolotl";
 const ARCHITECTURE_TARGET = "subquadratic-sparse-attention";
+const DEFAULT_TRAINING_TIMEOUT_MS = 6 * 60 * 60 * 1000;
+
+interface ParameterTrainerRunnerCommandSpec {
+  command: string;
+  args: string[];
+  cwd: string;
+  timeoutMs: number;
+  env: Record<string, string>;
+}
+
+interface ParameterTrainerRunnerCommandResult {
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  timedOut: boolean;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  stdoutPath: string;
+  stderrPath: string;
+}
+
+export interface ParameterTrainerRunnerCommandReport {
+  command: string;
+  args: string[];
+  cwd: string;
+  timeoutMs: number;
+  envKeys: string[];
+}
 
 export async function runParameterTrainer(options: ParameterTrainerRunnerOptions): Promise<ParameterTrainerRunnerReport> {
   const mode = options.mode ?? "plan";
@@ -92,6 +133,58 @@ export async function runParameterTrainer(options: ParameterTrainerRunnerOptions
       requestId: request.requestId,
       trainerProfile: request.trainerProfile,
       planPath,
+    };
+  }
+
+  if (mode === "execute-training") {
+    const command = buildTrainingCommand({
+      request,
+      requestPath: options.requestPath,
+      options,
+      framework,
+    });
+    const trainingReportPath = options.trainingReportPath ?? join(request.expectedOutput.runDir, "trainer-execution-report.json");
+    if (!options.execute) {
+      await writeFile(
+        trainingReportPath,
+        `${JSON.stringify(buildTrainingExecutionPlan({ request, command, framework, generatedAt }), null, 2)}\n`,
+        "utf8",
+      );
+      return {
+        status: "training_dry_run",
+        generatedAt,
+        mode,
+        framework,
+        requestId: request.requestId,
+        trainerProfile: request.trainerProfile,
+        planPath,
+        trainingCommand: commandReport(command),
+        trainingReportPath,
+      };
+    }
+
+    const result = await executeTrainingCommand(command, request.expectedOutput.runDir);
+    await writeFile(
+      trainingReportPath,
+      `${JSON.stringify(buildTrainingExecutionReport({ request, command, result, framework, generatedAt }), null, 2)}\n`,
+      "utf8",
+    );
+    if (result.timedOut || result.exitCode !== 0) {
+      throw new Error(`parameter trainer command failed; see ${trainingReportPath}`);
+    }
+    return {
+      status: "trained",
+      generatedAt,
+      mode,
+      framework,
+      requestId: request.requestId,
+      trainerProfile: request.trainerProfile,
+      planPath,
+      trainingCommand: commandReport(command),
+      trainingReportPath,
+      stdoutPath: result.stdoutPath,
+      stderrPath: result.stderrPath,
+      exitCode: result.exitCode,
     };
   }
 
@@ -175,6 +268,7 @@ function suggestedCommands(
     return [
       "npm run check:subq-architecture",
       "npm run check:production-readiness",
+      `npm run run:parameter-trainer -- --request ${request.expectedOutput.runDir}/trainer-dispatch-request.json --mode execute-training --framework axolotl`,
       "axolotl train training/configs/axolotl/qwen3-qlora-sft.yaml",
       `npm run run:parameter-trainer -- --request ${request.expectedOutput.runDir}/trainer-dispatch-request.json --mode import-artifacts --framework axolotl --artifact-dir training/runs/qwen3-qlora-sft --rollback-target-id <module-id> ...`,
     ];
@@ -183,11 +277,170 @@ function suggestedCommands(
     return [
       "npm run check:subq-architecture",
       "npm run check:production-readiness",
+      `npm run run:parameter-trainer -- --request ${request.expectedOutput.runDir}/trainer-dispatch-request.json --mode execute-training --framework unsloth`,
       "python training/configs/unsloth/qwen3_qlora_sft.py",
       `npm run run:parameter-trainer -- --request ${request.expectedOutput.runDir}/trainer-dispatch-request.json --mode import-artifacts --framework unsloth --artifact-dir training/runs/unsloth-qwen3-qlora-sft --rollback-target-id <module-id> ...`,
     ];
   }
   return ["Run the configured private trainer, then re-run this script in import-artifacts mode."];
+}
+
+function buildTrainingCommand(input: {
+  request: ParameterTrainerDispatchRequest;
+  requestPath: string;
+  options: ParameterTrainerRunnerOptions;
+  framework: ParameterTrainerRunnerFramework;
+}): ParameterTrainerRunnerCommandSpec {
+  const defaults = defaultTrainingCommand(input.framework);
+  const command = input.options.command ?? defaults?.command;
+  if (!command) throw new Error("--command is required for custom execute-training runs");
+  const args = input.options.commandArgs ?? defaults?.args ?? [];
+  return {
+    command,
+    args,
+    cwd: input.options.cwd ?? process.cwd(),
+    timeoutMs: input.options.timeoutMs ?? DEFAULT_TRAINING_TIMEOUT_MS,
+    env: {
+      PARAMETER_TRAINER_REQUEST_PATH: input.requestPath,
+      PARAMETER_TRAINER_REQUEST_ID: input.request.requestId,
+      PARAMETER_TRAINER_PROFILE: input.request.trainerProfile,
+      PARAMETER_TRAINER_DATASET_MANIFEST_PATH: input.request.datasetManifestPath,
+      PARAMETER_TRAINER_RUN_DIR: input.request.expectedOutput.runDir,
+      PARAMETER_TRAINER_STAGING_MANIFEST_PATH: input.request.expectedOutput.stagingManifestPath,
+      PARAMETER_TRAINER_FRAMEWORK: input.framework,
+      PARAMETER_TRAINER_ARCHITECTURE_TARGET: ARCHITECTURE_TARGET,
+      ...(input.options.env ?? {}),
+    },
+  };
+}
+
+function defaultTrainingCommand(
+  framework: ParameterTrainerRunnerFramework,
+): { command: string; args: string[] } | undefined {
+  if (framework === "axolotl") return { command: "axolotl", args: ["train", "training/configs/axolotl/qwen3-qlora-sft.yaml"] };
+  if (framework === "unsloth") return { command: "python", args: ["training/configs/unsloth/qwen3_qlora_sft.py"] };
+  return undefined;
+}
+
+function buildTrainingExecutionPlan(input: {
+  request: ParameterTrainerDispatchRequest;
+  command: ParameterTrainerRunnerCommandSpec;
+  framework: ParameterTrainerRunnerFramework;
+  generatedAt: string;
+}): Record<string, unknown> {
+  return {
+    runtimeContract: "parameter-trainer-execution-plan-v1",
+    status: "dry_run",
+    generatedAt: input.generatedAt,
+    requestId: input.request.requestId,
+    trainerProfile: input.request.trainerProfile,
+    datasetManifestPath: input.request.datasetManifestPath,
+    runDir: input.request.expectedOutput.runDir,
+    stagingManifestPath: input.request.expectedOutput.stagingManifestPath,
+    framework: input.framework,
+    architectureTarget: ARCHITECTURE_TARGET,
+    command: commandReport(input.command),
+    note: "Dry run only. Re-run with --execute after preflight gates pass to launch training.",
+  };
+}
+
+function buildTrainingExecutionReport(input: {
+  request: ParameterTrainerDispatchRequest;
+  command: ParameterTrainerRunnerCommandSpec;
+  result: ParameterTrainerRunnerCommandResult;
+  framework: ParameterTrainerRunnerFramework;
+  generatedAt: string;
+}): Record<string, unknown> {
+  return {
+    runtimeContract: "parameter-trainer-execution-report-v1",
+    status: input.result.timedOut || input.result.exitCode !== 0 ? "fail" : "pass",
+    generatedAt: input.generatedAt,
+    requestId: input.request.requestId,
+    trainerProfile: input.request.trainerProfile,
+    datasetManifestPath: input.request.datasetManifestPath,
+    runDir: input.request.expectedOutput.runDir,
+    stagingManifestPath: input.request.expectedOutput.stagingManifestPath,
+    framework: input.framework,
+    architectureTarget: ARCHITECTURE_TARGET,
+    command: commandReport(input.command),
+    result: {
+      exitCode: input.result.exitCode,
+      signal: input.result.signal,
+      timedOut: input.result.timedOut,
+      durationMs: input.result.durationMs,
+      stdoutPath: input.result.stdoutPath,
+      stderrPath: input.result.stderrPath,
+    },
+  };
+}
+
+async function executeTrainingCommand(
+  command: ParameterTrainerRunnerCommandSpec,
+  runDir: string,
+): Promise<ParameterTrainerRunnerCommandResult> {
+  await mkdir(runDir, { recursive: true });
+  const stdoutPath = join(runDir, "trainer-stdout.log");
+  const stderrPath = join(runDir, "trainer-stderr.log");
+  const startedAt = Date.now();
+  const childEnv: NodeJS.ProcessEnv = { ...process.env, ...command.env };
+
+  return new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    const child = spawn(command.command, command.args, {
+      cwd: command.cwd,
+      env: childEnv,
+      shell: false,
+      windowsHide: true,
+    });
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, command.timeoutMs);
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+    child.on("close", (exitCode, signal) => {
+      clearTimeout(timeout);
+      const durationMs = Date.now() - startedAt;
+      void Promise.all([
+        writeFile(stdoutPath, stdout, "utf8"),
+        writeFile(stderrPath, stderr, "utf8"),
+      ])
+        .then(() =>
+          resolve({
+            exitCode,
+            signal,
+            timedOut,
+            stdout,
+            stderr,
+            durationMs,
+            stdoutPath,
+            stderrPath,
+          }),
+        )
+        .catch(reject);
+    });
+  });
+}
+
+function commandReport(command: ParameterTrainerRunnerCommandSpec): ParameterTrainerRunnerCommandReport {
+  return {
+    command: command.command,
+    args: command.args,
+    cwd: command.cwd,
+    timeoutMs: command.timeoutMs,
+    envKeys: Object.keys(command.env).sort(),
+  };
 }
 
 async function buildStagingManifest(input: {

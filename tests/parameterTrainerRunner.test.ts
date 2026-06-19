@@ -54,6 +54,74 @@ describe("ParameterTrainerRunner", () => {
     expect(await exists(fixture.request.expectedOutput.stagingManifestPath)).toBe(false);
   });
 
+  it("dry-runs a training command without launching it", async () => {
+    const fixture = await writeFixture();
+
+    const report = await runParameterTrainer({
+      requestPath: fixture.requestPath,
+      mode: "execute-training",
+      framework: "custom",
+      command: process.execPath,
+      commandArgs: ["-e", "console.log('should not run')"],
+      now: () => "2026-06-19T00:17:00.000Z",
+    });
+    const executionPlan = JSON.parse(await readFile(requirePath(report.trainingReportPath), "utf8")) as Record<string, unknown>;
+
+    expect(report).toMatchObject({
+      status: "training_dry_run",
+      mode: "execute-training",
+      framework: "custom",
+      trainingCommand: {
+        command: process.execPath,
+        args: ["-e", "console.log('should not run')"],
+        envKeys: expect.arrayContaining(["PARAMETER_TRAINER_ARCHITECTURE_TARGET"]),
+      },
+    });
+    expect(executionPlan).toMatchObject({
+      runtimeContract: "parameter-trainer-execution-plan-v1",
+      status: "dry_run",
+      architectureTarget: "subquadratic-sparse-attention",
+    });
+    expect(await exists(join(fixture.request.expectedOutput.runDir, "trainer-stdout.log"))).toBe(false);
+  });
+
+  it("executes an explicit training command and writes logs plus a training report", async () => {
+    const fixture = await writeFixture();
+
+    const report = await runParameterTrainer({
+      requestPath: fixture.requestPath,
+      mode: "execute-training",
+      framework: "custom",
+      execute: true,
+      command: process.execPath,
+      commandArgs: ["-e", "console.log(process.env.PARAMETER_TRAINER_ARCHITECTURE_TARGET)"],
+      timeoutMs: 10_000,
+      now: () => "2026-06-19T00:18:00.000Z",
+    });
+    const stdout = await readFile(requirePath(report.stdoutPath), "utf8");
+    const executionReport = JSON.parse(await readFile(requirePath(report.trainingReportPath), "utf8")) as Record<string, unknown>;
+
+    expect(report).toMatchObject({
+      status: "trained",
+      mode: "execute-training",
+      framework: "custom",
+      exitCode: 0,
+    });
+    expect(stdout.trim()).toBe("subquadratic-sparse-attention");
+    expect(executionReport).toMatchObject({
+      runtimeContract: "parameter-trainer-execution-report-v1",
+      status: "pass",
+      architectureTarget: "subquadratic-sparse-attention",
+      result: {
+        exitCode: 0,
+        timedOut: false,
+        stdoutPath: report.stdoutPath,
+        stderrPath: report.stderrPath,
+      },
+    });
+    expect(await exists(fixture.request.expectedOutput.stagingManifestPath)).toBe(false);
+  });
+
   it("imports trusted trainer artifacts into a staging manifest", async () => {
     const fixture = await writeFixture();
     const artifactDir = join(fixture.dir, "artifacts");
@@ -251,4 +319,9 @@ async function fileInfo(path: string): Promise<{ bytes: number; sha256: string }
 
 function hashText(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function requirePath(path: string | undefined): string {
+  if (!path) throw new Error("expected path to be present");
+  return path;
 }

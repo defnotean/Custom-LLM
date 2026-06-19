@@ -13,6 +13,13 @@ interface Args {
   requestPath: string;
   mode: ParameterTrainerRunnerMode;
   framework: ParameterTrainerRunnerFramework;
+  execute: boolean;
+  command?: string;
+  commandArgs: string[];
+  cwd?: string;
+  timeoutMs?: number;
+  env: Record<string, string>;
+  trainingReportPath?: string;
   artifactDir?: string;
   artifacts: ParameterTrainerRunnerArtifactInput[];
   evalReports: ParameterTrainerRunnerEvalReportInput[];
@@ -37,6 +44,13 @@ async function main(): Promise<void> {
     requestPath: args.requestPath,
     mode: args.mode,
     framework: args.framework,
+    execute: args.execute,
+    ...(args.command ? { command: args.command } : {}),
+    ...(args.commandArgs.length > 0 ? { commandArgs: args.commandArgs } : {}),
+    ...(args.cwd ? { cwd: args.cwd } : {}),
+    ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
+    env: args.env,
+    ...(args.trainingReportPath ? { trainingReportPath: args.trainingReportPath } : {}),
     ...(args.artifactDir ? { artifactDir: args.artifactDir } : {}),
     artifacts: args.artifacts,
     evalReports: args.evalReports,
@@ -59,6 +73,13 @@ function parseArgs(argv: string[]): Args {
   let requestPath = process.env.PARAMETER_TRAINER_REQUEST_PATH ?? "training/runs/parameter-modules/latest/trainer-dispatch-request.json";
   let mode: ParameterTrainerRunnerMode = "plan";
   let framework: ParameterTrainerRunnerFramework = "axolotl";
+  let execute = false;
+  let command: string | undefined;
+  const commandArgs: string[] = [];
+  let cwd: string | undefined;
+  let timeoutMs: number | undefined;
+  const env: Record<string, string> = {};
+  let trainingReportPath: string | undefined;
   let artifactDir: string | undefined;
   const artifacts: ParameterTrainerRunnerArtifactInput[] = [];
   const evalReports: ParameterTrainerRunnerEvalReportInput[] = [];
@@ -77,6 +98,13 @@ function parseArgs(argv: string[]): Args {
     if (arg === "--request") requestPath = requireValue(argv[++index], arg);
     else if (arg === "--mode") mode = parseChoice(requireValue(argv[++index], arg), RUNNER_MODES, arg);
     else if (arg === "--framework") framework = parseChoice(requireValue(argv[++index], arg), FRAMEWORKS, arg);
+    else if (arg === "--execute") execute = true;
+    else if (arg === "--command") command = requireValue(argv[++index], arg);
+    else if (arg === "--arg") commandArgs.push(requireValue(argv[++index], arg));
+    else if (arg === "--cwd") cwd = requireValue(argv[++index], arg);
+    else if (arg === "--timeout-ms") timeoutMs = parsePositiveInteger(argv[++index], arg);
+    else if (arg === "--env") Object.assign(env, parseEnv(requireValue(argv[++index], arg)));
+    else if (arg === "--training-report") trainingReportPath = requireValue(argv[++index], arg);
     else if (arg === "--artifact-dir") artifactDir = requireValue(argv[++index], arg);
     else if (arg === "--artifact") artifacts.push(parseArtifact(requireValue(argv[++index], arg)));
     else if (arg === "--eval-report") evalReports.push(parseEvalReport(requireValue(argv[++index], arg)));
@@ -96,6 +124,13 @@ function parseArgs(argv: string[]): Args {
     requestPath,
     mode,
     framework,
+    execute,
+    commandArgs,
+    env,
+    ...(command ? { command } : {}),
+    ...(cwd ? { cwd } : {}),
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    ...(trainingReportPath ? { trainingReportPath } : {}),
     artifacts,
     evalReports,
     ...(artifactDir ? { artifactDir } : {}),
@@ -133,6 +168,12 @@ function parseEvalReport(value: string): ParameterTrainerRunnerEvalReportInput {
   };
 }
 
+function parseEnv(value: string): Record<string, string> {
+  const separator = value.indexOf("=");
+  if (separator <= 0) throw new Error("--env must be NAME=value");
+  return { [value.slice(0, separator)]: value.slice(separator + 1) };
+}
+
 function parseKeyValueList(value: string): Record<string, string> {
   const fields: Record<string, string> = {};
   for (const part of value.split(",")) {
@@ -162,6 +203,12 @@ function parseChoice<T extends readonly string[]>(value: string, choices: T, fla
 function parseNonNegativeInteger(value: string | undefined, flag: string): number {
   const parsed = Number(requireValue(value, flag));
   if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${flag} must be a non-negative integer`);
+  return parsed;
+}
+
+function parsePositiveInteger(value: string | undefined, flag: string): number {
+  const parsed = Number(requireValue(value, flag));
+  if (!Number.isInteger(parsed) || parsed <= 0) throw new Error(`${flag} must be a positive integer`);
   return parsed;
 }
 

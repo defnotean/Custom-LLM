@@ -86,12 +86,14 @@ Parameter-growth training starts from a checked `parameter-training-dispatch-v1`
 ```bash
 npm run check:subq-architecture
 npm run run:parameter-trainer -- --request training/runs/parameter-modules/<run-id>/trainer-dispatch-request.json --mode plan --framework axolotl
+npm run run:parameter-trainer -- --request training/runs/parameter-modules/<run-id>/trainer-dispatch-request.json --mode execute-training --framework axolotl
+npm run run:parameter-trainer -- --request training/runs/parameter-modules/<run-id>/trainer-dispatch-request.json --mode execute-training --framework axolotl --execute
 
 npm run run:parameter-trainer -- --request training/runs/parameter-modules/<run-id>/trainer-dispatch-request.json --mode import-artifacts --framework axolotl --artifact-dir training/runs/qwen3-qlora-sft --parameters <total-module-params> --active-parameters <active-module-params> --trainable-parameters <trainable-module-params> --rollback-target-id <previous-module-id> --eval-report kind=dataset_quality,path=<dataset-quality-report>,status=pass --eval-report kind=parameter_growth,path=<parameter-growth-report>,status=pass --eval-report kind=training_report,path=<training-report>,status=pass --eval-report kind=contamination,path=<contamination-report>,status=pass
 npm run check:parameter-module-staging -- --manifest training/runs/parameter-modules/<run-id>/staging-manifest.json
 ```
 
-Attach every eval kind required by the staged module type before promotion. Adapters need protocol, knowledge, and behavior reports in addition to dataset quality, parameter growth, training report, and contamination evidence. Specialists/experts need skill and protocol reports. Router modules need router and protocol reports.
+`execute-training` is a dry run until `--execute` is present. The explicit execution path writes trainer stdout/stderr and `trainer-execution-report.json`; it does not auto-promote or stage anything. Attach every eval kind required by the staged module type before promotion. Adapters need protocol, knowledge, and behavior reports in addition to dataset quality, parameter growth, training report, and contamination evidence. Specialists/experts need skill and protocol reports. Router modules need router and protocol reports.
 
 ## Long-Context Retrieval Gate
 
