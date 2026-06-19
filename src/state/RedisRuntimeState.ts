@@ -7,6 +7,7 @@ import type {
 import type { RateLimitResult, RateLimitStore, RateLimitStoreCheckOptions } from "../safety/RateLimitService";
 import type { CooldownStore } from "../tools/ToolCooldownService";
 import { toErrorMessage } from "../utils/errors";
+import { RedisRecentConversationWindow } from "./RecentConversationWindow";
 
 export interface RedisRuntimeClient {
   get(key: string): Promise<string | null>;
@@ -21,6 +22,7 @@ export interface RedisRuntimeState {
   cooldownStore: RedisCooldownStore;
   rateLimitStore: RedisRateLimitStore;
   pendingConfirmationStore: RedisPendingConfirmationStore;
+  recentConversationWindow: RedisRecentConversationWindow;
   close(): Promise<void>;
 }
 
@@ -50,6 +52,7 @@ export async function connectRedisRuntimeState(options: RedisRuntimeStateOptions
     cooldownStore: new RedisCooldownStore(runtimeClient, { keyPrefix }),
     rateLimitStore: new RedisRateLimitStore(runtimeClient, { keyPrefix }),
     pendingConfirmationStore: new RedisPendingConfirmationStore(runtimeClient, { keyPrefix }),
+    recentConversationWindow: new RedisRecentConversationWindow(runtimeClient, { keyPrefix }),
     close: async () => {
       await runtimeClient.quit?.();
     },

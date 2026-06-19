@@ -32,7 +32,7 @@ Bare-metal alternative: `npm run build && node dist/src/index.js` under systemd/
 | Database | Managed Postgres with pgvector available (or the bundled image); backups on; `prisma migrate deploy` in CI/CD. If `VECTOR_STORE=pgvector`, run `npm run check:pgvector-memory -- --dims <embedding-dimensions>` against the target database before relying on memory search |
 | Qdrant memory index | If `VECTOR_STORE=qdrant`, run `npm run check:qdrant-memory` against the target Qdrant before relying on it; Postgres remains the source of truth when configured |
 | Logs | pino JSON to stdout → your aggregator. `LOG_LEVEL=info` |
-| Cooldowns/rate limits/confirmations/jobs | In-process by default. Set `RUNTIME_STATE_STORE=redis` plus `REDIS_URL` to share tool cooldowns, message rate limits, pending high-risk tool confirmations, and scheduled/repeating worker jobs across replicas. Run `npm run check:redis-runtime` against the target Redis before enabling multiple replicas |
+| Cooldowns/rate limits/confirmations/recent context/jobs | In-process by default. Set `RUNTIME_STATE_STORE=redis` plus `REDIS_URL` to share tool cooldowns, message rate limits, pending high-risk tool confirmations, the recent conversation window, and scheduled/repeating worker jobs across replicas. Run `npm run check:redis-runtime` against the target Redis before enabling multiple replicas |
 | Job retries/dead letters | Current Redis queue logs failures and keeps recurring jobs moving. Add BullMQ-style retry/dead-letter dashboards when production operations require them |
 | Moderation | Narrow boundary screen is built in for credentials, secret exfiltration, mass mentions, doxxing, credential theft, and tool-gate bypass attempts. Add a local moderation model and Discord AutoMod before opening to untrusted public servers |
 | Sharding | Required at 2,500 guilds; do the Redis migration first, then discord.js sharding is straightforward |
@@ -42,6 +42,6 @@ Bare-metal alternative: `npm run build && node dist/src/index.js` under systemd/
 ## Scaling path (when it hurts)
 
 1. One process, one box (now) →
-2. `RUNTIME_STATE_STORE=redis` for shared cooldowns/limits/confirmations/jobs, same box →
+2. `RUNTIME_STATE_STORE=redis` for shared cooldowns/limits/confirmations/recent context/jobs, same box →
 3. Postgres read replica + Qdrant for vectors if pgvector filtered-search latency bites →
 4. Shard the gateway; keep the API/worker processes separate from gateway processes.

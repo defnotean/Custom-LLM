@@ -1,4 +1,8 @@
 import { ChannelType, type Client, type Message } from "discord.js";
+import {
+  makeRecentTurn,
+  type RecentConversationWindow,
+} from "../../state/RecentConversationWindow";
 import type { BotMessageContext } from "../../types/discord";
 import { memberPermissionNames } from "./permissions";
 
@@ -31,14 +35,19 @@ export function buildMessageContext(message: Message, strippedContent: string): 
 
 /**
  * Fetch a short recent-history transcript for conversational context.
- * Best-effort: returns null on any failure. The rolling-summary upgrade
- * (Redis window + periodic summarization) is a documented TODO.
+ * Best-effort: returns null on any failure. The runtime window is preferred
+ * because it covers slash commands and can be Redis-backed across replicas;
+ * Discord history remains the fallback for cold starts.
  */
 export async function buildRecentTranscript(
   message: Message,
   client: Client,
-  limit = 8,
+  options: { limit?: number; window?: RecentConversationWindow | null } = {},
 ): Promise<string | null> {
+  const limit = options.limit ?? 8;
+  const windowTranscript = await readWindowTranscript(options.window ?? null, message.channelId, limit);
+  if (windowTranscript) return windowTranscript;
+
   try {
     if (!message.channel.isTextBased()) return null;
     const messages = await message.channel.messages.fetch({ limit: limit + 1 });
@@ -52,6 +61,60 @@ export async function buildRecentTranscript(
         return `[${name}]: ${m.content.slice(0, 280)}`;
       });
     return lines.length > 0 ? lines.join("\n") : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function buildRecentTranscriptForChannel(
+  channelId: string,
+  window: RecentConversationWindow | null | undefined,
+  limit = 8,
+): Promise<string | null> {
+  return readWindowTranscript(window ?? null, channelId, limit);
+}
+
+export async function recordHandledConversationTurn(
+  ctx: BotMessageContext,
+  assistantReply: string,
+  window: RecentConversationWindow | null | undefined,
+): Promise<void> {
+  if (!window) return;
+  const createdAt = new Date();
+  try {
+    await window.append(ctx.channelId, [
+      makeRecentTurn({
+        id: ctx.messageId,
+        role: "user",
+        channelId: ctx.channelId,
+        userId: ctx.userId,
+        username: ctx.username,
+        content: ctx.content,
+        createdAt,
+      }),
+      makeRecentTurn({
+        id: `${ctx.messageId}:assistant`,
+        role: "assistant",
+        channelId: ctx.channelId,
+        userId: null,
+        username: "Irene",
+        content: assistantReply,
+        createdAt,
+      }),
+    ]);
+  } catch {
+    return;
+  }
+}
+
+async function readWindowTranscript(
+  window: RecentConversationWindow | null,
+  channelId: string,
+  limit: number,
+): Promise<string | null> {
+  if (!window) return null;
+  try {
+    return await window.transcript(channelId, limit);
   } catch {
     return null;
   }

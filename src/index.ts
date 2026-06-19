@@ -45,6 +45,7 @@ import {
 import { SafetyService } from "./safety/SafetyService";
 import { RateLimitService } from "./safety/RateLimitService";
 import { connectRedisRuntimeState, type RedisRuntimeState } from "./state/RedisRuntimeState";
+import { InMemoryRecentConversationWindow } from "./state/RecentConversationWindow";
 import { TrainingDataLogger } from "./training/TrainingDataLogger";
 import { DatasetExporter } from "./training/DatasetExporter";
 import { InteractionLearningCapture } from "./learning/InteractionLearningCapture";
@@ -100,6 +101,8 @@ async function main(): Promise<void> {
   const learningRepo = prisma ? new LiveLearningRepository(prisma) : null;
   const guildRepo = prisma ? new GuildRepository(prisma) : null;
   const redisRuntimeState = await initRuntimeState();
+  const recentConversationWindow =
+    redisRuntimeState?.recentConversationWindow ?? new InMemoryRecentConversationWindow();
 
   // ── LLM ────────────────────────────────────────────────────────────────
   const llm = buildLLMRouterFromEnv(env, childLogger("llm"));
@@ -361,6 +364,7 @@ async function main(): Promise<void> {
       commandServices,
       commandPrefix,
       settingsStore: guildRepo,
+      recentConversationWindow,
       logger: childLogger("discord"),
     }),
   );
@@ -370,6 +374,7 @@ async function main(): Promise<void> {
       agent,
       commandServices,
       settingsStore: guildRepo,
+      recentConversationWindow,
       logger: childLogger("discord"),
     }),
   );

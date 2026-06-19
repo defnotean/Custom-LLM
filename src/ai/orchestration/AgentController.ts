@@ -85,7 +85,7 @@ const PENDING_TTL_MS = 2 * 60 * 1000;
 /**
  * Central orchestrator. Message flow:
  *
- *   context → pending-confirmation check → safety precheck → memory retrieval
+ *   context/recent transcript → pending-confirmation check → safety precheck → memory retrieval
  *   → tool candidate retrieval → prompt build → LLM → parse → (tool gates →
  *   execute → follow-up LLM) → reply → training/conversation logging →
  *   optional memory write-back

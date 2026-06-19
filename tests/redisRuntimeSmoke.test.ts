@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runRedisRuntimeSmoke } from "../src/state/RedisRuntimeSmoke";
+import { RedisRecentConversationWindow } from "../src/state/RecentConversationWindow";
 import {
   RedisCooldownStore,
   RedisPendingConfirmationStore,
@@ -18,6 +19,7 @@ describe("RedisRuntimeSmoke", () => {
         cooldownStore: new RedisCooldownStore(redis, { keyPrefix }),
         rateLimitStore: new RedisRateLimitStore(redis, { keyPrefix }),
         pendingConfirmationStore: new RedisPendingConfirmationStore(redis, { keyPrefix }),
+        recentConversationWindow: new RedisRecentConversationWindow(redis, { keyPrefix }),
       },
       keyPrefix,
       logger: testLogger,
@@ -33,6 +35,7 @@ describe("RedisRuntimeSmoke", () => {
       "redis-cooldown-state",
       "redis-rate-limit-state",
       "redis-pending-confirmation-state",
+      "redis-recent-conversation-window",
       "redis-job-queue-state",
       "redis-smoke-cleanup",
     ]);

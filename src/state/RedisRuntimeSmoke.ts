@@ -5,6 +5,7 @@ import { RedisJobQueue } from "../jobs/queue";
 import { RateLimitService } from "../safety/RateLimitService";
 import { ToolCooldownService } from "../tools/ToolCooldownService";
 import { toErrorMessage } from "../utils/errors";
+import { makeRecentTurn } from "./RecentConversationWindow";
 import type { RedisRuntimeClient, RedisRuntimeState } from "./RedisRuntimeState";
 
 export type RedisRuntimeSmokeStatus = "pass" | "fail";
@@ -24,7 +25,10 @@ export interface RedisRuntimeSmokeReport {
 }
 
 export interface RedisRuntimeSmokeOptions {
-  runtimeState: Pick<RedisRuntimeState, "client" | "cooldownStore" | "rateLimitStore" | "pendingConfirmationStore">;
+  runtimeState: Pick<
+    RedisRuntimeState,
+    "client" | "cooldownStore" | "rateLimitStore" | "pendingConfirmationStore" | "recentConversationWindow"
+  >;
   keyPrefix: string;
   logger: Logger;
   timeoutMs?: number;
@@ -106,6 +110,34 @@ export async function runRedisRuntimeSmoke(options: RedisRuntimeSmokeOptions): P
     return "Redis-backed pending confirmation stored, restored, and deleted JSON state";
   });
 
+  await recordCheck(checks, "redis-recent-conversation-window", async () => {
+    await options.runtimeState.recentConversationWindow.append("redis-smoke-channel", [
+      makeRecentTurn({
+        id: "redis-smoke-user-turn",
+        role: "user",
+        channelId: "redis-smoke-channel",
+        userId: "redis-smoke-user",
+        username: "SmokeUser",
+        content: "remember this shared Redis window",
+      }),
+      makeRecentTurn({
+        id: "redis-smoke-assistant-turn",
+        role: "assistant",
+        channelId: "redis-smoke-channel",
+        username: "Irene",
+        content: "I can read it from another runtime replica.",
+      }),
+    ]);
+    const transcript = await options.runtimeState.recentConversationWindow.transcript("redis-smoke-channel", 4);
+    if (!transcript?.includes("[SmokeUser]: remember this shared Redis window")) {
+      throw new Error("recent conversation window did not restore the user turn");
+    }
+    if (!transcript.includes("[you (the assistant)]: I can read it from another runtime replica.")) {
+      throw new Error("recent conversation window did not restore the assistant turn");
+    }
+    return "Redis-backed recent conversation window stored and restored a user/assistant turn";
+  });
+
   await recordCheck(checks, "redis-job-queue-state", async () => {
     let scheduledRuns = 0;
     let recurringRuns = 0;
@@ -162,6 +194,7 @@ function redisSmokeCleanupKeys(keyPrefix: string, jobRepeatMs: number): string[]
     `${keyPrefix}:cooldown:redis_smoke_tool:redis-smoke-user`,
     `${keyPrefix}:rate:redis-smoke-user`,
     `${keyPrefix}:pending-confirmation:redis-smoke-channel:redis-smoke-user`,
+    `${keyPrefix}:recent-conversation:redis-smoke-channel`,
     `${keyPrefix}:jobs:scheduled`,
     `${keyPrefix}:jobs:repeat:${repeatKey("redis-smoke-repeat", SMOKE_REPEAT_PAYLOAD, jobRepeatMs)}`,
   ];

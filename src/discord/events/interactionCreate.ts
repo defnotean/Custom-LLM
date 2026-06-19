@@ -3,10 +3,12 @@ import type { Logger } from "pino";
 import type { AgentController } from "../../ai/orchestration/AgentController";
 import type { GuildRepository, GuildSettings } from "../../database/repositories/GuildRepository";
 import { isTextChannelAllowed } from "../../guild/GuildPolicy";
+import type { RecentConversationWindow } from "../../state/RecentConversationWindow";
 import type { BotMessageContext } from "../../types/discord";
 import { toErrorMessage } from "../../utils/errors";
 import { handleCommand, type CommandServices } from "../commands";
 import { AI_SLASH_COMMAND_NAME, AI_SLASH_INPUT_OPTION } from "../slashCommands";
+import { buildRecentTranscriptForChannel, recordHandledConversationTurn } from "../utils/discordContext";
 import { splitMessage } from "../utils/messageSplitter";
 import { permissionNames } from "../utils/permissions";
 
@@ -14,6 +16,7 @@ export interface InteractionHandlerOptions {
   agent: AgentController;
   commandServices: CommandServices;
   settingsStore?: Pick<GuildRepository, "getSettings"> | null;
+  recentConversationWindow?: RecentConversationWindow | null;
   logger: Logger;
 }
 
@@ -65,10 +68,14 @@ export function createInteractionHandler(options: InteractionHandlerOptions) {
         ? await handleCommand(ctx, commandServices)
         : (
             await agent.handleDiscordMessage(ctx, {
-              transcript: null,
+              transcript: await buildRecentTranscriptForChannel(
+                ctx.channelId,
+                options.recentConversationWindow ?? null,
+              ),
             })
           ).content;
 
+      await recordHandledConversationTurn(ctx, reply, options.recentConversationWindow ?? null);
       await sendInteractionChunks(interaction, reply);
     } catch (err) {
       logger.error({ err: toErrorMessage(err) }, "interactionCreate handler failed");

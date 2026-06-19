@@ -3,8 +3,9 @@ import type { Logger } from "pino";
 import type { AgentController } from "../../ai/orchestration/AgentController";
 import type { GuildRepository, GuildSettings } from "../../database/repositories/GuildRepository";
 import { isTextChannelAllowed } from "../../guild/GuildPolicy";
+import type { RecentConversationWindow } from "../../state/RecentConversationWindow";
 import { toErrorMessage } from "../../utils/errors";
-import { buildMessageContext, buildRecentTranscript } from "../utils/discordContext";
+import { buildMessageContext, buildRecentTranscript, recordHandledConversationTurn } from "../utils/discordContext";
 import { splitMessage } from "../utils/messageSplitter";
 import { handleCommand, type CommandServices } from "../commands";
 
@@ -14,6 +15,7 @@ export interface MessageHandlerOptions {
   commandServices: CommandServices;
   commandPrefix: string; // e.g. "!ai"
   settingsStore?: Pick<GuildRepository, "getSettings"> | null;
+  recentConversationWindow?: RecentConversationWindow | null;
   logger: Logger;
 }
 
@@ -71,10 +73,13 @@ export function createMessageHandler(options: MessageHandlerOptions) {
           ? await handleCommand(ctx, commandServices)
           : (
               await agent.handleDiscordMessage(ctx, {
-                transcript: await buildRecentTranscript(message, client),
+                transcript: await buildRecentTranscript(message, client, {
+                  window: options.recentConversationWindow ?? null,
+                }),
               })
             ).content;
 
+        await recordHandledConversationTurn(ctx, reply, options.recentConversationWindow ?? null);
         await sendChunked(message, reply);
       });
     } catch (err) {

@@ -8,6 +8,7 @@ import {
   buildDiscordSlashCommands,
   registerDiscordSlashCommands,
 } from "../src/discord/slashCommands";
+import { InMemoryRecentConversationWindow, makeRecentTurn } from "../src/state/RecentConversationWindow";
 import { defineTool, toolOk } from "../src/tools/ToolDefinition";
 import { ToolCooldownService } from "../src/tools/ToolCooldownService";
 import { ToolExecutor } from "../src/tools/ToolExecutor";
@@ -147,6 +148,43 @@ describe("slash command interactions", () => {
       transcript: null,
     });
     expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: "agent saw hello Irene" }));
+  });
+
+  it("passes slash-command recent context through the runtime conversation window", async () => {
+    const interaction = makeInteraction("continue that thought");
+    const recentConversationWindow = new InMemoryRecentConversationWindow();
+    await recentConversationWindow.append("channel-1", [
+      makeRecentTurn({
+        id: "previous-user",
+        role: "user",
+        channelId: "channel-1",
+        userId: "user-2",
+        username: "Alex",
+        content: "SubQ stays mandatory for long context.",
+      }),
+    ]);
+    const agent = {
+      handleDiscordMessage: vi.fn(async () => ({
+        content: "agent used recent context",
+        trace: {},
+      })),
+    };
+    const handler = createInteractionHandler({
+      agent: agent as never,
+      commandServices: services(),
+      recentConversationWindow,
+      logger: testLogger,
+    });
+
+    await handler(interaction);
+
+    expect(agent.handleDiscordMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ content: "continue that thought" }),
+      { transcript: "[Alex]: SubQ stays mandatory for long context." },
+    );
+    expect(await recentConversationWindow.transcript("channel-1", 4)).toContain(
+      "[you (the assistant)]: agent used recent context",
+    );
   });
 
   it("blocks slash input outside the text allowlist before calling the agent", async () => {
