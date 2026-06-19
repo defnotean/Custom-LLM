@@ -33,6 +33,7 @@ Review and queue candidates through the private ops API:
 
 ```bash
 curl "http://127.0.0.1:3000/learning/items?reviewStatus=candidate&limit=25"
+curl "http://127.0.0.1:3000/learning/review"
 
 curl -X POST http://127.0.0.1:3000/learning/items/<learned-item-id>/review \
   -H "content-type: application/json" \
@@ -112,6 +113,8 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-hotload/apply \
 
 curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<module-id>"
 ```
+
+`GET /learning/review` serves a self-contained browser console for live-learning review. It lists filtered learned items, shows learning/parameter metrics, lets an operator approve, reject, queue, dry-run batch approve+queue, execute batch approve+queue, and dry-run parameter-growth planning through the same ops endpoints below. It adds no separate frontend build and still relies on the API's dry-run-first mutation rules.
 
 `POST /learning/items/batch-review` is the operator handoff between "Irene learned candidates while running" and "these items may feed parameter growth." It accepts explicit ids or a typed filter, dry-runs by default, and only mutates when `execute:true` is present. The response uses `learning-batch-review-v1` and lists matched ids, missing ids, reviewed items, queued items, skips, and per-item errors. Queueing still honors retention, rejection, approval, confidence, and `force` rules; a dry run never calls the review or queue mutators.
 

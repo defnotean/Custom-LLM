@@ -42,6 +42,7 @@ import type {
   WrittenParameterGrowthPlan,
 } from "../../training/parameter/ParameterGrowthPlanner";
 import { toJsonValue, type JsonObject, type LearningStatsPayload } from "../../types/common";
+import { renderLearningReviewPage } from "./learningReviewPage";
 
 export interface LearningRouteDeps {
   getStats: (() => Promise<LearningStatsPayload>) | null;
@@ -311,6 +312,10 @@ const promoteParameterModuleBodySchema = z
   .strict();
 
 export function registerLearningRoutes(app: FastifyInstance, deps: LearningRouteDeps): void {
+  app.get("/learning/review", async (_request, reply) => {
+    return reply.type("text/html; charset=utf-8").send(renderLearningReviewPage());
+  });
+
   app.get("/learning/status", async (_request, reply) => {
     if (!deps.getStats) {
       return reply.status(503).send({ error: "live learning persistence disabled" });

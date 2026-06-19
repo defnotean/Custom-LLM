@@ -50,6 +50,23 @@ describe("learning routes", () => {
     await app.close();
   });
 
+  it("serves the browser learning review console without requiring persistence", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, { getStats: null });
+
+    const response = await app.inject({ method: "GET", url: "/learning/review" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/html");
+    expect(response.body).toContain("Irene Learning Review");
+    expect(response.body).toContain("/learning/items?");
+    expect(response.body).toContain("/learning/items/batch-review");
+    expect(response.body).toContain("/learning/parameter-growth/plan");
+    expect(response.body).toContain("Dry Run Approve + Queue");
+    expect(response.body).not.toContain("<script src=");
+    await app.close();
+  });
+
   it("lists learned candidates with typed filters", async () => {
     const app = Fastify({ logger: false });
     const calls: unknown[] = [];
