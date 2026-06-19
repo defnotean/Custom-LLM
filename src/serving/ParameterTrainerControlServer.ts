@@ -1,3 +1,6 @@
+import { spawn } from "node:child_process";
+import { access, mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
   checkParameterGrowthDatasetQuality,
@@ -64,6 +67,16 @@ export interface ParameterTrainerControlServiceOptions {
   now?: () => string;
   maxHistory?: number;
   backend?: ParameterTrainerControlBackend;
+}
+
+export interface CommandParameterTrainerBackendOptions {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  timeoutMs?: number;
+  maxOutputBytes?: number;
+  requireStagingManifest?: boolean;
 }
 
 export class InMemoryParameterTrainerControlService {
@@ -260,6 +273,108 @@ export class StateOnlyParameterTrainerBackend implements ParameterTrainerControl
   }
 }
 
+export class CommandParameterTrainerBackend implements ParameterTrainerControlBackend {
+  readonly name = "command";
+  private readonly command: string;
+  private readonly args: string[];
+  private readonly cwd?: string;
+  private readonly env: Record<string, string>;
+  private readonly timeoutMs: number;
+  private readonly maxOutputBytes: number;
+  private readonly requireStagingManifest: boolean;
+
+  constructor(options: CommandParameterTrainerBackendOptions) {
+    this.command = options.command;
+    this.args = options.args ?? [];
+    this.cwd = options.cwd;
+    this.env = options.env ?? {};
+    this.timeoutMs = options.timeoutMs ?? 3_600_000;
+    this.maxOutputBytes = options.maxOutputBytes ?? 65_536;
+    this.requireStagingManifest = options.requireStagingManifest ?? true;
+  }
+
+  async dispatch(input: ParameterTrainerBackendDispatchInput): Promise<ParameterTrainerBackendResult> {
+    const request = input.request;
+    await mkdir(request.expectedOutput.runDir, { recursive: true });
+    const requestPath = join(request.expectedOutput.runDir, "trainer-dispatch-request.json");
+    const qualityReportPath = join(request.expectedOutput.runDir, "trainer-quality-report.json");
+    await writeFile(requestPath, `${JSON.stringify(request, null, 2)}\n`, "utf8");
+    await writeFile(qualityReportPath, `${JSON.stringify(input.qualityReport, null, 2)}\n`, "utf8");
+
+    const context = {
+      requestId: request.requestId,
+      trainerProfile: request.trainerProfile,
+      datasetManifestPath: request.datasetManifestPath,
+      runDir: request.expectedOutput.runDir,
+      stagingManifestPath: request.expectedOutput.stagingManifestPath,
+      requestPath,
+      qualityReportPath,
+    };
+    const args = this.args.map((arg) => templateArg(arg, context));
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...this.env,
+      PARAMETER_TRAINER_REQUEST_ID: request.requestId,
+      PARAMETER_TRAINER_PROFILE: request.trainerProfile,
+      PARAMETER_TRAINER_DATASET_MANIFEST_PATH: request.datasetManifestPath,
+      PARAMETER_TRAINER_RUN_DIR: request.expectedOutput.runDir,
+      PARAMETER_TRAINER_STAGING_MANIFEST_PATH: request.expectedOutput.stagingManifestPath,
+      PARAMETER_TRAINER_REQUEST_PATH: requestPath,
+      PARAMETER_TRAINER_QUALITY_REPORT_PATH: qualityReportPath,
+    };
+    const result = await runCommand({
+      command: this.command,
+      args,
+      cwd: this.cwd,
+      env,
+      timeoutMs: this.timeoutMs,
+      maxOutputBytes: this.maxOutputBytes,
+    });
+
+    const details = {
+      command: this.command,
+      args,
+      ...(this.cwd ? { cwd: this.cwd } : {}),
+      requestPath,
+      qualityReportPath,
+      exitCode: result.exitCode,
+      ...(result.signal ? { signal: result.signal } : {}),
+      timedOut: result.timedOut,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
+
+    if (result.timedOut) {
+      return { status: "rejected", message: `trainer command timed out after ${this.timeoutMs}ms`, details: asJsonObject(details) };
+    }
+    if (result.error) {
+      return { status: "rejected", message: result.error, details: asJsonObject(details) };
+    }
+    if (result.exitCode !== 0) {
+      return { status: "rejected", message: `trainer command exited with code ${result.exitCode}`, details: asJsonObject(details) };
+    }
+    if (this.requireStagingManifest) {
+      try {
+        await access(request.expectedOutput.stagingManifestPath);
+      } catch {
+        return {
+          status: "rejected",
+          message: "trainer command did not write expected staging manifest",
+          details: asJsonObject({ ...details, stagingManifestPath: request.expectedOutput.stagingManifestPath }),
+        };
+      }
+    }
+
+    return {
+      status: "accepted",
+      trainingRunId: request.requestId,
+      stagingManifestPath: request.expectedOutput.stagingManifestPath,
+      message: "trainer command completed and staging manifest is present",
+      details: asJsonObject(details),
+    };
+  }
+}
+
 export interface ParameterTrainerControlServerOptions {
   apiKey?: string;
   service?: InMemoryParameterTrainerControlService;
@@ -300,6 +415,87 @@ function asJsonObject(value: unknown): JsonObject {
   const json = toJsonValue(value);
   if (json && typeof json === "object" && !Array.isArray(json)) return json as JsonObject;
   return { value: json };
+}
+
+interface CommandTemplateContext {
+  requestId: string;
+  trainerProfile: string;
+  datasetManifestPath: string;
+  runDir: string;
+  stagingManifestPath: string;
+  requestPath: string;
+  qualityReportPath: string;
+}
+
+interface CommandResult {
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  timedOut: boolean;
+  stdout: string;
+  stderr: string;
+  error?: string;
+}
+
+function templateArg(arg: string, context: CommandTemplateContext): string {
+  return arg
+    .replaceAll("{requestId}", context.requestId)
+    .replaceAll("{trainerProfile}", context.trainerProfile)
+    .replaceAll("{datasetManifestPath}", context.datasetManifestPath)
+    .replaceAll("{runDir}", context.runDir)
+    .replaceAll("{stagingManifestPath}", context.stagingManifestPath)
+    .replaceAll("{requestPath}", context.requestPath)
+    .replaceAll("{qualityReportPath}", context.qualityReportPath);
+}
+
+function runCommand(options: {
+  command: string;
+  args: string[];
+  cwd?: string;
+  env: NodeJS.ProcessEnv;
+  timeoutMs: number;
+  maxOutputBytes: number;
+}): Promise<CommandResult> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timedOut = false;
+    let stdout = "";
+    let stderr = "";
+    const child = spawn(options.command, options.args, {
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      env: options.env,
+      windowsHide: true,
+    });
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, options.timeoutMs);
+
+    const settle = (result: CommandResult): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(result);
+    };
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout = appendLimited(stdout, chunk.toString("utf8"), options.maxOutputBytes);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr = appendLimited(stderr, chunk.toString("utf8"), options.maxOutputBytes);
+    });
+    child.on("error", (err) => {
+      settle({ exitCode: null, signal: null, timedOut, stdout, stderr, error: err.message });
+    });
+    child.on("close", (exitCode, signal) => {
+      settle({ exitCode, signal, timedOut, stdout, stderr });
+    });
+  });
+}
+
+function appendLimited(existing: string, next: string, maxBytes: number): string {
+  const combined = `${existing}${next}`;
+  if (Buffer.byteLength(combined, "utf8") <= maxBytes) return combined;
+  return combined.slice(Math.max(0, combined.length - maxBytes));
 }
 
 function stableJson(value: unknown): string {

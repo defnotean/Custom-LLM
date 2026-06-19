@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildParameterTrainerControlServer,
+  CommandParameterTrainerBackend,
   InMemoryParameterTrainerControlService,
   type ParameterTrainerBackendDispatchInput,
   type ParameterTrainerControlBackend,
@@ -196,6 +197,90 @@ describe("ParameterTrainerControlServer", () => {
     await app.close();
   });
 
+  it("runs a configured command trainer backend and requires staging output", async () => {
+    const fixture = await writeFixture();
+    const request = await buildDispatchRequest(fixture.manifestPath, "command-1", {
+      outDir: join(fixture.dir, "runs"),
+    });
+    const backend = new CommandParameterTrainerBackend({
+      command: process.execPath,
+      args: [
+        "-e",
+        [
+          "const fs = require('node:fs');",
+          "const path = require('node:path');",
+          "const out = process.env.PARAMETER_TRAINER_STAGING_MANIFEST_PATH;",
+          "fs.mkdirSync(path.dirname(out), { recursive: true });",
+          "fs.writeFileSync(out, JSON.stringify({ requestId: process.env.PARAMETER_TRAINER_REQUEST_ID }) + '\\n');",
+          "console.log('wrote ' + out);",
+        ].join(""),
+      ],
+      timeoutMs: 10_000,
+    });
+    const app = buildParameterTrainerControlServer({
+      service: new InMemoryParameterTrainerControlService({ backend }),
+    });
+
+    const dispatched = await app.inject({
+      method: "POST",
+      url: "/parameter-training/dispatch",
+      payload: request,
+    });
+    const staging = JSON.parse(await readFile(request.expectedOutput.stagingManifestPath, "utf8")) as Record<string, unknown>;
+
+    expect(dispatched.statusCode).toBe(200);
+    expect(dispatched.json()).toMatchObject({
+      status: "accepted",
+      trainingRunId: "command-1",
+      stagingManifestPath: request.expectedOutput.stagingManifestPath,
+      message: "trainer command completed and staging manifest is present",
+      details: {
+        backend: "command",
+        backendDetails: {
+          exitCode: 0,
+          requestPath: join(request.expectedOutput.runDir, "trainer-dispatch-request.json"),
+          qualityReportPath: join(request.expectedOutput.runDir, "trainer-quality-report.json"),
+        },
+      },
+    });
+    expect(staging).toEqual({ requestId: "command-1" });
+    await app.close();
+  });
+
+  it("rejects command trainer backend runs that do not write staging output", async () => {
+    const fixture = await writeFixture();
+    const request = await buildDispatchRequest(fixture.manifestPath, "command-missing-staging", {
+      outDir: join(fixture.dir, "runs"),
+    });
+    const backend = new CommandParameterTrainerBackend({
+      command: process.execPath,
+      args: ["-e", "console.log('accepted but produced no staging manifest')"],
+      timeoutMs: 10_000,
+    });
+    const app = buildParameterTrainerControlServer({
+      service: new InMemoryParameterTrainerControlService({ backend }),
+    });
+
+    const dispatched = await app.inject({
+      method: "POST",
+      url: "/parameter-training/dispatch",
+      payload: request,
+    });
+    const status = await app.inject({ method: "GET", url: "/parameter-training/status" });
+
+    expect(dispatched.statusCode).toBe(409);
+    expect(dispatched.json()).toMatchObject({
+      status: "rejected",
+      message: "trainer command did not write expected staging manifest",
+      details: { backend: "command", backendDetails: { exitCode: 0 } },
+    });
+    expect(status.json()).toMatchObject({
+      jobs: [{ requestId: "command-missing-staging", status: "rejected", backend: "command" }],
+      history: [{ type: "rejected", requestId: "command-missing-staging" }],
+    });
+    await app.close();
+  });
+
   it("protects trainer dispatch routes with an optional bearer token", async () => {
     const fixture = await writeFixture();
     const request = await buildDispatchRequest(fixture.manifestPath, "auth-1");
@@ -219,7 +304,7 @@ describe("ParameterTrainerControlServer", () => {
     await app.close();
   });
 
-  async function writeFixture(): Promise<{ manifestPath: string; datasetPath: string }> {
+  async function writeFixture(): Promise<{ dir: string; manifestPath: string; datasetPath: string }> {
     const dir = await mkdtemp(join(tmpdir(), "parameter-trainer-control-"));
     dirs.push(dir);
     const datasetPath = join(dir, "batch-1.jsonl");
@@ -282,14 +367,14 @@ describe("ParameterTrainerControlServer", () => {
       )}\n`,
       "utf8",
     );
-    return { manifestPath, datasetPath };
+    return { dir, manifestPath, datasetPath };
   }
 });
 
 async function buildDispatchRequest(
   manifestPath: string,
   requestId: string,
-  options: { dryRun?: boolean } = {},
+  options: { dryRun?: boolean; outDir?: string } = {},
 ): Promise<ParameterTrainerDispatchRequest> {
   const report = await new ParameterTrainerDispatchService({
     backend: { dispatch: async () => ({ status: "accepted" }) },
@@ -298,7 +383,7 @@ async function buildDispatchRequest(
     requestId,
     dryRun: options.dryRun ?? false,
     trainerProfile: "qlora-sft-smoke",
-    outDir: join("training", "runs", "parameter-modules"),
+    outDir: options.outDir ?? join("training", "runs", "parameter-modules"),
   });
   if (!report.dispatchRequest) throw new Error("dispatch request was not built");
   return report.dispatchRequest;
