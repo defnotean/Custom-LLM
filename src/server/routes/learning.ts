@@ -33,6 +33,10 @@ import type {
   ParameterGrowthDatasetBuildReport,
 } from "../../training/parameter/ParameterGrowthDatasetBuildRunner";
 import type {
+  DispatchParameterTrainingInput,
+  ParameterTrainerDispatchReport,
+} from "../../training/parameter/ParameterTrainerDispatchService";
+import type {
   ParameterGrowthPlan,
   ParameterGrowthPlannerOptions,
   WrittenParameterGrowthPlan,
@@ -90,6 +94,9 @@ export interface LearningRouteDeps {
   buildParameterGrowthDataset?: ((
     input: BuildParameterGrowthDatasetInput,
   ) => Promise<ParameterGrowthDatasetBuildReport>) | null;
+  dispatchParameterTraining?: ((
+    input: DispatchParameterTrainingInput,
+  ) => Promise<ParameterTrainerDispatchReport>) | null;
   applyParameterHotloadManifest?: ((
     input: ApplyParameterModuleHotloadInput,
   ) => Promise<ParameterModuleHotloadApplyReport>) | null;
@@ -286,6 +293,16 @@ const parameterGrowthDatasetBodySchema = z
   })
   .strict();
 
+const parameterTrainingDispatchBodySchema = z
+  .object({
+    manifestPath: z.string().trim().min(1).max(2_048),
+    requestId: z.string().trim().min(1).max(256).optional(),
+    trainerProfile: z.string().trim().min(1).max(256).optional(),
+    outDir: z.string().trim().min(1).max(2_048).optional(),
+    execute: z.boolean().optional(),
+  })
+  .strict();
+
 const promoteParameterModuleBodySchema = z
   .object({
     gateStatus: z.enum(["pass", "fail", "warn"]),
@@ -468,6 +485,29 @@ export function registerLearningRoutes(app: FastifyInstance, deps: LearningRoute
     });
     const statusCode = report.status === "blocked" || report.status === "failed" ? 409 : 200;
     return reply.status(statusCode).send(report);
+  });
+
+  app.post("/learning/parameter-training/dispatch", async (request, reply) => {
+    if (!deps.dispatchParameterTraining) {
+      return reply.status(503).send({ error: "parameter trainer dispatch disabled" });
+    }
+    const body = parameterTrainingDispatchBodySchema.safeParse(request.body ?? {});
+    if (!body.success) {
+      return reply.status(400).send({ error: "invalid parameter training dispatch payload", details: body.error.flatten() });
+    }
+    try {
+      const report = await deps.dispatchParameterTraining({
+        manifestPath: body.data.manifestPath,
+        dryRun: !(body.data.execute ?? false),
+        ...(body.data.requestId ? { requestId: body.data.requestId } : {}),
+        ...(body.data.trainerProfile ? { trainerProfile: body.data.trainerProfile } : {}),
+        ...(body.data.outDir ? { outDir: body.data.outDir } : {}),
+      });
+      const statusCode = report.status === "blocked" || report.status === "failed" ? 409 : 200;
+      return reply.status(statusCode).send(report);
+    } catch (err) {
+      return trainerDispatchError(reply, err);
+    }
   });
 
   app.get("/learning/parameter-modules", async (request, reply) => {
@@ -876,6 +916,17 @@ function parameterMutationError(reply: FastifyReply, err: unknown) {
     /already exists|not staged|cannot be promoted|passing gates|staging gate failed|staging manifest|hotload loader/i.test(message)
   ) {
     return reply.status(409).send({ error: "parameter module cannot be changed", reason: message });
+  }
+  throw err;
+}
+
+function trainerDispatchError(reply: FastifyReply, err: unknown) {
+  const message = errorMessage(err);
+  if (/backend is not configured|PARAMETER_TRAINER_ENDPOINT/i.test(message)) {
+    return reply.status(503).send({ error: "parameter trainer backend disabled", reason: message });
+  }
+  if (/quality|manifest|dataset|trainer endpoint/i.test(message)) {
+    return reply.status(409).send({ error: "parameter trainer dispatch failed", reason: message });
   }
   throw err;
 }

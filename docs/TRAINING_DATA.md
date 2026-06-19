@@ -66,6 +66,14 @@ curl -X POST http://127.0.0.1:3000/learning/parameter-growth/dataset \
   -H "content-type: application/json" \
   -d '{"planPath":"training/plans/parameter-growth/latest.json","gate":{"allowRiskReview":true},"execute":true}'
 
+curl -X POST http://127.0.0.1:3000/learning/parameter-training/dispatch \
+  -H "content-type: application/json" \
+  -d '{"manifestPath":"training/data/parameter-growth/<plan-id>/manifest.json","trainerProfile":"qlora-sft-smoke"}'
+
+curl -X POST http://127.0.0.1:3000/learning/parameter-training/dispatch \
+  -H "content-type: application/json" \
+  -d '{"manifestPath":"training/data/parameter-growth/<plan-id>/manifest.json","trainerProfile":"qlora-sft-smoke","execute":true}'
+
 npm run plan:parameter-growth
 npm run check:parameter-growth-plan -- --allow-risk-review
 npm run build:parameter-growth-data -- --allow-risk-review
@@ -110,6 +118,8 @@ curl "http://127.0.0.1:3000/learning/parameter-snapshot?selectedModuleIds=<modul
 `POST /learning/parameter-growth/plan` lets the running ops API produce the same parameter-growth handoff as `npm run plan:parameter-growth`. Without `execute:true`, it builds the plan in memory and returns a `parameter-growth-plan-run-v1` report with the plan, gate report, and next actions. With `execute:true`, it writes the timestamped plan plus `training/plans/parameter-growth/latest.json`. This still does not train weights; it closes the gap between reviewed live learning and a fresh trainer handoff artifact without waiting for the six-hour worker.
 
 `POST /learning/parameter-growth/dataset` builds the next handoff artifact from a checked plan. Dry-run mode reads the plan and returns a `parameter-growth-dataset-build-v1` gate preflight without writing files. With `execute:true`, it writes per-batch JSONL plus `manifest.json`, immediately runs the dataset quality gate, and reports pass/fail before trainer dispatch. The builder still re-fetches learned items by id, verifies approval, queued status, retention, and content/metadata hashes, so stale or unreviewed learning cannot silently become training data.
+
+`POST /learning/parameter-training/dispatch` exposes `ParameterTrainerDispatchService` through the running ops API. It dry-runs by default, re-checks the dataset quality gate, and returns the exact `parameter-training-dispatch-v1` request with expected run/staging paths and next gates. With `execute:true`, it sends the checked request to `PARAMETER_TRAINER_ENDPOINT`; if no private trainer backend is configured, execution returns a 503 instead of pretending training happened.
 
 The scheduled worker also writes parameter-growth plans to `training/plans/parameter-growth/` every six hours when the DB-backed learning repository is available. That directory is generated output and is intentionally ignored by Git.
 

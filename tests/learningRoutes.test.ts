@@ -4,6 +4,7 @@ import { registerLearningRoutes } from "../src/server/routes/learning";
 import type { LearnedItem, ParameterModule } from "../src/learning/LiveLearningRegistry";
 import type { ParameterGrowthPlan } from "../src/training/parameter/ParameterGrowthPlanner";
 import type { ParameterGrowthDatasetBuildReport } from "../src/training/parameter/ParameterGrowthDatasetBuildRunner";
+import type { ParameterTrainerDispatchReport } from "../src/training/parameter/ParameterTrainerDispatchService";
 
 describe("learning routes", () => {
   it("returns live learning and parameter-growth status", async () => {
@@ -661,6 +662,146 @@ describe("learning routes", () => {
     await app.close();
   });
 
+  it("dry-runs parameter trainer dispatches through the ops API", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      dispatchParameterTraining: async (input) => {
+        calls.push(input);
+        return parameterTrainerDispatchReport({
+          status: "dry_run",
+          dryRun: true,
+          manifestPath: input.manifestPath,
+          requestId: input.requestId ?? "dispatch-1",
+          trainerProfile: input.trainerProfile ?? "parameter-growth-default",
+        });
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-training/dispatch",
+      payload: {
+        manifestPath: "training/data/parameter-growth/plan-1/manifest.json",
+        requestId: "dispatch-1",
+        trainerProfile: "qlora-sft-smoke",
+        outDir: "training/runs/parameter-modules",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "dry_run",
+      dryRun: true,
+      requestId: "dispatch-1",
+      dispatchRequest: { runtimeContract: "parameter-training-dispatch-v1", dryRun: true },
+    });
+    expect(calls).toEqual([
+      {
+        manifestPath: "training/data/parameter-growth/plan-1/manifest.json",
+        dryRun: true,
+        requestId: "dispatch-1",
+        trainerProfile: "qlora-sft-smoke",
+        outDir: "training/runs/parameter-modules",
+      },
+    ]);
+    await app.close();
+  });
+
+  it("executes parameter trainer dispatches only when execute is explicit", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    registerLearningRoutes(app, {
+      getStats: null,
+      dispatchParameterTraining: async (input) => {
+        calls.push(input);
+        return parameterTrainerDispatchReport({
+          status: "dispatched",
+          dryRun: false,
+          manifestPath: input.manifestPath,
+          requestId: input.requestId ?? "dispatch-live",
+          backendResult: {
+            status: "accepted",
+            trainingRunId: "run-1",
+            stagingManifestPath: "training/runs/parameter-modules/dispatch-live/staging-manifest.json",
+          },
+        });
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-training/dispatch",
+      payload: {
+        manifestPath: "training/data/parameter-growth/plan-1/manifest.json",
+        requestId: "dispatch-live",
+        execute: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "dispatched",
+      dryRun: false,
+      backendResult: { status: "accepted", trainingRunId: "run-1" },
+    });
+    expect(calls).toEqual([
+      {
+        manifestPath: "training/data/parameter-growth/plan-1/manifest.json",
+        dryRun: false,
+        requestId: "dispatch-live",
+      },
+    ]);
+    await app.close();
+  });
+
+  it("reports blocked parameter trainer dispatches as conflicts", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, {
+      getStats: null,
+      dispatchParameterTraining: async (input) =>
+        parameterTrainerDispatchReport({
+          status: "blocked",
+          dryRun: !(input.dryRun === false),
+          manifestPath: input.manifestPath,
+          qualityReport: {
+            ...parameterTrainerDispatchReport().qualityReport,
+            status: "fail",
+            checks: [{ id: "file-hash:batch-1", status: "fail", summary: "tampered" }],
+          },
+        }),
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-training/dispatch",
+      payload: { manifestPath: "training/data/parameter-growth/plan-1/manifest.json", execute: true },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      status: "blocked",
+      qualityReport: { status: "fail", checks: [{ id: "file-hash:batch-1" }] },
+    });
+    await app.close();
+  });
+
+  it("reports unavailable trainer dispatch when the dispatch service is not configured", async () => {
+    const app = Fastify({ logger: false });
+    registerLearningRoutes(app, { getStats: null });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/learning/parameter-training/dispatch",
+      payload: { manifestPath: "training/data/parameter-growth/plan-1/manifest.json" },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "parameter trainer dispatch disabled" });
+    await app.close();
+  });
+
   it("stages parameter modules from a verified staging manifest", async () => {
     const app = Fastify({ logger: false });
     const calls: unknown[] = [];
@@ -1043,6 +1184,60 @@ function parameterGrowthDatasetReport(
       checks: [],
     },
     nextActions: ["next"],
+    ...overrides,
+  };
+}
+
+function parameterTrainerDispatchReport(
+  overrides: Partial<ParameterTrainerDispatchReport> = {},
+): ParameterTrainerDispatchReport {
+  const requestId = overrides.requestId ?? "dispatch-1";
+  const manifestPath = overrides.manifestPath ?? "training/data/parameter-growth/plan-1/manifest.json";
+  const dryRun = overrides.dryRun ?? true;
+  const trainerProfile = overrides.trainerProfile ?? "parameter-growth-default";
+  return {
+    status: "dry_run",
+    manifestPath,
+    generatedAt: "2026-06-18T17:30:00.000Z",
+    dryRun,
+    requestId,
+    trainerProfile,
+    qualityReport: {
+      status: "pass",
+      manifestPath,
+      generatedAt: "2026-06-18T17:30:00.000Z",
+      summary: { files: 1, records: 1, batches: 1, gateStatus: "pass" },
+      checks: [],
+    },
+    dispatchRequest: {
+      runtimeContract: "parameter-training-dispatch-v1",
+      requestId,
+      dryRun,
+      trainerProfile,
+      datasetManifestPath: manifestPath,
+      datasetManifest: {
+        id: "parameter-growth-dataset-fixture",
+        planId: "parameter-growth-fixture",
+        generatedAt: "2026-06-18T17:00:00.000Z",
+        gate: { status: "pass" },
+        files: [],
+        batches: [
+          {
+            batchId: "growth-batch-expert-ping",
+            targetKind: "expert",
+            route: "ping",
+            records: 1,
+            moduleName: "irene-expert-ping",
+            datasetId: "learned-expert-ping",
+          },
+        ],
+      },
+      expectedOutput: {
+        runDir: `training/runs/parameter-modules/${requestId}`,
+        stagingManifestPath: `training/runs/parameter-modules/${requestId}/staging-manifest.json`,
+        nextGates: ["check:parameter-module-staging", "stage-from-manifest", "promoteParameterModule"],
+      },
+    },
     ...overrides,
   };
 }

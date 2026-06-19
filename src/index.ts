@@ -56,6 +56,10 @@ import {
 import { ParameterGrowthPlanner } from "./training/parameter/ParameterGrowthPlanner";
 import { ParameterGrowthDatasetBuilder } from "./training/parameter/ParameterGrowthDatasetBuilder";
 import { ParameterGrowthDatasetBuildRunner } from "./training/parameter/ParameterGrowthDatasetBuildRunner";
+import {
+  HttpParameterTrainerBackend,
+  ParameterTrainerDispatchService,
+} from "./training/parameter/ParameterTrainerDispatchService";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { createMessageHandler } from "./discord/events/messageCreate";
@@ -167,6 +171,17 @@ async function main(): Promise<void> {
   const parameterGrowthDatasetRunner = learningRepo
     ? new ParameterGrowthDatasetBuildRunner(new ParameterGrowthDatasetBuilder(learningRepo))
     : null;
+  const parameterTrainerBackend = env.PARAMETER_TRAINER_ENDPOINT
+    ? new HttpParameterTrainerBackend({
+        endpointUrl: env.PARAMETER_TRAINER_ENDPOINT,
+        ...(env.PARAMETER_TRAINER_API_KEY ? { apiKey: env.PARAMETER_TRAINER_API_KEY } : {}),
+        timeoutMs: env.PARAMETER_TRAINER_TIMEOUT_MS,
+      })
+    : undefined;
+  const parameterTrainerDispatch = new ParameterTrainerDispatchService({
+    ...(parameterTrainerBackend ? { backend: parameterTrainerBackend } : {}),
+  });
+  logger.info({ configured: Boolean(parameterTrainerBackend) }, "parameter trainer dispatch service ready");
 
   // ── Discord client + agent ─────────────────────────────────────────────
   const discordClient = createDiscordClient();
@@ -346,6 +361,7 @@ async function main(): Promise<void> {
       ? (outDir, options) => parameterGrowthPlanner.writePlan(outDir, options)
       : null,
     buildParameterGrowthDataset: parameterGrowthDatasetRunner ? (input) => parameterGrowthDatasetRunner.run(input) : null,
+    dispatchParameterTraining: (input) => parameterTrainerDispatch.dispatch(input),
     applyParameterHotloadManifest: (input) => parameterHotloadService.apply(input),
     promoteParameterModule: learningRepo ? (id, options) => learningRepo.promoteParameterModule(id, options) : null,
     retireParameterModule: learningRepo ? (id) => learningRepo.retireParameterModule(id) : null,
