@@ -32,6 +32,7 @@
     "apply:parameter-hotload": "tsx scripts/apply-parameter-hotload-manifest.ts",
     "serve:parameter-hotload": "tsx scripts/serve-parameter-hotload-control.ts",
     "serve:model-adapter-sidecar": "tsx scripts/serve-model-adapter-sidecar.ts",
+    "validate:model-adapter-sidecar": "tsx scripts/validate-model-adapter-sidecar.ts",
     "download:datasets": "tsx scripts/download-open-datasets.ts",
     "prepare:datasets": "tsx scripts/prepare-open-datasets.ts",
     "build:sft-mixture": "tsx scripts/build-sft-mixture.ts",
