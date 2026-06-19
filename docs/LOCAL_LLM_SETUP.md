@@ -63,9 +63,10 @@ SUBQ_BASE_URL=<your SubQ OpenAI-compatible /v1 base URL>
 SUBQ_API_KEY=<your SubQ API key>
 SUBQ_MODEL=<your SubQ model id>
 SUBQ_TIMEOUT_MS=600000
+SUBQ_ALLOW_DENSE_FALLBACK=false
 ```
 
-Do not hardcode guessed SubQ URLs or model ids. Use the values assigned to your account or private preview. Promotion still requires the same tool, behavior, memory, parameter-growth, and long-context eval gates; a longer context window does not by itself prove better tool-call reliability. For the first SubQ route check, run:
+Do not hardcode guessed SubQ URLs or model ids. Use the values assigned to your account or private preview. By default, `metadata.longContext=true`, `metadata.preferredProvider="subq"`, or `architectureTarget="subquadratic-sparse-attention"` requests require the configured `subq` provider and do not silently fall back to dense local context. Set `SUBQ_ALLOW_DENSE_FALLBACK=true` only for explicit development testing where slower or lower-quality dense fallback is acceptable. Promotion still requires the same tool, behavior, memory, parameter-growth, and long-context eval gates; a longer context window does not by itself prove better tool-call reliability. For the first SubQ route check, run:
 
 ```bash
 npm run build:long-context-eval

@@ -218,12 +218,12 @@ async function writeRepoFixture(root: string): Promise<void> {
   );
   await writeFile(
     join(root, "src", "ai", "llm", "LLMRouter.ts"),
-    'const provider = request.metadata?.longContext === true ? "subq" : "openai-compatible";\n',
+    'const provider = request.metadata?.longContext === true ? "subq" : "openai-compatible";\nconst allowDenseLongContextFallback = env.SUBQ_ALLOW_DENSE_FALLBACK;\n',
     "utf8",
   );
   await writeFile(
     join(root, "docs", "LOCAL_LLM_SETUP.md"),
-    "Long-context requests use metadata.longContext=true and route to subq when SubQ is configured.\n",
+    "Long-context requests use metadata.longContext=true and require subq unless SUBQ_ALLOW_DENSE_FALLBACK=true.\n",
     "utf8",
   );
   await writeFile(

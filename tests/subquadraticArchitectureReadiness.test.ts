@@ -90,7 +90,7 @@ describe("SubquadraticArchitectureReadiness", () => {
     await writeLongContextSuite(suitePath, overrides.caseOverride);
     await writeFile(
       routerSourcePath,
-      'const preferredProvider = request.metadata?.preferredProvider;\nconst provider = request.metadata?.longContext === true ? "subq" : preferredProvider;\n',
+      'const preferredProvider = request.metadata?.preferredProvider;\nconst provider = request.metadata?.longContext === true ? "subq" : preferredProvider;\nconst allowDenseLongContextFallback = env.SUBQ_ALLOW_DENSE_FALLBACK;\n',
       "utf8",
     );
     await writeFile(

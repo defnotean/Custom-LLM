@@ -374,9 +374,9 @@ function makeRepoArtifactCases(): LongContextEvalCase[] {
         "responseFormat=json",
       ],
       targetLine:
-        "ROUTER-CONTRACT LONG_CONTEXT_REPO_LOOKUP_SUBQ_ROUTING: the generic long-context route is selected when a request carries metadata.longContext=true. preferredProvider can pin a provider, but this exact flag is the default long-context signal.",
+        "ROUTER-CONTRACT LONG_CONTEXT_REPO_LOOKUP_SUBQ_ROUTING: the generic long-context route requires the subq provider when a request carries metadata.longContext=true. preferredProvider can pin the same provider, but this exact flag is the default long-context signal.",
       question:
-        "Which exact request metadata flag asks the router to prefer the long-context SubQ path? Return only the exact expression.",
+        "Which exact request metadata flag asks the router to require the long-context SubQ path? Return only the exact expression.",
     }),
     makeRepoArtifactCase({
       id: "long-context-repo-subq-architecture-command",
@@ -580,7 +580,7 @@ async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongCon
       expected: "subq",
       distractorAnswers: ["openai-compatible", "ollama", "none", "local"],
       question:
-        "In the actual LLMRouter.ts snapshot, what provider name is preferred when metadata.longContext is true and no preferredProvider is set? Return only the provider name.",
+        "In the actual LLMRouter.ts snapshot, what provider name is required when metadata.longContext is true and no preferredProvider is set? Return only the provider name.",
       targetFile: { path: "src/ai/llm/LLMRouter.ts", content: llmRouter },
       supportFiles: [
         { path: "package.json", content: packageJson },
@@ -622,7 +622,7 @@ async function makeRealRepoSnapshotCases(workspaceRoot: string): Promise<LongCon
         "responseFormat=json -> openai-compatible",
       ],
       question:
-        "Using the actual LLMRouter.ts and LOCAL_LLM_SETUP.md snapshots together, which metadata flag and provider name define automatic long-context routing? Return exactly: <metadata-flag> -> <provider>.",
+        "Using the actual LLMRouter.ts and LOCAL_LLM_SETUP.md snapshots together, which metadata flag and provider name define strict long-context routing? Return exactly: <metadata-flag> -> <provider>.",
       files: [
         { path: "src/ai/llm/LLMRouter.ts", content: llmRouter },
         { path: "docs/LOCAL_LLM_SETUP.md", content: localLlmSetup },

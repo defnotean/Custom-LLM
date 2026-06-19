@@ -63,6 +63,7 @@ const envSchema = z.object({
   SUBQ_API_KEY: z.string().default(""),
   SUBQ_MODEL: z.string().default(""),
   SUBQ_TIMEOUT_MS: z.coerce.number().int().min(1).max(3_600_000).default(600_000),
+  SUBQ_ALLOW_DENSE_FALLBACK: booleanString.default("false"),
 
   // Runtime parameter-module hotload control endpoint
   PARAMETER_HOTLOAD_ENDPOINT: z.string().default(""),

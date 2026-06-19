@@ -191,10 +191,21 @@ export async function checkSubquadraticArchitectureReadiness(
         }),
     routerSource.includes("metadata?.longContext === true") &&
     routerSource.includes('"subq"') &&
-    routerSource.includes("preferredProvider")
-      ? pass("subq-router-contract", "LLMRouter prefers the subq provider for long-context metadata")
-      : fail("subq-router-contract", "LLMRouter no longer proves automatic long-context SubQ routing", {
-          required: ['metadata?.longContext === true', '"subq"', "preferredProvider"],
+    routerSource.includes("preferredProvider") &&
+    routerSource.includes("allowDenseLongContextFallback") &&
+    routerSource.includes("SUBQ_ALLOW_DENSE_FALLBACK")
+      ? pass(
+          "subq-router-contract",
+          "LLMRouter requires the subq provider for long-context metadata unless dense fallback is explicit",
+        )
+      : fail("subq-router-contract", "LLMRouter no longer proves strict long-context SubQ routing", {
+          required: [
+            "metadata?.longContext === true",
+            '"subq"',
+            "preferredProvider",
+            "allowDenseLongContextFallback",
+            "SUBQ_ALLOW_DENSE_FALLBACK",
+          ],
         }),
     trainerSource.includes('"local-log-sparse"') &&
     trainerSource.includes("sparse_attention_indices") &&

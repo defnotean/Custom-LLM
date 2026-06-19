@@ -144,6 +144,51 @@ describe("LLMRouter", () => {
     expect(local.requests).toHaveLength(0);
     expect(subq.requests).toHaveLength(1);
   });
+
+  it("requires a configured SubQ provider for long-context requests by default", async () => {
+    const local = new NamedMockProvider("openai-compatible", "local-model", "local response");
+    const router = new LLMRouter([local], testLogger);
+
+    await expect(
+      router.generateChatCompletion({
+        messages: [{ role: "user", content: "reason over the whole repo" }],
+        metadata: { longContext: true },
+      }),
+    ).rejects.toThrow(/requires a configured "subq" provider/);
+    expect(local.requests).toHaveLength(0);
+  });
+
+  it("does not silently fall back to dense providers when strict SubQ fails", async () => {
+    const local = new NamedMockProvider("openai-compatible", "local-model", "local response");
+    const subq = new FailingNamedProvider("subq", "subq-model");
+    const router = new LLMRouter([local, subq], testLogger);
+
+    await expect(
+      router.generateChatCompletion({
+        messages: [{ role: "user", content: "reason over the whole repo" }],
+        metadata: { longContext: true },
+      }),
+    ).rejects.toThrow(/All LLM providers failed/);
+    expect(subq.requests).toHaveLength(1);
+    expect(local.requests).toHaveLength(0);
+  });
+
+  it("allows dense long-context fallback only when explicitly configured", async () => {
+    const local = new NamedMockProvider("openai-compatible", "local-model", "local response");
+    const subq = new FailingNamedProvider("subq", "subq-model");
+    const router = new LLMRouter([local, subq], testLogger, {
+      allowDenseLongContextFallback: true,
+    });
+
+    const res = await router.generateChatCompletion({
+      messages: [{ role: "user", content: "reason over the whole repo" }],
+      metadata: { longContext: true },
+    });
+
+    expect(res.content).toBe("local response");
+    expect(subq.requests).toHaveLength(1);
+    expect(local.requests).toHaveLength(1);
+  });
 });
 
 class NamedMockProvider implements LLMProvider {
@@ -159,5 +204,19 @@ class NamedMockProvider implements LLMProvider {
   async generateChatCompletion(request: LLMChatRequest): Promise<LLMChatResponse> {
     this.requests.push(request);
     return { content: this.response, raw: { mock: true }, latencyMs: 1, model: this.info.model, finishReason: "stop" };
+  }
+}
+
+class FailingNamedProvider implements LLMProvider {
+  readonly info;
+  readonly requests: LLMChatRequest[] = [];
+
+  constructor(name: string, model: string) {
+    this.info = { name, model, baseUrl: `${name}://` };
+  }
+
+  async generateChatCompletion(request: LLMChatRequest): Promise<LLMChatResponse> {
+    this.requests.push(request);
+    throw new Error("provider unavailable");
   }
 }

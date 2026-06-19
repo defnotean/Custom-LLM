@@ -497,7 +497,7 @@ describe("ProductionTrainingReadiness", () => {
     await writeFile(unslothDpoConfigPath, overrides.unslothDpo ?? goodUnslothDpoConfig(), "utf8");
     await writeFile(
       llmRouterSourcePath,
-      'const preferredProvider = request.metadata?.preferredProvider;\nconst provider = request.metadata?.longContext === true ? "subq" : preferredProvider;\n',
+      'const preferredProvider = request.metadata?.preferredProvider;\nconst provider = request.metadata?.longContext === true ? "subq" : preferredProvider;\nconst allowDenseLongContextFallback = env.SUBQ_ALLOW_DENSE_FALLBACK;\n',
       "utf8",
     );
     await writeFile(

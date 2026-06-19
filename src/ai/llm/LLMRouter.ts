@@ -17,13 +17,15 @@ import { OllamaProvider } from "./OllamaProvider";
 export class LLMRouter implements LLMProvider {
   private readonly providers: LLMProvider[];
   private readonly logger: Logger | undefined;
+  private readonly allowDenseLongContextFallback: boolean;
 
-  constructor(providers: LLMProvider[], logger?: Logger) {
+  constructor(providers: LLMProvider[], logger?: Logger, options: LLMRouterOptions = {}) {
     if (providers.length === 0) {
       throw new LLMProviderError("LLMRouter requires at least one provider");
     }
     this.providers = providers;
     this.logger = logger;
+    this.allowDenseLongContextFallback = options.allowDenseLongContextFallback ?? false;
   }
 
   get info(): LLMProviderInfo {
@@ -52,17 +54,34 @@ export class LLMRouter implements LLMProvider {
   }
 
   private providersForRequest(request: LLMChatRequest): LLMProvider[] {
-    const preferredProvider =
-      typeof request.metadata?.preferredProvider === "string"
-        ? request.metadata.preferredProvider
-        : request.metadata?.longContext === true
-          ? "subq"
-          : undefined;
+    const metadataPreferredProvider =
+      typeof request.metadata?.preferredProvider === "string" ? request.metadata.preferredProvider : undefined;
+    const requiresSubqRoute =
+      request.metadata?.longContext === true ||
+      request.metadata?.architectureTarget === "subquadratic-sparse-attention";
+    const preferredProvider = requiresSubqRoute ? "subq" : metadataPreferredProvider;
     if (!preferredProvider) return this.providers;
     const preferred = this.providers.find((provider) => provider.info.name === preferredProvider);
-    if (!preferred) return this.providers;
+    const isSubqRequest = preferredProvider === "subq";
+    if (!preferred) {
+      if (isSubqRequest && !this.allowDenseLongContextFallback) {
+        throw new LLMProviderError(
+          'SubQ/SSA long-context request requires a configured "subq" provider. Set SUBQ_ENABLED=true with SUBQ_BASE_URL and SUBQ_MODEL, or explicitly set SUBQ_ALLOW_DENSE_FALLBACK=true for development fallback.',
+        );
+      }
+      this.logger?.warn(
+        { preferredProvider },
+        "Preferred LLM provider is unavailable; falling back to configured providers",
+      );
+      return this.providers;
+    }
+    if (isSubqRequest && !this.allowDenseLongContextFallback) return [preferred];
     return [preferred, ...this.providers.filter((provider) => provider !== preferred)];
   }
+}
+
+export interface LLMRouterOptions {
+  allowDenseLongContextFallback?: boolean;
 }
 
 /** Build the router from environment config. */
@@ -101,5 +120,7 @@ export function buildLLMRouterFromEnv(env: Env, logger?: Logger): LLMRouter {
     }
   }
 
-  return new LLMRouter(providers, logger);
+  return new LLMRouter(providers, logger, {
+    allowDenseLongContextFallback: env.SUBQ_ALLOW_DENSE_FALLBACK,
+  });
 }
