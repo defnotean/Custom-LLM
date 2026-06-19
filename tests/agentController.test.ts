@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { AgentController } from "../src/ai/orchestration/AgentController";
+import { AgentController, type BehaviorGuardrailPort } from "../src/ai/orchestration/AgentController";
 import { ToolRouterAgent } from "../src/ai/orchestration/ToolRouterAgent";
 import { SafetyAgent } from "../src/ai/orchestration/SafetyAgent";
 import { ToolRegistry } from "../src/tools/ToolRegistry";
@@ -17,6 +17,7 @@ import {
 import type { BotMessageContext } from "../src/types/discord";
 import type { InteractionTrace, ParameterModuleHint, SkillHint } from "../src/types/ai";
 import { MockLLMProvider, testLogger } from "./helpers";
+import { respondWithHeuristicBehaviorGuardrail } from "../src/ai/behavior/HeuristicBehaviorResponder";
 
 function makeRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
@@ -76,6 +77,7 @@ function makeController(
     parameterActivator?: {
       retrieve(input: { query: string; candidateToolNames?: string[]; topK?: number }): Promise<ParameterModuleHint[]>;
     } | null;
+    behaviorGuardrail?: BehaviorGuardrailPort | null;
     pendingConfirmations?: PendingConfirmationStore;
   },
 ) {
@@ -103,6 +105,7 @@ function makeController(
       },
     },
     learning: options?.learning ?? null,
+    behaviorGuardrail: options?.behaviorGuardrail ?? null,
     pendingConfirmations: options?.pendingConfirmations,
     logger: testLogger,
     botName: "TestBot",
@@ -130,6 +133,55 @@ describe("AgentController", () => {
     });
     // Fast path: single LLM call, no tool section for casual chat.
     expect(llm.requests).toHaveLength(1);
+  });
+
+  it("uses the behavior guardrail for specific no-tool persona prompts", async () => {
+    const traces: InteractionTrace[] = [];
+    const { controller, llm } = makeController([], traces, {
+      behaviorGuardrail: {
+        respond: ({ prompt, likelyNeedsTool }) =>
+          respondWithHeuristicBehaviorGuardrail({ prompt, likelyNeedsTool }),
+      },
+    });
+
+    const reply = await controller.handleDiscordMessage(makeCtx("what pronouns should people use for you?"));
+
+    expect(reply.content).toBe("She/her. Keep it simple.");
+    expect(llm.requests).toHaveLength(0);
+    expect(traces[0]).toMatchObject({
+      parseOk: true,
+      finalResponse: "She/her. Keep it simple.",
+      model: "heuristic_behavior_responder_v1",
+      behaviorGuardrail: {
+        model: "heuristic_behavior_responder_v1",
+        matchedRule: "persona-pronouns",
+      },
+      parsedAction: { type: "message", content: "She/her. Keep it simple." },
+    });
+  });
+
+  it("does not let the behavior guardrail steal tool requests", async () => {
+    const traces: InteractionTrace[] = [];
+    const { controller, llm } = makeController(
+      [
+        '{"type":"tool_call","tool":"ping","arguments":{},"reason":"user asked"}',
+        '{"type":"message","content":"pong through the tool path"}',
+      ],
+      traces,
+      {
+        behaviorGuardrail: {
+          respond: ({ prompt, likelyNeedsTool }) =>
+            respondWithHeuristicBehaviorGuardrail({ prompt, likelyNeedsTool }),
+        },
+      },
+    );
+
+    const reply = await controller.handleDiscordMessage(makeCtx("ping please, are you alive?"));
+
+    expect(reply.content).toBe("pong through the tool path");
+    expect(llm.requests).toHaveLength(2);
+    expect(traces[0]?.behaviorGuardrail).toBeUndefined();
+    expect(traces[0]?.toolCall).toMatchObject({ name: "ping" });
   });
 
   it("executes a tool call end-to-end with a follow-up turn", async () => {

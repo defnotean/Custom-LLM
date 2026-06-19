@@ -7,7 +7,7 @@ import { evaluateBehaviorPredictions, writeBehaviorEvalSuite } from "../src/trai
 import {
   respondToBehaviorPrompt,
   writeHeuristicBehaviorPredictions,
-} from "../src/training/behavior/HeuristicBehaviorResponder";
+} from "../src/ai/behavior/HeuristicBehaviorResponder";
 
 describe("HeuristicBehaviorResponder", () => {
   let dir: string | null = null;

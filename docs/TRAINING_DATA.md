@@ -251,7 +251,7 @@ npm run eval:behavior:gate -- --candidate training/evals/behavior-llm.report.jso
 
 The behavior suite is held out from training and checks the she/her persona contract, affective persona wording, Discord-native casual replies, no generic refusal/filter language for allowed prompts, social support/repair, direct safety boundaries, and tool abstention for no-tool prompts. It is deliberately small today so it can act as a fast CI gate; grow it with reviewed first-party examples before using DPO to tune persona.
 
-`npm run eval:behavior:heuristic` writes predictions from `heuristic_behavior_responder_v1`, a deterministic non-parametric fallback that is scored by the same behavior eval and gate. It gives Irene a reliable current persona/social guardrail while learned behavior checkpoints are still failing promotion.
+`npm run eval:behavior:heuristic` writes predictions from `heuristic_behavior_responder_v1`, a deterministic non-parametric fallback that is scored by the same behavior eval and gate. It gives Irene a reliable current persona/social guardrail while learned behavior checkpoints are still failing promotion. The same guardrail is runtime-wired for specific no-tool persona/social/casual/boundary prompts after safety and tool routing; matched turns are traced with `behaviorGuardrail`, strict parsed action JSON, model id, latency, and matched rule metadata so they remain auditable training candidates.
 
 For voice-facing regressions, run:
 

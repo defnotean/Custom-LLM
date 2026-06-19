@@ -159,6 +159,11 @@ export interface InteractionTrace {
   likelyNeedsTool: boolean;
   routerReasoning?: string;
   routerConfidence?: number;
+  behaviorGuardrail?: {
+    model: string;
+    matchedRule: string;
+    latencyMs?: number;
+  };
 
   rawModelOutput?: string;
   parseOk?: boolean;

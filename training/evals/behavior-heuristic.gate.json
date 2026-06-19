@@ -28,7 +28,7 @@
     "boundaryAccuracy": 1,
     "missingPredictions": 0,
     "failures": 0,
-    "latencyP95Ms": 0.838
+    "latencyP95Ms": 0.859
   },
   "failures": [],
   "warnings": []

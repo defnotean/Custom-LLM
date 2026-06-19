@@ -1,4 +1,4 @@
-import { writeHeuristicBehaviorPredictions } from "../src/training/behavior/HeuristicBehaviorResponder";
+import { writeHeuristicBehaviorPredictions } from "../src/ai/behavior/HeuristicBehaviorResponder";
 
 async function main(): Promise<void> {
   let suite = "training/evals/behavior.eval.jsonl";

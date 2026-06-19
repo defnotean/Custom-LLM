@@ -66,6 +66,7 @@ import {
   ParameterTrainerDispatchService,
 } from "./training/parameter/ParameterTrainerDispatchService";
 import { buildIreneSystemStatusReport } from "./training/quality/IreneSystemStatusReport";
+import { respondWithHeuristicBehaviorGuardrail } from "./ai/behavior/HeuristicBehaviorResponder";
 
 import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { VoiceListeningPresenceIndicator } from "./discord/presence";
@@ -308,6 +309,12 @@ async function main(): Promise<void> {
     safetyAgent: env.SAFETY_ENABLED ? new SafetyAgent(safetyService) : null,
     training: trainingLogger,
     learning: learningCapture,
+    behaviorGuardrail: env.BEHAVIOR_GUARDRAIL_ENABLED
+      ? {
+          respond: ({ prompt, likelyNeedsTool }) =>
+            respondWithHeuristicBehaviorGuardrail({ prompt, likelyNeedsTool }),
+        }
+      : null,
     pendingConfirmations: redisRuntimeState?.pendingConfirmationStore,
     logger: childLogger("agent"),
     botName: DEFAULT_BOT_NAME,

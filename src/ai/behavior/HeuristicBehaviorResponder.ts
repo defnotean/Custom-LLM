@@ -2,7 +2,6 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { AssistantAction } from "../../types/ai";
-import type { BehaviorEvalCase } from "../eval/BehaviorEvalSuite";
 
 export interface HeuristicBehaviorDecision {
   action: Extract<AssistantAction, { type: "message" | "clarification" }>;
@@ -13,13 +12,29 @@ export interface HeuristicBehaviorPredictionOptions {
   model?: string;
 }
 
+export interface HeuristicBehaviorGuardrailInput {
+  prompt: string;
+  likelyNeedsTool?: boolean;
+}
+
+export interface HeuristicBehaviorGuardrailDecision extends HeuristicBehaviorDecision {
+  model: string;
+  latencyMs: number;
+}
+
 interface BehaviorRule {
   id: string;
   action: Extract<AssistantAction, { type: "message" | "clarification" }>;
   patterns: RegExp[];
 }
 
-const MODEL_NAME = "heuristic_behavior_responder_v1";
+interface BehaviorPredictionCase {
+  id: string;
+  prompt: string;
+}
+
+export const HEURISTIC_BEHAVIOR_RESPONDER_MODEL = "heuristic_behavior_responder_v1";
+export const DEFAULT_BEHAVIOR_RULE_ID = "default-casual";
 
 const RULES: BehaviorRule[] = [
   {
@@ -85,7 +100,7 @@ const RULES: BehaviorRule[] = [
 
 const DEFAULT_ACTION: HeuristicBehaviorDecision = {
   action: { type: "message", content: "Yeah. Tell me the exact part you want me to react to." },
-  matchedRule: "default-casual",
+  matchedRule: DEFAULT_BEHAVIOR_RULE_ID,
 };
 
 export function respondToBehaviorPrompt(prompt: string): HeuristicBehaviorDecision {
@@ -98,13 +113,31 @@ export function respondToBehaviorPrompt(prompt: string): HeuristicBehaviorDecisi
   return DEFAULT_ACTION;
 }
 
+export function isSpecificBehaviorRule(decision: HeuristicBehaviorDecision): boolean {
+  return decision.matchedRule !== DEFAULT_BEHAVIOR_RULE_ID;
+}
+
+export function respondWithHeuristicBehaviorGuardrail(
+  input: HeuristicBehaviorGuardrailInput,
+): HeuristicBehaviorGuardrailDecision | null {
+  if (input.likelyNeedsTool) return null;
+  const start = performance.now();
+  const decision = respondToBehaviorPrompt(input.prompt);
+  if (!isSpecificBehaviorRule(decision)) return null;
+  return {
+    ...decision,
+    model: HEURISTIC_BEHAVIOR_RESPONDER_MODEL,
+    latencyMs: Number((performance.now() - start).toFixed(3)),
+  };
+}
+
 export async function writeHeuristicBehaviorPredictions(
   suitePath: string,
   outPath: string,
   options: HeuristicBehaviorPredictionOptions = {},
 ): Promise<{ outPath: string; predictions: number; model: string }> {
-  const cases = await readJsonl<BehaviorEvalCase>(suitePath);
-  const model = options.model ?? MODEL_NAME;
+  const cases = await readJsonl<BehaviorPredictionCase>(suitePath);
+  const model = options.model ?? HEURISTIC_BEHAVIOR_RESPONDER_MODEL;
   const predictions = cases.map((item) => {
     const start = performance.now();
     const decision = respondToBehaviorPrompt(item.prompt);

@@ -54,6 +54,7 @@ export interface AgentControllerOptions {
   safetyAgent?: SafetyAgent | null;
   training?: TrainingSink | null;
   learning?: InteractionLearningSink | null;
+  behaviorGuardrail?: BehaviorGuardrailPort | null;
   pendingConfirmations?: PendingConfirmationStore;
   logger: Logger;
   botName?: string;
@@ -68,6 +69,22 @@ export interface AgentControllerOptions {
 
 export interface InteractionLearningSink {
   captureInteraction(trace: InteractionTrace, training?: TrainingSinkResult): Promise<void>;
+}
+
+export interface BehaviorGuardrailPort {
+  respond(input: {
+    ctx: BotMessageContext;
+    prompt: string;
+    candidateToolNames: string[];
+    likelyNeedsTool: boolean;
+  }): Promise<BehaviorGuardrailDecision | null> | BehaviorGuardrailDecision | null;
+}
+
+export interface BehaviorGuardrailDecision {
+  action: Extract<AssistantAction, { type: "message" | "clarification" }>;
+  model: string;
+  matchedRule: string;
+  latencyMs?: number;
 }
 
 export interface SkillRetrievalPort {
@@ -108,6 +125,7 @@ export class AgentController {
   private readonly safetyAgent: SafetyAgent | null;
   private readonly training: TrainingSink | null;
   private readonly learning: InteractionLearningSink | null;
+  private readonly behaviorGuardrail: BehaviorGuardrailPort | null;
   private readonly logger: Logger;
   private readonly botName: string;
   private readonly toolCallingEnabled: boolean;
@@ -127,6 +145,7 @@ export class AgentController {
     this.safetyAgent = options.safetyAgent ?? null;
     this.training = options.training ?? null;
     this.learning = options.learning ?? null;
+    this.behaviorGuardrail = options.behaviorGuardrail ?? null;
     this.logger = options.logger;
     this.botName = options.botName ?? DEFAULT_BOT_NAME;
     this.toolCallingEnabled = options.toolCallingEnabled ?? true;
@@ -231,6 +250,14 @@ export class AgentController {
       });
       trace.systemPrompt = systemPrompt;
 
+      const behaviorGuardrailReply = await this.tryBehaviorGuardrail(ctx, trace, {
+        candidateToolNames,
+        likelyNeedsTool: trace.likelyNeedsTool,
+      });
+      if (behaviorGuardrailReply !== null) {
+        return this.finish(ctx, trace, behaviorGuardrailReply, startedAt);
+      }
+
       // 5. LLM call + 6. parse.
       const turn = await this.conversation.run({
         systemPrompt,
@@ -285,6 +312,33 @@ export class AgentController {
       case "tool_call":
         return this.handleToolCall(ctx, trace, action);
     }
+  }
+
+  private async tryBehaviorGuardrail(
+    ctx: BotMessageContext,
+    trace: InteractionTrace,
+    routing: { candidateToolNames: string[]; likelyNeedsTool: boolean },
+  ): Promise<string | null> {
+    if (!this.behaviorGuardrail || routing.likelyNeedsTool) return null;
+    const decision = await this.behaviorGuardrail.respond({
+      ctx,
+      prompt: ctx.content,
+      candidateToolNames: routing.candidateToolNames,
+      likelyNeedsTool: routing.likelyNeedsTool,
+    });
+    if (!decision) return null;
+
+    trace.behaviorGuardrail = {
+      model: decision.model,
+      matchedRule: decision.matchedRule,
+      ...(typeof decision.latencyMs === "number" ? { latencyMs: decision.latencyMs } : {}),
+    };
+    trace.rawModelOutput = JSON.stringify(decision.action);
+    trace.parseOk = true;
+    trace.parsedAction = decision.action;
+    trace.model = decision.model;
+    trace.llmLatencyMs = decision.latencyMs ?? 0;
+    return this.actOn(ctx, trace, decision.action);
   }
 
   private async handleToolCall(
