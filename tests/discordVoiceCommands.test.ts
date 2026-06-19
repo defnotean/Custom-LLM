@@ -34,6 +34,11 @@ function services(): CommandServices {
       joinCurrentChannel: async () => ({ ok: true, message: "voice joined" }),
       leaveGuild: () => ({ ok: true, message: "voice left" }),
       say: async (_ctx: BotMessageContext, text: string) => ({ ok: true, message: `voice said ${text}` }),
+      listenStatus: async () => ({ ok: true, message: "voice listen status" }),
+      configureListening: async (_ctx: BotMessageContext, enabled: boolean) => ({
+        ok: true,
+        message: enabled ? "voice listening enabled" : "voice listening disabled",
+      }),
       stopSpeaking: async () => ({ ok: true, message: "voice stopped" }),
     } as never,
   };
@@ -48,6 +53,9 @@ describe("voice commands", () => {
     await expect(handleCommand(ctx("voice join"), services())).resolves.toBe("voice joined");
     await expect(handleCommand(ctx("voice leave"), services())).resolves.toBe("voice left");
     await expect(handleCommand(ctx("voice say hello there"), services())).resolves.toBe("voice said hello there");
+    await expect(handleCommand(ctx("voice listen"), services())).resolves.toBe("voice listen status");
+    await expect(handleCommand(ctx("voice listen enable"), services())).resolves.toBe("voice listening enabled");
+    await expect(handleCommand(ctx("voice listen disable"), services())).resolves.toBe("voice listening disabled");
     await expect(handleCommand(ctx("voice stop-speaking"), services())).resolves.toBe("voice stopped");
   });
 

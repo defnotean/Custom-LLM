@@ -16,25 +16,37 @@ import {
   VoiceSessionRegistry,
 } from "./VoiceSessionPolicy";
 import { type VoiceSpeechQueue } from "./VoiceSpeechQueue";
+import type { SttProvider, VoiceTranscriptionResult } from "./VoiceSttTranscription";
 
 export interface VoiceCommandResult {
   ok: boolean;
   message: string;
   policy?: ResolvedVoicePolicy;
+  transcript?: VoiceTranscriptionResult;
 }
 
 export interface DiscordVoiceServiceOptions {
   settingsStore?: Pick<GuildRepository, "getSettings" | "updateSettings"> | null;
   registry?: VoiceSessionRegistry;
   speechQueue?: VoiceSpeechQueue | null;
+  sttProvider?: SttProvider | null;
   logger?: Logger;
   readyTimeoutMs?: number;
+}
+
+export interface BufferedVoiceAudioInput {
+  audio: Buffer;
+  format: string;
+  speakerUserId?: string;
+  language?: string;
+  durationMs?: number;
 }
 
 export class DiscordVoiceService {
   private readonly settingsStore: Pick<GuildRepository, "getSettings" | "updateSettings"> | null;
   private readonly registry: VoiceSessionRegistry;
   private readonly speechQueue: VoiceSpeechQueue | null;
+  private readonly sttProvider: SttProvider | null;
   private readonly logger?: Logger;
   private readonly readyTimeoutMs: number;
 
@@ -42,6 +54,7 @@ export class DiscordVoiceService {
     this.settingsStore = options.settingsStore ?? null;
     this.registry = options.registry ?? new VoiceSessionRegistry();
     this.speechQueue = options.speechQueue ?? null;
+    this.sttProvider = options.sttProvider ?? null;
     this.logger = options.logger;
     this.readyTimeoutMs = options.readyTimeoutMs ?? 10_000;
   }
@@ -230,6 +243,129 @@ export class DiscordVoiceService {
     return { ok: true, message: "Stopped Irene's queued voice speech for this server." };
   }
 
+  async configureListening(ctx: BotMessageContext, enabled: boolean): Promise<VoiceCommandResult> {
+    if (!canManageVoice(ctx)) return deniedByPermission();
+    if (!ctx.guildId) return { ok: false, message: "Voice listening policy can only be changed in a server." };
+    if (!this.settingsStore) {
+      return { ok: false, message: "Voice policy persistence is unavailable because the database is not connected." };
+    }
+    if (enabled && !this.sttProvider) {
+      return { ok: false, message: "STT is not configured. Set VOICE_STT_ENDPOINT before enabling voice listening." };
+    }
+
+    const channel = getCallerVoiceChannel(ctx);
+    if (enabled && !channel) {
+      return { ok: false, message: "Join the voice channel Irene should listen in, then run `!ai voice listen enable`." };
+    }
+
+    const settings = await this.settingsStore.getSettings(ctx.guildId);
+    const voice = settings.voice ?? {};
+    const channelId = channel?.id ?? this.registry.get(ctx.guildId)?.channelId ?? ctx.channelId;
+    const nextVoice: GuildVoiceSettings = {
+      ...voice,
+      enabled: enabled ? true : voice.enabled,
+      allowChannels: enabled ? unique([...(voice.allowChannels ?? []), channelId]) : voice.allowChannels,
+      ttsEnabled: voice.ttsEnabled ?? true,
+      listenEnabled: enabled,
+      transcriptionEnabled: enabled,
+      retainTranscripts: enabled ? false : voice.retainTranscripts ?? false,
+      retainSummaries: enabled ? voice.retainSummaries ?? false : false,
+      allowTrainingUse: enabled ? false : voice.allowTrainingUse ?? false,
+      visibleIndicator: true,
+    };
+    await this.settingsStore.updateSettings(ctx.guildId, { ...settings, voice: nextVoice }, ctx.guildName ?? undefined);
+
+    const policy = resolveVoicePolicy({
+      guildId: ctx.guildId,
+      channelId,
+      settings: nextVoice,
+      requestedMode: enabled ? "transcribe" : "listen",
+    });
+    return {
+      ok: true,
+      policy,
+      message: enabled
+        ? [
+            `Voice listening and transcription are enabled for <#${channelId}>.`,
+            "Raw audio remains transient. Transcript retention, summaries, and training use remain off until separately reviewed and enabled.",
+            "If Irene is already connected, leave and rejoin so Discord updates the self-deafen state.",
+          ].join(" ")
+        : "Voice listening and transcription are disabled. Raw audio remains transient and transcript retention is off.",
+    };
+  }
+
+  async listenStatus(ctx: BotMessageContext): Promise<VoiceCommandResult> {
+    if (!ctx.guildId) return { ok: false, message: "Voice listening status only exists in servers." };
+    const channel = getCallerVoiceChannel(ctx);
+    const settings = await this.readVoiceSettings(ctx.guildId);
+    const channelId = channel?.id ?? this.registry.get(ctx.guildId)?.channelId ?? ctx.channelId;
+    const policy = resolveVoicePolicy({
+      guildId: ctx.guildId,
+      channelId,
+      settings,
+      requestedMode: "transcribe",
+    });
+    return {
+      ok: true,
+      policy,
+      message: [
+        `Voice listening status for <#${channelId}>: ${policy.canTranscribe ? "transcription enabled" : "transcription off"}.`,
+        `STT backend: ${this.sttProvider ? "configured" : "not configured"}.`,
+        `retainTranscript=${policy.canRetainTranscript ? "on" : "off"}`,
+        `retainSummary=${policy.canRetainSummary ? "on" : "off"}`,
+        `trainingReviewQueue=${policy.canQueueForTrainingReview ? "on" : "off"}`,
+        `rawAudio=${policy.rawAudioRetention}`,
+        `visibleIndicator=${policy.visibleIndicator ? "on" : "off"}`,
+      ].join(" "),
+    };
+  }
+
+  async transcribeBufferedAudio(ctx: BotMessageContext, input: BufferedVoiceAudioInput): Promise<VoiceCommandResult> {
+    if (!ctx.guildId) return { ok: false, message: "Voice transcription only works in servers." };
+    if (!this.sttProvider) {
+      return { ok: false, message: "STT is not configured. Set VOICE_STT_ENDPOINT before transcribing audio." };
+    }
+
+    const activeSession = this.registry.get(ctx.guildId);
+    const channel = getCallerVoiceChannel(ctx);
+    const channelId = activeSession?.channelId ?? channel?.id ?? ctx.channelId;
+    const settings = await this.readVoiceSettings(ctx.guildId);
+    const policy = resolveVoicePolicy({
+      guildId: ctx.guildId,
+      channelId,
+      settings,
+      requestedMode: "transcribe",
+    });
+    if (!policy.allowed) {
+      return { ok: false, policy, message: `Irene cannot transcribe voice: ${policy.reason}.` };
+    }
+
+    const transcript = await this.sttProvider.transcribe({
+      guildId: ctx.guildId,
+      channelId,
+      speakerUserId: input.speakerUserId,
+      requestedByUserId: ctx.userId,
+      audio: input.audio,
+      format: input.format,
+      language: input.language,
+      metadata: {
+        durationMs: input.durationMs ?? null,
+        retention: {
+          rawAudio: policy.rawAudioRetention,
+          transcript: policy.canRetainTranscript,
+          summary: policy.canRetainSummary,
+          trainingReviewQueue: policy.canQueueForTrainingReview,
+        },
+      },
+    });
+    return {
+      ok: true,
+      policy,
+      transcript,
+      message: `Transcribed ${input.durationMs ? `${Math.round(input.durationMs)}ms ` : ""}voice audio with ${transcript.text.length} characters. Retention: rawAudio=${policy.rawAudioRetention}, transcript=${policy.canRetainTranscript ? "on" : "off"}, trainingReviewQueue=${policy.canQueueForTrainingReview ? "on" : "off"}.`,
+    };
+  }
+
   status(ctx: BotMessageContext): VoiceCommandResult {
     if (!ctx.guildId) return { ok: false, message: "Voice status only exists in servers." };
     const session = this.registry.get(ctx.guildId);
@@ -248,6 +384,7 @@ export class DiscordVoiceService {
       message: [
         `Irene voice status: ${connected ? "connected" : "session-recorded"}.`,
         session ? `Channel: <#${session.channelId}>. Started: ${session.startedAt}.` : null,
+        session ? `Listening: ${session.policy.canTranscribe ? "transcription enabled" : "off"}.` : null,
         speech ? `Speech: active=${speech.activeJobId ?? "none"} queued=${speech.queued}.` : null,
       ]
         .filter((line): line is string => Boolean(line))

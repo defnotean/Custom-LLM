@@ -3,6 +3,7 @@ import type { GuildSettings } from "../src/database/repositories/GuildRepository
 import { DiscordVoiceService } from "../src/discord/voice/DiscordVoiceService";
 import { VoiceSessionRegistry } from "../src/discord/voice/VoiceSessionPolicy";
 import { VoiceSpeechQueue, type VoiceSpeechJob } from "../src/discord/voice/VoiceSpeechQueue";
+import type { VoiceTranscriptionRequest } from "../src/discord/voice/VoiceSttTranscription";
 import type { BotMessageContext } from "../src/types/discord";
 
 function makeCtx(overrides?: Partial<BotMessageContext>): BotMessageContext {
@@ -161,5 +162,102 @@ describe("DiscordVoiceService", () => {
 
     expect(result.ok).toBe(true);
     expect(stopped).toEqual(["guild-1"]);
+  });
+
+  it("requires an STT backend before enabling listening", async () => {
+    const settings = makeSettingsStore({ voice: { enabled: true, allowChannels: ["voice-1"] } });
+    const service = new DiscordVoiceService({ settingsStore: settings.store });
+
+    const result = await service.configureListening(makeCtx(), true);
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("VOICE_STT_ENDPOINT");
+    expect(settings.read().voice?.listenEnabled).toBeUndefined();
+    expect(settings.read().voice?.transcriptionEnabled).toBeUndefined();
+  });
+
+  it("enables listening and transcription without enabling transcript retention or training use", async () => {
+    const settings = makeSettingsStore();
+    const service = new DiscordVoiceService({
+      settingsStore: settings.store,
+      sttProvider: { transcribe: async () => ({ text: "hello voice" }) },
+    });
+
+    const result = await service.configureListening(makeCtx(), true);
+
+    expect(result.ok).toBe(true);
+    expect(settings.read().voice).toMatchObject({
+      enabled: true,
+      allowChannels: ["voice-1"],
+      listenEnabled: true,
+      transcriptionEnabled: true,
+      retainTranscripts: false,
+      allowTrainingUse: false,
+      visibleIndicator: true,
+    });
+    expect(result.message).toContain("Raw audio remains transient");
+  });
+
+  it("transcribes buffered audio only after policy allows transcription", async () => {
+    const captured: VoiceTranscriptionRequest[] = [];
+    const registry = new VoiceSessionRegistry();
+    registry.start({
+      guildId: "guild-1",
+      channelId: "voice-1",
+      startedByUserId: "user-1",
+      settings: { enabled: true, allowChannels: ["voice-1"], listenEnabled: true, transcriptionEnabled: true },
+    });
+    const service = new DiscordVoiceService({
+      settingsStore: makeSettingsStore({
+        voice: { enabled: true, allowChannels: ["voice-1"], listenEnabled: true, transcriptionEnabled: true },
+      }).store,
+      registry,
+      sttProvider: {
+        transcribe: async (request) => {
+          captured.push(request);
+          return { text: "Irene heard the call", confidence: 0.9 };
+        },
+      },
+    });
+
+    const result = await service.transcribeBufferedAudio(makeCtx(), {
+      audio: Buffer.from("voice"),
+      format: "ogg-opus",
+      speakerUserId: "speaker-1",
+      durationMs: 800,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.transcript?.text).toBe("Irene heard the call");
+    expect(result.message).toContain("rawAudio=transient");
+    expect(captured).toMatchObject([
+      {
+        guildId: "guild-1",
+        channelId: "voice-1",
+        speakerUserId: "speaker-1",
+        requestedByUserId: "user-1",
+        format: "ogg-opus",
+        metadata: {
+          durationMs: 800,
+          retention: { rawAudio: "transient", transcript: false, summary: false, trainingReviewQueue: false },
+        },
+      },
+    ]);
+  });
+
+  it("reports voice listen status with backend and retention state", async () => {
+    const service = new DiscordVoiceService({
+      settingsStore: makeSettingsStore({
+        voice: { enabled: true, allowChannels: ["voice-1"], listenEnabled: true, transcriptionEnabled: true },
+      }).store,
+      sttProvider: { transcribe: async () => ({ text: "ok" }) },
+    });
+
+    const result = await service.listenStatus(makeCtx());
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain("transcription enabled");
+    expect(result.message).toContain("STT backend: configured");
+    expect(result.message).toContain("rawAudio=transient");
   });
 });

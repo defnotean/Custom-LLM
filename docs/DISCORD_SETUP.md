@@ -51,7 +51,7 @@ DISCORD_PRESENCE_ACTIVITY_NAME=for tool calls
 
 Supported activity types are `Playing`, `Listening`, `Watching`, `Competing`, and `Custom`.
 
-Voice join/leave commands are shipped behind an opt-in policy. `!ai voice say` uses a configurable HTTP TTS endpoint plus Discord Voice playback when `VOICE_TTS_ENDPOINT` is set. STT commands are not shipped yet. The current voice code requires guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training.
+Voice join/leave commands are shipped behind an opt-in policy. `!ai voice say` uses a configurable HTTP TTS endpoint plus Discord Voice playback when `VOICE_TTS_ENDPOINT` is set. `!ai voice listen status|enable|disable` manages the opt-in listening/transcription policy and requires `VOICE_STT_ENDPOINT` before listening can be enabled. The current voice code requires guild/channel opt-in, transient raw audio by default, and review before transcripts can feed training. Discord audio receive/VAD/speaker attribution is still the next implementation step; the STT provider contract is ready for that audio hook.
 
 ```env
 # Contract: POST JSON {text, voice, format, metadata}; return audio bytes or JSON {audioBase64}.
@@ -65,6 +65,14 @@ VOICE_TTS_PLAYBACK_TIMEOUT_MS=120000
 VOICE_SPEECH_MAX_CHARS=600
 VOICE_SPEECH_MAX_QUEUE_DEPTH=3
 VOICE_SPEECH_COOLDOWN_MS=3000
+
+# Contract: POST JSON {audioBase64, format, language, metadata}; return JSON {text, confidence?, language?, durationMs?}.
+VOICE_STT_ENDPOINT=http://127.0.0.1:8080/stt
+VOICE_STT_API_KEY=
+VOICE_STT_MODEL=
+VOICE_STT_LANGUAGE=auto
+VOICE_STT_FORMAT=ogg-opus
+VOICE_STT_TIMEOUT_MS=30000
 ```
 
 Set `VOICE_TTS_STREAM_TYPE` to match the bytes your TTS service returns. `ogg/opus` is the cleanest Discord path; `arbitrary` depends on the local FFmpeg/runtime support available to `@discordjs/voice`.
@@ -75,6 +83,8 @@ To enable Irene for the voice channel you are currently in:
 !ai voice enable
 !ai voice join
 !ai voice say hello from Irene
+!ai voice listen status
+!ai voice listen enable
 !ai voice stop-speaking
 !ai voice status
 !ai voice leave

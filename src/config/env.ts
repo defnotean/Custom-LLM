@@ -34,6 +34,12 @@ const envSchema = z.object({
   VOICE_SPEECH_MAX_CHARS: z.coerce.number().int().min(1).max(4_000).default(600),
   VOICE_SPEECH_MAX_QUEUE_DEPTH: z.coerce.number().int().min(1).max(25).default(3),
   VOICE_SPEECH_COOLDOWN_MS: z.coerce.number().int().min(0).max(600_000).default(3_000),
+  VOICE_STT_ENDPOINT: z.string().default(""),
+  VOICE_STT_API_KEY: z.string().default(""),
+  VOICE_STT_MODEL: z.string().default(""),
+  VOICE_STT_LANGUAGE: z.string().default("auto"),
+  VOICE_STT_FORMAT: z.string().default("ogg-opus"),
+  VOICE_STT_TIMEOUT_MS: z.coerce.number().int().min(1).max(600_000).default(30_000),
 
   // Data spine
   DATABASE_URL: z

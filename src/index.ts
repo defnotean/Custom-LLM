@@ -61,6 +61,7 @@ import { createInteractionHandler } from "./discord/events/interactionCreate";
 import { DiscordVoiceService } from "./discord/voice/DiscordVoiceService";
 import { VoiceSpeechQueue } from "./discord/voice/VoiceSpeechQueue";
 import { DiscordVoiceSpeechPlayer, HttpTtsProvider } from "./discord/voice/VoiceTtsPlayback";
+import { HttpSttProvider } from "./discord/voice/VoiceSttTranscription";
 import type { CommandServices } from "./discord/commands";
 
 import { buildApiServer, startApiServer } from "./server/api";
@@ -190,9 +191,21 @@ async function main(): Promise<void> {
       )
     : null;
   logger.info({ ttsConfigured: Boolean(voiceSpeechQueue) }, "voice speech queue ready");
+  const sttProvider = env.VOICE_STT_ENDPOINT
+    ? new HttpSttProvider({
+        endpointUrl: env.VOICE_STT_ENDPOINT,
+        ...(env.VOICE_STT_API_KEY ? { apiKey: env.VOICE_STT_API_KEY } : {}),
+        ...(env.VOICE_STT_MODEL ? { model: env.VOICE_STT_MODEL } : {}),
+        language: env.VOICE_STT_LANGUAGE,
+        format: env.VOICE_STT_FORMAT,
+        timeoutMs: env.VOICE_STT_TIMEOUT_MS,
+      })
+    : null;
+  logger.info({ sttConfigured: Boolean(sttProvider) }, "voice transcription provider ready");
   const voiceService = new DiscordVoiceService({
     settingsStore: guildRepo,
     speechQueue: voiceSpeechQueue,
+    sttProvider,
     logger: childLogger("voice"),
   });
 
