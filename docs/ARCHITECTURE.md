@@ -25,6 +25,7 @@ Discord message
   → optional memory write-back     (MemoryPolicy decides)
   → learned-item ledger record     (LiveLearningRepository, when DB is available)
   → skill/eval-failure candidates  (InteractionLearningCapture)
+  → rolling channel summaries      (MemorySummarizerWorker → CHANNEL memory)
   → parameter-growth plan          (scheduled planner for approved queued learning)
 ```
 
@@ -47,7 +48,7 @@ Casual chat takes the **fast path**: when the ToolRouter reports `likelyNeedsToo
 | Training | `src/training/` | Full-fidelity interaction capture, JSONL exporters, synthetic generation, parameter-growth planning and staging gates |
 | Persistence | `src/database/`, `prisma/` | Prisma models + repositories |
 | API | `src/server/` | Fastify ops API (health/tools/memory/learning/training/stats) |
-| Jobs | `src/jobs/` | In-process queue scaffold + workers |
+| Jobs | `src/jobs/` | In-process queue scaffold, rolling memory summaries, training exports, parameter-growth planning |
 
 ### Trust model (non-negotiable)
 
@@ -72,6 +73,8 @@ Irene should not be a closed-door model that only improves after manual restarts
 - **Parameter growth path:** reviewed data feeds a background learner that can train adapters, specialists, router heads, or experts. New modules are staged, evaluated, registered, and hot-loaded only after gates pass, with rollback available.
 
 Memory retrieval is not the same thing as model-weight learning. Durable memories make Irene more useful immediately, but they do not increase parameter count. Parameter count grows only when the deployed architecture gains trainable modules: adapters, router heads, specialists, experts, ensembles, or a bigger base model. The runtime should track base parameters, adapter parameters, specialist/expert parameters, total deployed parameters, and active parameters per request.
+
+The memory summarizer worker scans recently active channels, builds rolling summaries from complete conversation turns, stores them as `CHANNEL`-scoped memories, and records learned-item provenance with a durable summary fingerprint. Summary records are retrievable immediately through memory/RAG, but they are marked `canTrain=false` until review. Large summary windows are sent to the LLM with SubQ/SSA long-context metadata (`longContext=true`, `preferredProvider="subq"`, `architectureTarget="subquadratic-sparse-attention"`), so the summarization path follows the same sparse-attention target as repository-scale context.
 
 The current runtime can also activate promoted parameter-module records per request: active non-base modules are selected by query/tool relevance, their retrievable source learning is added to the prompt, and the trace records which modules were active. This is the live control-plane behavior. Real LoRA adapter or specialist checkpoint loading now has a checked apply client and a backend-aware local control endpoint; production weight loading still needs a concrete `ParameterHotloadBackend` implementation that attaches those artifacts to the chosen model server.
 
@@ -125,7 +128,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 |---|---|
 | Content moderation (`ModerationRules`) | **Placeholder** — minimal regex screen. Production: Llama Guard via local endpoint + Discord AutoMod + provider moderation |
 | Slash commands (`interactionCreate`) | **Implemented** - `npm run register:discord-commands` publishes `/ai input:<text>` globally or to `DISCORD_GUILD_ID`; handler defers replies, enforces guild text policy, then routes into the same command/agent paths as prefix messages |
-| Memory summarizer worker | **Placeholder** — scheduled and observable, performs no writes; intended: rolling channel summaries + memory consolidation |
+| Memory summarizer worker | **Implemented** - scheduled worker scans active channels, summarizes complete recent turns, stores `CHANNEL` memories with learned-item provenance/fingerprints, skips duplicate windows, and tags large windows for the SubQ/SSA long-context route |
 | Embedding-based tool routing | **Implemented, opt-in** via `TOOL_ROUTER_STRATEGY=embedding`; use a real embedding model for semantic recall and compare eval metrics before promotion |
 | QdrantMemoryStore | **Implemented, not integration-tested** — REST calls per documented API; exercise against `docker compose up qdrant` before relying on it |
 | `summarize_channel_recent_messages` | Returns raw transcript; the follow-up LLM turn summarizes. Dedicated summarization pass TODO |

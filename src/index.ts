@@ -324,7 +324,13 @@ async function main(): Promise<void> {
 
   // ── Background jobs ────────────────────────────────────────────────────
   const queue = new InProcessJobQueue(childLogger("jobs"));
-  registerMemorySummarizerWorker(queue, { logger: childLogger("jobs") });
+  registerMemorySummarizerWorker(queue, {
+    conversations: conversationRepo,
+    memory: memoryService,
+    learning: learningRepo,
+    llm,
+    logger: childLogger("jobs"),
+  });
   registerDatasetExportWorker(queue, { exporter, logger: childLogger("jobs") });
   registerParameterGrowthPlannerWorker(queue, { planner: parameterGrowthPlanner, logger: childLogger("jobs") });
   queue.start();

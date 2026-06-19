@@ -31,6 +31,15 @@ export interface RememberInput {
   metadata?: JsonValue;
   /** Explicit user request (tool/command) — bypasses heuristics, not the secret check. */
   explicit?: boolean;
+  learning?: {
+    kind?: LearningKind;
+    source?: string;
+    confidence?: number;
+    reviewStatus?: LearningReviewStatus;
+    accessPaths?: LearningAccessPath[];
+    retention?: Partial<LearningRetentionPolicy>;
+    metadata?: JsonObject;
+  };
 }
 
 export interface RememberResult {
@@ -87,6 +96,9 @@ export class MemoryService implements MemoryPort {
     }
     if (scope === "GUILD" && !input.guildId) {
       return { id: null, stored: false, reason: "GUILD scope requires a guildId" };
+    }
+    if (scope === "CHANNEL" && !input.channelId) {
+      return { id: null, stored: false, reason: "CHANNEL scope requires a channelId" };
     }
 
     const [embedding] = await this.embeddings.embed([input.content]);
@@ -208,11 +220,12 @@ export class MemoryService implements MemoryPort {
 
     try {
       const item = await this.learning.createLearnedItem({
-        kind: "memory",
+        kind: input.learning?.kind ?? "memory",
         content: input.content,
-        source: input.explicit ? "explicit_memory" : "memory_policy",
-        confidence: input.explicit ? 1 : 0.82,
-        accessPaths: ["memory_rag"],
+        source: input.learning?.source ?? (input.explicit ? "explicit_memory" : "memory_policy"),
+        confidence: input.learning?.confidence ?? (input.explicit ? 1 : 0.82),
+        ...(input.learning?.reviewStatus ? { reviewStatus: input.learning.reviewStatus } : {}),
+        accessPaths: input.learning?.accessPaths ?? ["memory_rag"],
         provenance: {
           userId: input.userId ?? undefined,
           guildId: input.guildId ?? null,
@@ -222,12 +235,14 @@ export class MemoryService implements MemoryPort {
         retention: {
           canRetrieve: true,
           canTrain: input.explicit === true,
+          ...input.learning?.retention,
         },
         metadata: {
           memoryScope: scope,
           importance: input.importance ?? null,
           explicit: input.explicit ?? false,
           policyReason,
+          ...(input.learning?.metadata ?? {}),
         },
       });
       return item.id;

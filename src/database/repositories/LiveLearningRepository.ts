@@ -123,6 +123,20 @@ export class LiveLearningRepository {
     return rows.map((row) => learnedItemFromRow(row));
   }
 
+  async findLearnedItemByMetadata(source: string, key: string, value: string): Promise<LearnedItem | null> {
+    const rows = await this.prisma.learnedItem.findMany({
+      where: { source },
+      include: learnedItemInclude,
+      orderBy: { createdAt: "desc" },
+      take: 1000,
+    });
+    for (const row of rows) {
+      const item = learnedItemFromRow(row);
+      if (item.metadata[key] === value) return item;
+    }
+    return null;
+  }
+
   async markReviewed(
     id: string,
     status: LearningReviewStatus,

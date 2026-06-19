@@ -11,6 +11,13 @@ export interface CreateConversationInput {
   metadataJson: JsonValue;
 }
 
+export interface ActiveConversationChannel {
+  guildId: string | null;
+  channelId: string;
+  conversationCount: number;
+  lastConversationAt: string;
+}
+
 export class ConversationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -32,6 +39,35 @@ export class ConversationRepository {
 
   async count(): Promise<number> {
     return this.prisma.conversation.count();
+  }
+
+  async listActiveChannelsSince(since: Date, limit = 50): Promise<ActiveConversationChannel[]> {
+    const rows = await this.prisma.conversation.findMany({
+      where: { createdAt: { gte: since } },
+      select: { guildId: true, channelId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: Math.max(limit * 100, limit),
+    });
+
+    const byChannel = new Map<string, ActiveConversationChannel>();
+    for (const row of rows) {
+      const key = `${row.guildId ?? "dm"}:${row.channelId}`;
+      const existing = byChannel.get(key);
+      if (existing) {
+        existing.conversationCount += 1;
+        continue;
+      }
+      byChannel.set(key, {
+        guildId: row.guildId,
+        channelId: row.channelId,
+        conversationCount: 1,
+        lastConversationAt: row.createdAt.toISOString(),
+      });
+    }
+
+    return [...byChannel.values()]
+      .sort((a, b) => b.lastConversationAt.localeCompare(a.lastConversationAt))
+      .slice(0, limit);
   }
 
   async listRecentByChannel(channelId: string, limit = 20) {
