@@ -7,6 +7,10 @@ import { checkProductionTrainingReadiness } from "../src/training/quality/Produc
 import { buildToolRegistry } from "../src/tools";
 import { buildToolEvalCases, type ToolEvalCase } from "../src/training/eval/ToolEvalSuite";
 import { buildBehaviorEvalCases, type BehaviorEvalCase } from "../src/training/eval/BehaviorEvalSuite";
+import {
+  writeSpecialistRoutingEvalSuite,
+  type SpecialistRoutingEvalCase,
+} from "../src/training/eval/SpecialistRoutingEvalSuite";
 
 describe("ProductionTrainingReadiness", () => {
   let dir: string | null = null;
@@ -34,6 +38,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "behavior-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "voice-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "router-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "tool-protocol-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
@@ -143,6 +148,28 @@ describe("ProductionTrainingReadiness", () => {
 
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "behavior-coverage")).toBe("fail");
+  });
+
+  it("fails production readiness when specialist router coverage is incomplete", async () => {
+    const fixture = await writeFixture({
+      routerEvalRows: [
+        {
+          id: "router:tool:only",
+          route: "tool_protocol",
+          expert: "tool",
+          prompt: "ban this spammer",
+          metadata: { cue: "explicit discord moderation action" },
+        },
+      ],
+    });
+
+    const report = await checkProductionTrainingReadiness({
+      ...fixture.options,
+      routerCoverageMinCases: 0,
+    });
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "router-coverage")).toBe("fail");
   });
 
   it("fails production readiness when held-out eval data leaks into training data", async () => {
@@ -279,6 +306,7 @@ describe("ProductionTrainingReadiness", () => {
     const knowledgeEvalReportPath = join(evalDir, "knowledge-oracle.report.json");
     const behaviorEvalReportPath = join(evalDir, "behavior-oracle.report.json");
     const voiceEvalReportPath = join(evalDir, "voice-oracle.report.json");
+    const routerEvalSuitePath = join(evalDir, "specialist-routing.eval.jsonl");
     const routerEvalReportPath = join(evalDir, "specialist-routing-oracle.report.json");
     const toolRouterEvalReportPath = join(evalDir, "tool-router-keyword.report.json");
     const longContextEvalReportPath = join(evalDir, "long-context-oracle.report.json");
@@ -365,6 +393,8 @@ describe("ProductionTrainingReadiness", () => {
     });
     await writeJson(memoryContinuityGatePath, overrides.memoryContinuityGate ?? goodMemoryContinuityGate());
     await writeJson(skillRetrievalGatePath, overrides.skillRetrievalGate ?? goodSkillRetrievalGate());
+    if (overrides.routerEvalRows) await writeJsonl(routerEvalSuitePath, overrides.routerEvalRows);
+    else await writeSpecialistRoutingEvalSuite(routerEvalSuitePath);
     await writeLongContextSuiteFixture(longContextSuitePath);
     await writeJsonl(
       contaminationEvalPath,
@@ -419,6 +449,7 @@ describe("ProductionTrainingReadiness", () => {
         knowledgeEvalReportPath,
         behaviorEvalReportPath,
         voiceEvalReportPath,
+        routerEvalSuitePath,
         routerEvalReportPath,
         toolRouterEvalReportPath,
         longContextEvalReportPath,
@@ -456,6 +487,7 @@ interface FixtureOverrides {
   contaminationEvalRows: unknown[];
   toolEvalRows: ToolEvalCase[];
   behaviorEvalRows: BehaviorEvalCase[];
+  routerEvalRows: SpecialistRoutingEvalCase[];
 }
 
 function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {

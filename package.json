@@ -86,6 +86,7 @@
     "check:training-report": "tsx scripts/check-training-report.ts",
     "check:tool-protocol-coverage": "tsx scripts/check-tool-protocol-coverage.ts",
     "check:behavior-coverage": "tsx scripts/check-behavior-coverage.ts",
+    "check:router-coverage": "tsx scripts/check-router-coverage.ts",
     "check:contamination": "tsx scripts/check-data-contamination.ts",
     "check:training": "tsx scripts/check-training-artifacts.ts",
     "check:production-readiness": "tsx scripts/check-production-training-readiness.ts",

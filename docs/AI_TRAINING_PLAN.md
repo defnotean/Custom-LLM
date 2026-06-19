@@ -285,6 +285,7 @@ npm run build:router-eval
 npm run build:long-context-eval
 npm run check:contamination
 npm run check:behavior-coverage
+npm run check:router-coverage
 npm run check:training-configs
 npm run check:production-readiness
 
@@ -339,11 +340,12 @@ Production readiness gate:
 npm run check:dataset-governance
 npm run check:tool-protocol-coverage
 npm run check:behavior-coverage
+npm run check:router-coverage
 npm run check:production-readiness
 npm run check:production-readiness -- --stage dpo
 ```
 
-The default SFT preflight verifies dataset governance, contamination leakage, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, BFCL-style tool protocol coverage, behavior/persona coverage, tool/knowledge/behavior/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance`, `npm run check:contamination`, `npm run check:tool-protocol-coverage`, and `npm run check:behavior-coverage` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, obvious secret/PII scans, held-out eval leakage, required tool-call scenario coverage, and required Irene persona/social coverage. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
+The default SFT preflight verifies dataset governance, contamination leakage, production mixture hashes, SFT volume, capped synthetic share, required sources, sequence length budget, tokenizer headroom, packing estimate, assistant-only QLoRA settings, BFCL-style tool protocol coverage, behavior/persona coverage, specialist-router coverage, tool/knowledge/behavior/router/long-context oracle eval reports, the tracked memory-continuity and skill-retrieval gates, and the SubQ/SSA architecture contract. `npm run check:dataset-governance`, `npm run check:contamination`, `npm run check:tool-protocol-coverage`, `npm run check:behavior-coverage`, and `npm run check:router-coverage` can also be run alone to inspect raw source provenance, licenses, checksums, gated-source boundaries, processed source balance, output hashes, synthetic share, obvious secret/PII scans, held-out eval leakage, required tool-call scenario coverage, required Irene persona/social coverage, and required MoE route coverage. Use `--max-sft-token-budget-usage` to tighten or relax the 95% headroom gate for a specific GPU run. Warnings are allowed for the current open-data/synthetic-only scaffold. The DPO stage is intentionally stricter: it fails while preference rows are synthetic-only or below the configured minimum, because synthetic preference pairs are only protocol smoke data.
 
 ## Protocol Eval Harness
 
@@ -517,6 +519,7 @@ The router suite checks the explicit MoE-style gate that decides which specialis
 
 ```bash
 npm run build:router-eval
+npm run check:router-coverage
 npm run eval:router:oracle
 npm run eval:router
 npm run eval:router:gate -- --out training/evals/specialist-routing-oracle.gate.json
@@ -537,6 +540,8 @@ Current router eval suite:
 | `casual` | 3 | `conversation` | Low-stakes chat, jokes, opinions, and no-tool vibe checks |
 | `social_cue` | 3 | `conversation` | Support, celebration, and repair after misunderstanding |
 | `boundary` | 3 | `safety` | Secrets, phishing, credential theft, and account theft boundaries |
+
+`npm run check:router-coverage` is the structural MoE route guard. It fails if the suite stops covering any required route/expert family or the concrete cue families behind them: Discord moderation/utility/cross-channel actions, training and memory-system knowledge, she/her persona and affective style, casual slang/opinion/no-tool prompts, social support/repair, and boundary handling for account theft, secrets, and phishing.
 
 Metrics reported:
 
@@ -657,6 +662,7 @@ Every model iteration must:
 - Pass `npm run eval:behavior:gate` against the candidate behavior report before promotion.
 - Pass `npm run eval:voice:gate` against the candidate voice report before promoting voice-facing changes.
 - Pass `npm run eval:router:gate` against the candidate router report before promoting any specialist-router checkpoint.
+- Pass `npm run check:router-coverage` before training or rebuilding router evals so the MoE route suite keeps every required route/expert family represented.
 - Pass `npm run eval:memory:gate` against the memory continuity report before promoting memory behavior changes.
 - Pass `npm run eval:skill:gate` against the skill retrieval report before promoting live-learning or approved-skill retrieval behavior changes.
 - Pass `npm run eval:long-context:gate` against long-context reports before promoting SubQ/SSA routes or any model advertised for repository-scale context.

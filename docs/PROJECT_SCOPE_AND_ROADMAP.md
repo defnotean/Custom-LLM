@@ -209,6 +209,7 @@ Promotion requires all relevant gates, not just lower validation loss.
 | Behavior gate | Irene identity, she/her consistency, social support, repair, casual tone, boundary wording, tool abstention |
 | Behavior coverage gate | Structural coverage for Irene/she-her identity, affective expression, Discord-native slang/opinion, social support/repair, ambiguous-reference clarification, candid account-theft boundaries, tool abstention, and anti-corporate filler bans |
 | Router gate | Exact specialist route, broad expert family, tool vs non-tool separation |
+| Router coverage gate | Structural MoE route coverage across tool protocol, knowledge, persona, casual, social-cue, boundary, expert-family splits, and concrete cue families |
 | Voice gate | Speaker attribution, turn-taking, interruption handling, STT quality, TTS latency, no retention-policy violations |
 | Memory growth gate | Accurate recall, scope isolation, correct forgetting, no secrets, no one-off memory spam, learned-item capture, useful summary quality |
 | Skill growth gate | Learned workflow succeeds on repeat tasks and does not bypass permissions or confirmations |
@@ -257,6 +258,7 @@ Success criteria:
 - `npm run build`
 - `npm run check:contamination`
 - `npm run check:behavior-coverage`
+- `npm run check:router-coverage`
 - `npm run check:dataset-governance`
 - `npm run check:production-readiness`
 - `npm run check:training-configs`

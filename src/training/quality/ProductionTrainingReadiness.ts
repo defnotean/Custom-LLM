@@ -27,6 +27,10 @@ import {
   checkBehaviorCoverageReadiness,
   type BehaviorCoverageReadinessReport,
 } from "./BehaviorCoverageReadiness";
+import {
+  checkSpecialistRoutingCoverageReadiness,
+  type SpecialistRoutingCoverageReadinessReport,
+} from "./SpecialistRoutingCoverageReadiness";
 
 const outputFileSchema = z.object({
   path: z.string().min(1),
@@ -200,6 +204,7 @@ export interface ProductionTrainingReadinessOptions {
   knowledgeEvalReportPath?: string;
   behaviorEvalReportPath?: string;
   voiceEvalReportPath?: string;
+  routerEvalSuitePath?: string;
   routerEvalReportPath?: string;
   toolRouterEvalReportPath?: string;
   longContextEvalReportPath?: string;
@@ -224,6 +229,7 @@ export interface ProductionTrainingReadinessOptions {
   minSftPackingEfficiency?: number;
   toolProtocolCoverageMinCases?: number;
   behaviorCoverageMinCases?: number;
+  routerCoverageMinCases?: number;
   contaminationTrainPaths?: string[];
   contaminationEvalPaths?: string[];
   contaminationNgramSize?: number;
@@ -292,6 +298,7 @@ const DEFAULTS = {
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
   behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
   voiceEvalReportPath: "training/evals/voice-oracle.report.json",
+  routerEvalSuitePath: "training/evals/specialist-routing.eval.jsonl",
   routerEvalReportPath: "training/evals/specialist-routing-oracle.report.json",
   toolRouterEvalReportPath: "training/evals/tool-router-keyword.report.json",
   longContextEvalReportPath: "training/evals/long-context-oracle.report.json",
@@ -314,6 +321,7 @@ const DEFAULTS = {
   minSftPackingEfficiency: 0.5,
   toolProtocolCoverageMinCases: 250,
   behaviorCoverageMinCases: 11,
+  routerCoverageMinCases: 18,
   contaminationTrainPaths: DEFAULT_CONTAMINATION_TRAIN_PATHS,
   contaminationEvalPaths: DEFAULT_CONTAMINATION_EVAL_PATHS,
   contaminationNgramSize: 13,
@@ -360,6 +368,7 @@ export async function checkProductionTrainingReadiness(
     skillRetrievalGate,
     toolProtocolCoverageReport,
     behaviorCoverageReport,
+    routerCoverageReport,
     subqArchitectureReport,
     datasetGovernanceReport,
     contaminationReport,
@@ -381,6 +390,10 @@ export async function checkProductionTrainingReadiness(
       checkBehaviorCoverageReadiness({
         suitePath: config.behaviorEvalSuitePath,
         minTotalCases: config.behaviorCoverageMinCases,
+      }),
+      checkSpecialistRoutingCoverageReadiness({
+        suitePath: config.routerEvalSuitePath,
+        minTotalCases: config.routerCoverageMinCases,
       }),
       checkSubquadraticArchitectureReadiness({
         suitePath: config.longContextSuitePath,
@@ -434,6 +447,7 @@ export async function checkProductionTrainingReadiness(
       skillRetrievalGate,
       toolProtocolCoverageReport,
       behaviorCoverageReport,
+      routerCoverageReport,
       subqArchitectureReport,
     ),
   );
@@ -535,6 +549,32 @@ function behaviorCoverageReadinessCheck(report: BehaviorCoverageReadinessReport)
         total: report.summary.total,
         byKind: report.summary.byKind,
         byRoute: report.summary.byRoute,
+        failingScenarios,
+      });
+}
+
+function routerCoverageReadinessCheck(report: SpecialistRoutingCoverageReadinessReport): ReadinessCheck {
+  const failingScenarios = report.scenarios
+    .filter((scenario) => scenario.count < scenario.minCases)
+    .map((scenario) => ({
+      id: scenario.id,
+      description: scenario.description,
+      count: scenario.count,
+      minCases: scenario.minCases,
+      sampleIds: scenario.sampleIds,
+    }));
+  return report.status === "pass"
+    ? pass("router-coverage", `Specialist router suite covers ${report.scenarios.length} required MoE route families`, {
+        total: report.summary.total,
+        byRoute: report.summary.byRoute,
+        byExpert: report.summary.byExpert,
+        cues: report.summary.cues,
+        nonToolCases: report.summary.nonToolCases,
+      })
+    : fail("router-coverage", "Specialist router suite is missing required MoE route coverage", {
+        total: report.summary.total,
+        byRoute: report.summary.byRoute,
+        byExpert: report.summary.byExpert,
         failingScenarios,
       });
 }
@@ -752,6 +792,7 @@ function evalHarnessChecks(
   skillRetrievalGate: SkillRetrievalGateReport,
   toolProtocolCoverageReport: ToolProtocolCoverageReadinessReport,
   behaviorCoverageReport: BehaviorCoverageReadinessReport,
+  routerCoverageReport: SpecialistRoutingCoverageReadinessReport,
   subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
@@ -844,6 +885,7 @@ function evalHarnessChecks(
           invalidPredictions: routerReport.invalidPredictions,
           failures: routerReport.failures.length,
         }),
+    routerCoverageReadinessCheck(routerCoverageReport),
     toolRouterReport.total >= 75 &&
     toolRouterReport.expectedToolRecall === 1 &&
     toolRouterReport.caseRecallAccuracy === 1 &&
