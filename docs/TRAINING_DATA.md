@@ -287,12 +287,12 @@ npm run eval:memory
 npm run eval:memory:gate
 ```
 
-The memory continuity suite checks explicit remember/recall, implicit stable-preference capture, USER/GUILD/CHANNEL scope isolation, owner/admin forget behavior, non-owner delete denial, secret/one-off policy rejection, and learned-item capture. Promotion requires perfect pass, recall, isolation, forget, rejection, and learned-item rates before changing runtime memory behavior.
+The memory continuity suite checks explicit remember/recall, implicit stable-preference capture, USER/GUILD/CHANNEL scope isolation, owner/admin forget behavior, non-owner delete denial, secret/one-off policy rejection, and learned-item capture. `MEMORY_EXTRACTION_MODE=llm` adds full-turn ADD/UPDATE/DELETE/NOOP extraction before policy-gated storage; `hybrid` falls back to the heuristic extractor if the LLM extractor fails. Promotion requires perfect pass, recall, isolation, forget, rejection, and learned-item rates before changing runtime memory behavior.
 
 ## Review Workflow
 
 1. Export and sample-read each file.
-2. Redact or drop anything sensitive. `MemoryPolicy` blocks secrets from memory, but raw traces can still contain arbitrary user text.
+2. Redact or drop anything sensitive. `MemoryPolicy` blocks secrets from heuristic and LLM-extracted memories, but raw traces can still contain arbitrary user text.
 3. Flip `reviewed=true` on vetted rows; train only on reviewed slices once volume allows.
 4. Hold out an eval slice and never train on it.
 

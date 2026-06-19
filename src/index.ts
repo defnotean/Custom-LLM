@@ -32,6 +32,7 @@ import { LiveLearningRepository } from "./database/repositories/LiveLearningRepo
 import { GuildRepository } from "./database/repositories/GuildRepository";
 
 import { MemoryService } from "./memory/MemoryService";
+import { LLMMemoryExtractor } from "./memory/MemoryExtractor";
 import type { MemoryStore } from "./memory/MemoryStore";
 import { InMemoryMemoryStore } from "./memory/InMemoryMemoryStore";
 import { PgVectorMemoryStore } from "./memory/PgVectorMemoryStore";
@@ -123,8 +124,22 @@ async function main(): Promise<void> {
           });
 
     const store = await selectMemoryStore(embeddings, prisma);
-    memoryService = new MemoryService(store, embeddings, childLogger("memory"), { learning: learningRepo });
-    logger.info({ store: store.name, embeddings: embeddings.name }, "memory system ready");
+    const memoryExtractor =
+      env.MEMORY_EXTRACTION_MODE === "heuristic"
+        ? null
+        : new LLMMemoryExtractor(llm, childLogger("memory-extractor"), {
+            minConfidence: env.MEMORY_EXTRACTOR_MIN_CONFIDENCE,
+            maxActions: env.MEMORY_EXTRACTOR_MAX_ACTIONS,
+          });
+    memoryService = new MemoryService(store, embeddings, childLogger("memory"), {
+      learning: learningRepo,
+      extractor: memoryExtractor,
+      extractionMode: env.MEMORY_EXTRACTION_MODE,
+    });
+    logger.info(
+      { store: store.name, embeddings: embeddings.name, extractionMode: env.MEMORY_EXTRACTION_MODE },
+      "memory system ready",
+    );
   } else {
     logger.info("memory system disabled via MEMORY_ENABLED=false");
   }

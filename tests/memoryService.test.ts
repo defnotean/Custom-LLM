@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { MemoryExtractor } from "../src/memory/MemoryExtractor";
 import { MemoryService } from "../src/memory/MemoryService";
 import { InMemoryMemoryStore } from "../src/memory/InMemoryMemoryStore";
 import { HashingEmbeddingProvider } from "../src/memory/EmbeddingProvider";
@@ -133,4 +134,149 @@ describe("MemoryService", () => {
     );
     expect(noStore.stored).toBe(false);
   });
+
+  it("stores LLM-extracted ADD memories instead of the raw user message", async () => {
+    const learnedInputs: unknown[] = [];
+    const store = new InMemoryMemoryStore();
+    const service = new MemoryService(store, new HashingEmbeddingProvider(), testLogger, {
+      extractionMode: "llm",
+      extractor: fixedExtractor([
+        {
+          action: "ADD",
+          content: "I prefer concise implementation updates.",
+          scope: "USER",
+          confidence: 0.91,
+          reason: "stable preference",
+        },
+      ]),
+      learning: {
+        createLearnedItem: async (input) => {
+          learnedInputs.push(input);
+          return { id: "learned-extracted" } as never;
+        },
+      },
+    });
+
+    const result = await service.maybeExtractMemoryFromConversation(
+      ctx,
+      "yeah btw when you update me, short implementation updates are best",
+      "got it",
+    );
+
+    expect(result.stored).toBe(true);
+    const hits = await service.search("concise implementation updates", ctx, 5);
+    expect(hits[0]?.content).toBe("I prefer concise implementation updates.");
+    expect(hits.some((hit) => hit.content.includes("btw when you update me"))).toBe(false);
+    expect(learnedInputs[0]).toMatchObject({
+      source: "llm_memory_extractor",
+      confidence: 0.91,
+      retention: { canRetrieve: true, canTrain: false },
+      metadata: {
+        extractionAction: "ADD",
+        extractionReason: "stable preference",
+      },
+    });
+  });
+
+  it("respects LLM-extracted NOOP decisions without heuristic fallback", async () => {
+    const service = new MemoryService(new InMemoryMemoryStore(), new HashingEmbeddingProvider(), testLogger, {
+      extractionMode: "hybrid",
+      extractor: fixedExtractor([{ action: "NOOP", reason: "not durable" }]),
+    });
+
+    const result = await service.maybeExtractMemoryFromConversation(
+      ctx,
+      "I prefer short answers btw",
+      "got it",
+    );
+
+    expect(result).toEqual({ stored: false, reason: "not durable" });
+    expect(await service.count()).toBe(0);
+  });
+
+  it("falls back to heuristic extraction in hybrid mode when the extractor fails", async () => {
+    const service = new MemoryService(new InMemoryMemoryStore(), new HashingEmbeddingProvider(), testLogger, {
+      extractionMode: "hybrid",
+      extractor: {
+        async extract() {
+          throw new Error("extractor offline");
+        },
+      },
+    });
+
+    const result = await service.maybeExtractMemoryFromConversation(
+      ctx,
+      "I prefer short answers btw",
+      "got it",
+    );
+
+    expect(result.stored).toBe(true);
+    expect(await service.count()).toBe(1);
+  });
+
+  it("applies LLM-extracted DELETE decisions to matching user memories", async () => {
+    const service = new MemoryService(new InMemoryMemoryStore(), new HashingEmbeddingProvider(), testLogger, {
+      extractionMode: "llm",
+      extractor: fixedExtractor([{ action: "DELETE", target: "short answers", reason: "user asked to forget" }]),
+    });
+    await service.remember({
+      content: "I prefer short answers.",
+      scope: "USER",
+      userId: "u1",
+      guildId: "g1",
+      channelId: "c1",
+      explicit: true,
+    });
+
+    const result = await service.maybeExtractMemoryFromConversation(
+      ctx,
+      "forget that I prefer short answers",
+      "forgotten",
+    );
+
+    expect(result.stored).toBe(false);
+    expect(result.reason).toMatch(/deleted memory/);
+    expect(await service.count()).toBe(0);
+  });
+
+  it("applies LLM-extracted UPDATE decisions by replacing a matching memory", async () => {
+    const service = new MemoryService(new InMemoryMemoryStore(), new HashingEmbeddingProvider(), testLogger, {
+      extractionMode: "llm",
+      extractor: fixedExtractor([
+        {
+          action: "UPDATE",
+          target: "short answers",
+          content: "I prefer detailed implementation notes.",
+          reason: "preference correction",
+        },
+      ]),
+    });
+    await service.remember({
+      content: "I prefer short answers.",
+      scope: "USER",
+      userId: "u1",
+      guildId: "g1",
+      channelId: "c1",
+      explicit: true,
+    });
+
+    const result = await service.maybeExtractMemoryFromConversation(
+      ctx,
+      "actually don't keep answers short; I want detailed implementation notes",
+      "updated",
+    );
+
+    expect(result.stored).toBe(true);
+    expect(await service.count()).toBe(1);
+    const hits = await service.search("detailed implementation notes", ctx, 5);
+    expect(hits[0]?.content).toBe("I prefer detailed implementation notes.");
+  });
 });
+
+function fixedExtractor(decisions: Awaited<ReturnType<MemoryExtractor["extract"]>>): MemoryExtractor {
+  return {
+    async extract() {
+      return decisions;
+    },
+  };
+}

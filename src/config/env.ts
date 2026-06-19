@@ -94,6 +94,9 @@ const envSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   MEMORY_ENABLED: booleanString.default("true"),
+  MEMORY_EXTRACTION_MODE: z.enum(["heuristic", "llm", "hybrid"]).default("heuristic"),
+  MEMORY_EXTRACTOR_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.65),
+  MEMORY_EXTRACTOR_MAX_ACTIONS: z.coerce.number().int().min(1).max(5).default(3),
   TOOL_CALLING_ENABLED: booleanString.default("true"),
   TOOL_ROUTER_STRATEGY: z.enum(["keyword", "embedding"]).default("keyword"),
   TRAINING_LOGGING_ENABLED: booleanString.default("true"),
