@@ -25,7 +25,15 @@ describe("SubquadraticArchitectureReadiness", () => {
       "real-repo-snapshot": expect.any(Number),
       "real-repo-multifile": expect.any(Number),
     });
+    expect(report.summary.sparseAttentionBudget).toMatchObject({
+      sequenceLengths: [2048, 8192, 64000],
+      localWindow: 32,
+      logBase: 2,
+      largestDenseEdgeRatio: expect.any(Number),
+      growthExponent: expect.any(Number),
+    });
     expect(report.checks.map((check) => check.id)).toContain("subq-router-contract");
+    expect(report.checks.map((check) => check.id)).toContain("local-sparse-attention-budget");
     expect(report.checks.every((check) => check.status === "pass")).toBe(true);
   });
 
@@ -49,6 +57,19 @@ describe("SubquadraticArchitectureReadiness", () => {
 
     expect(report.status).toBe("fail");
     expect(checkStatus(report.checks, "local-sparse-trainer-contract")).toBe("fail");
+  });
+
+  it("fails when the local sparse budget becomes dense-like", async () => {
+    const fixture = await writeFixture();
+
+    const report = await checkSubquadraticArchitectureReadiness({
+      ...fixture,
+      sparseSequenceLengths: [128, 512, 2048],
+      sparseLocalWindow: 4096,
+    });
+
+    expect(report.status).toBe("fail");
+    expect(checkStatus(report.checks, "local-sparse-attention-budget")).toBe("fail");
   });
 
   async function writeFixture(overrides: {

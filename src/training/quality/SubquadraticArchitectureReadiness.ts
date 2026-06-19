@@ -1,5 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
+import {
+  analyzeLocalLogSparseAttentionBudget,
+  type SparseAttentionBudgetReport,
+} from "./SparseAttentionBudget";
 
 export type SubquadraticArchitectureReadinessStatus = "pass" | "fail";
 
@@ -11,6 +15,12 @@ export interface SubquadraticArchitectureReadinessOptions {
   minCases?: number;
   requiredSources?: string[];
   requiredTaskTypes?: string[];
+  sparseSequenceLengths?: number[];
+  sparseLocalWindow?: number;
+  sparseLogBase?: number;
+  maxSparseGrowthExponent?: number;
+  maxSparseLargestDenseEdgeRatio?: number;
+  maxSparseAverageKeysPerToken?: number;
 }
 
 export interface SubquadraticArchitectureReadinessCheck {
@@ -32,6 +42,14 @@ export interface SubquadraticArchitectureReadinessReport {
     maxTargetContextChars: number;
     sources: Record<string, number>;
     taskTypes: Record<string, number>;
+    sparseAttentionBudget: {
+      sequenceLengths: number[];
+      localWindow: number;
+      logBase: number;
+      largestDenseEdgeRatio: number;
+      largestAverageKeysPerToken: number;
+      growthExponent: number;
+    };
   };
   checks: SubquadraticArchitectureReadinessCheck[];
 }
@@ -84,6 +102,12 @@ const DEFAULTS = {
   trainerPath: "training/train_tiny_transformer_lm.py",
   evaluatorPath: "training/evaluate_tiny_transformer_lm.py",
   minCases: 28,
+  sparseSequenceLengths: [2048, 8192, 64000],
+  sparseLocalWindow: 32,
+  sparseLogBase: 2,
+  maxSparseGrowthExponent: 1.25,
+  maxSparseLargestDenseEdgeRatio: 0.01,
+  maxSparseAverageKeysPerToken: 96,
 };
 
 const caseSchema = z.object({
@@ -126,6 +150,11 @@ export async function checkSubquadraticArchitectureReadiness(
       typeof item.metadata.targetContextChars === "number" ? item.metadata.targetContextChars : 0,
     ),
   );
+  const sparseBudget = analyzeLocalLogSparseAttentionBudget({
+    sequenceLengths: config.sparseSequenceLengths,
+    localWindow: config.sparseLocalWindow,
+    logBase: config.sparseLogBase,
+  });
 
   const checks: SubquadraticArchitectureReadinessCheck[] = [
     cases.length >= config.minCases
@@ -189,6 +218,11 @@ export async function checkSubquadraticArchitectureReadiness(
       : fail("local-sparse-evaluator-contract", "Tiny evaluator cannot prove sparse attention checkpoint reload", {
           required: ["attention_mode", "sparse_local_window", "sparse_log_base"],
         }),
+    sparseAttentionBudgetCheck(sparseBudget, {
+      maxSparseGrowthExponent: config.maxSparseGrowthExponent,
+      maxSparseLargestDenseEdgeRatio: config.maxSparseLargestDenseEdgeRatio,
+      maxSparseAverageKeysPerToken: config.maxSparseAverageKeysPerToken,
+    }),
   ];
 
   return {
@@ -203,9 +237,45 @@ export async function checkSubquadraticArchitectureReadiness(
       maxTargetContextChars,
       sources,
       taskTypes,
+      sparseAttentionBudget: {
+        sequenceLengths: sparseBudget.points.map((point) => point.sequenceLength),
+        localWindow: sparseBudget.localWindow,
+        logBase: sparseBudget.logBase,
+        largestDenseEdgeRatio: sparseBudget.largest.denseEdgeRatio,
+        largestAverageKeysPerToken: sparseBudget.largest.averageKeysPerToken,
+        growthExponent: sparseBudget.growthExponent,
+      },
     },
     checks,
   };
+}
+
+function sparseAttentionBudgetCheck(
+  report: SparseAttentionBudgetReport,
+  thresholds: {
+    maxSparseGrowthExponent: number;
+    maxSparseLargestDenseEdgeRatio: number;
+    maxSparseAverageKeysPerToken: number;
+  },
+): SubquadraticArchitectureReadinessCheck {
+  const passBudget =
+    report.growthExponent <= thresholds.maxSparseGrowthExponent &&
+    report.largest.denseEdgeRatio <= thresholds.maxSparseLargestDenseEdgeRatio &&
+    report.largest.averageKeysPerToken <= thresholds.maxSparseAverageKeysPerToken;
+  const details = {
+    localWindow: report.localWindow,
+    logBase: report.logBase,
+    points: report.points,
+    growthExponent: report.growthExponent,
+    thresholds,
+  };
+  return passBudget
+    ? pass(
+        "local-sparse-attention-budget",
+        `Local/log sparse attention stays subquadratic through ${report.largest.sequenceLength} tokens`,
+        details,
+      )
+    : fail("local-sparse-attention-budget", "Local/log sparse attention budget is too close to dense attention", details);
 }
 
 async function readJsonl(path: string): Promise<unknown[]> {

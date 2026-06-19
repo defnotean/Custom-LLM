@@ -35,6 +35,13 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "memory-continuity-gate")).toBe("pass");
     expect(checkStatus(report.checks, "skill-retrieval-gate")).toBe("pass");
     expect(checkStatus(report.checks, "subq-architecture-contract")).toBe("pass");
+    expect(report.checks.find((check) => check.id === "subq-architecture-contract")?.details).toMatchObject({
+      sparseAttentionBudget: {
+        sequenceLengths: [2048, 8192, 64000],
+        localWindow: 32,
+        logBase: 2,
+      },
+    });
     expect(checkStatus(report.checks, "dataset-governance")).toBe("pass");
     expect(checkStatus(report.checks, "contamination-audit")).toBe("pass");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("warn");

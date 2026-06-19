@@ -874,6 +874,7 @@ function evalHarnessChecks(
             maxTargetContextChars: subqArchitectureReport.summary.maxTargetContextChars,
             sources: subqArchitectureReport.summary.sources,
             taskTypes: subqArchitectureReport.summary.taskTypes,
+            sparseAttentionBudget: subqArchitectureReport.summary.sparseAttentionBudget,
           },
         )
       : fail("subq-architecture-contract", "SubQ/SSA architecture contract is incomplete", {
