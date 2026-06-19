@@ -84,6 +84,7 @@
     "eval:gate": "tsx scripts/check-eval-promotion.ts",
     "report:training-runs": "tsx scripts/report-training-runs.ts",
     "check:training-report": "tsx scripts/check-training-report.ts",
+    "check:tool-protocol-coverage": "tsx scripts/check-tool-protocol-coverage.ts",
     "check:contamination": "tsx scripts/check-data-contamination.ts",
     "check:training": "tsx scripts/check-training-artifacts.ts",
     "check:production-readiness": "tsx scripts/check-production-training-readiness.ts",

@@ -204,6 +204,7 @@ Promotion requires all relevant gates, not just lower validation loss.
 | Gate | What it protects |
 |---|---|
 | Protocol/tool gate | Valid JSON, correct action type, correct tool, correct args, no-tool behavior, hallucinated-tool rate |
+| Tool protocol coverage gate | BFCL-style held-out coverage for required args, missing args, permission refusals, risky confirmations, multi-turn changes, adversarial no-tool prompts, large-registry surfaces, and prompt injection |
 | Knowledge gate | Held-out answer quality and regression tracking |
 | Behavior gate | Irene identity, she/her consistency, social support, repair, casual tone, boundary wording, tool abstention |
 | Router gate | Exact specialist route, broad expert family, tool vs non-tool separation |
@@ -282,6 +283,7 @@ Goal: get as close as practical to perfect tool calls under realistic Discord co
 
 Tasks:
 
+- Keep `npm run check:tool-protocol-coverage` passing so every protocol suite rebuild preserves required BFCL-style scenario families.
 - Keep the protocol eval above the 200-case promotion floor; the current suite has 254 cases across starter tools, no-tool prompts, confirmation, clarification, permission, injection, and multi-turn confirmation/correction risk states.
 - Keep expanding multi-turn confirmation/correction cases beyond the current yes variants, cancel variants, defer turn, and changed-argument coverage.
 - Keep expanding adversarial no-tool/casual prompts that mention tool names or protocol JSON.
@@ -293,6 +295,7 @@ Tasks:
 Success criteria:
 
 - Strict protocol gate passes on expanded suite.
+- Tool protocol coverage gate passes on every suite rebuild.
 - Tool-router retrieval gate keeps expected-tool recall and no-tool accuracy at 1.000 with zero permission-filter leaks.
 - No hallucinated tools.
 - No off-candidate tool execution.

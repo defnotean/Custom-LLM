@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { checkProductionTrainingReadiness } from "../src/training/quality/ProductionTrainingReadiness";
+import { buildToolRegistry } from "../src/tools";
+import { buildToolEvalCases, type ToolEvalCase } from "../src/training/eval/ToolEvalSuite";
 
 describe("ProductionTrainingReadiness", () => {
   let dir: string | null = null;
@@ -31,6 +33,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "voice-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "router-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "tool-router-eval-harness")).toBe("pass");
+    expect(checkStatus(report.checks, "tool-protocol-coverage")).toBe("pass");
     expect(checkStatus(report.checks, "long-context-eval-harness")).toBe("pass");
     expect(checkStatus(report.checks, "memory-continuity-gate")).toBe("pass");
     expect(checkStatus(report.checks, "skill-retrieval-gate")).toBe("pass");
@@ -101,6 +104,29 @@ describe("ProductionTrainingReadiness", () => {
 
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "skill-retrieval-gate")).toBe("fail");
+  });
+
+  it("fails production readiness when tool protocol coverage is incomplete", async () => {
+    const fixture = await writeFixture({
+      toolEvalRows: [
+        {
+          id: "tool:ping:direct",
+          kind: "tool_call",
+          prompt: "ping",
+          expected: { type: "tool_call", tool: "ping", arguments: {} },
+          candidateTools: ["ping"],
+          metadata: { tool: "ping" },
+        },
+      ],
+    });
+
+    const report = await checkProductionTrainingReadiness({
+      ...fixture.options,
+      toolProtocolCoverageMinCases: 0,
+    });
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "tool-protocol-coverage")).toBe("fail");
   });
 
   it("fails production readiness when held-out eval data leaks into training data", async () => {
@@ -232,6 +258,7 @@ describe("ProductionTrainingReadiness", () => {
     });
 
     const toolEvalReportPath = join(evalDir, "oracle.report.json");
+    const toolEvalSuitePath = join(evalDir, "tool-routing.eval.jsonl");
     const knowledgeEvalReportPath = join(evalDir, "knowledge-oracle.report.json");
     const behaviorEvalReportPath = join(evalDir, "behavior-oracle.report.json");
     const voiceEvalReportPath = join(evalDir, "voice-oracle.report.json");
@@ -253,6 +280,7 @@ describe("ProductionTrainingReadiness", () => {
       missingPredictions: 0,
       failures: [],
     });
+    await writeJsonl(toolEvalSuitePath, overrides.toolEvalRows ?? buildToolEvalCases(buildToolRegistry()));
     await writeJson(knowledgeEvalReportPath, {
       total: 200,
       answerRate: 1,
@@ -367,6 +395,7 @@ describe("ProductionTrainingReadiness", () => {
         rawDatasetManifestPath,
         processedDatasetReportPath,
         datasetPreparerSourcePath,
+        toolEvalSuitePath,
         toolEvalReportPath,
         knowledgeEvalReportPath,
         behaviorEvalReportPath,
@@ -406,6 +435,7 @@ interface FixtureOverrides {
   memoryContinuityGate: Record<string, unknown>;
   skillRetrievalGate: Record<string, unknown>;
   contaminationEvalRows: unknown[];
+  toolEvalRows: ToolEvalCase[];
 }
 
 function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {

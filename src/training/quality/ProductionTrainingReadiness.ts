@@ -19,6 +19,10 @@ import {
   auditDataContamination,
   type DataContaminationAuditReport,
 } from "./DataContaminationAudit";
+import {
+  checkToolProtocolCoverageReadiness,
+  type ToolProtocolCoverageReadinessReport,
+} from "./ToolProtocolCoverageReadiness";
 
 const outputFileSchema = z.object({
   path: z.string().min(1),
@@ -186,6 +190,7 @@ export interface ProductionTrainingReadinessOptions {
   stage?: ProductionTrainingStage;
   sftReportPath?: string;
   preferenceReportPath?: string;
+  toolEvalSuitePath?: string;
   toolEvalReportPath?: string;
   knowledgeEvalReportPath?: string;
   behaviorEvalReportPath?: string;
@@ -212,6 +217,7 @@ export interface ProductionTrainingReadinessOptions {
   maxSftOverLengthRate?: number;
   maxSftTokenBudgetUsage?: number;
   minSftPackingEfficiency?: number;
+  toolProtocolCoverageMinCases?: number;
   contaminationTrainPaths?: string[];
   contaminationEvalPaths?: string[];
   contaminationNgramSize?: number;
@@ -274,6 +280,7 @@ const DEFAULTS = {
   stage: "sft" as ProductionTrainingStage,
   sftReportPath: "training/data/mixtures/production-sft.report.json",
   preferenceReportPath: "training/data/preferences/production-dpo.report.json",
+  toolEvalSuitePath: "training/evals/tool-routing.eval.jsonl",
   toolEvalReportPath: "training/evals/oracle.report.json",
   knowledgeEvalReportPath: "training/evals/knowledge-oracle.report.json",
   behaviorEvalReportPath: "training/evals/behavior-oracle.report.json",
@@ -298,6 +305,7 @@ const DEFAULTS = {
   maxSftOverLengthRate: 0,
   maxSftTokenBudgetUsage: 0.95,
   minSftPackingEfficiency: 0.5,
+  toolProtocolCoverageMinCases: 250,
   contaminationTrainPaths: DEFAULT_CONTAMINATION_TRAIN_PATHS,
   contaminationEvalPaths: DEFAULT_CONTAMINATION_EVAL_PATHS,
   contaminationNgramSize: 13,
@@ -342,6 +350,7 @@ export async function checkProductionTrainingReadiness(
     longContextEvalReport,
     memoryContinuityGate,
     skillRetrievalGate,
+    toolProtocolCoverageReport,
     subqArchitectureReport,
     datasetGovernanceReport,
     contaminationReport,
@@ -356,6 +365,10 @@ export async function checkProductionTrainingReadiness(
       readJson(config.longContextEvalReportPath, longContextEvalReportSchema),
       readJson(config.memoryContinuityGatePath, memoryContinuityGateSchema),
       readJson(config.skillRetrievalGatePath, skillRetrievalGateSchema),
+      checkToolProtocolCoverageReadiness({
+        suitePath: config.toolEvalSuitePath,
+        minTotalCases: config.toolProtocolCoverageMinCases,
+      }),
       checkSubquadraticArchitectureReadiness({
         suitePath: config.longContextSuitePath,
         routerSourcePath: config.llmRouterSourcePath,
@@ -406,6 +419,7 @@ export async function checkProductionTrainingReadiness(
       longContextEvalReport,
       memoryContinuityGate,
       skillRetrievalGate,
+      toolProtocolCoverageReport,
       subqArchitectureReport,
     ),
   );
@@ -457,6 +471,30 @@ function datasetGovernanceReadinessCheck(report: DatasetGovernanceReadinessRepor
           .filter((check) => check.status === "fail")
           .map((check) => ({ id: check.id, summary: check.summary, details: check.details })),
         warnings,
+      });
+}
+
+function toolProtocolCoverageReadinessCheck(report: ToolProtocolCoverageReadinessReport): ReadinessCheck {
+  const failingScenarios = report.scenarios
+    .filter((scenario) => scenario.count < scenario.minCases)
+    .map((scenario) => ({
+      id: scenario.id,
+      description: scenario.description,
+      count: scenario.count,
+      minCases: scenario.minCases,
+      sampleIds: scenario.sampleIds,
+    }));
+  return report.status === "pass"
+    ? pass("tool-protocol-coverage", `Tool protocol suite covers ${report.scenarios.length} required scenario families`, {
+        total: report.summary.total,
+        byKind: report.summary.byKind,
+        promptInjectionSources: report.summary.promptInjectionSources,
+        toolSurfaceTools: report.summary.toolSurfaceTools,
+        multiTurnCases: report.summary.multiTurnCases,
+      })
+    : fail("tool-protocol-coverage", "Tool protocol suite is missing required BFCL-style scenario coverage", {
+        total: report.summary.total,
+        failingScenarios,
       });
 }
 
@@ -671,6 +709,7 @@ function evalHarnessChecks(
   longContextReport: LongContextEvalReport,
   memoryContinuityGate: MemoryContinuityGateReport,
   skillRetrievalGate: SkillRetrievalGateReport,
+  toolProtocolCoverageReport: ToolProtocolCoverageReadinessReport,
   subqArchitectureReport: SubquadraticArchitectureReadinessReport,
 ): ReadinessCheck[] {
   return [
@@ -866,6 +905,7 @@ function evalHarnessChecks(
           failures: skillRetrievalGate.candidate.failures,
           gateFailures: skillRetrievalGate.failures.length,
         }),
+    toolProtocolCoverageReadinessCheck(toolProtocolCoverageReport),
     subqArchitectureReport.status === "pass"
       ? pass(
           "subq-architecture-contract",
