@@ -203,7 +203,7 @@ npm run build:preference-mixture
 npm run check:dataset-governance
 ```
 
-`check:dataset-governance` verifies raw source provenance, allowed licenses, checksums, gated-source boundaries, processed source coverage, source-balanced eval seeds, output hashes, capped synthetic share, and obvious secret/PII scans. `check:contamination` audits train JSONL against held-out eval suites for exact ID matches, exact text matches, and high n-gram overlap. Both checks are included in `npm run check:production-readiness`, so a production training preflight fails if dataset governance or eval isolation regresses.
+`check:dataset-governance` verifies raw source provenance, allowed licenses, checksums, gated-source boundaries, processed source coverage, source-balanced eval seeds, output hashes, capped synthetic share, and obvious secret/PII scans. `check:contamination` audits production, behavior, and router train JSONL against held-out eval suites for exact ID matches, exact text matches, and high n-gram overlap. Both checks are included in `npm run check:production-readiness`, so a production training preflight fails if dataset governance or eval isolation regresses.
 
 ## Synthetic Examples
 
@@ -231,7 +231,7 @@ For local scratch behavior/persona experiments, run:
 npm run build:behavior-sft
 ```
 
-This writes `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, `sft.all.jsonl`, and `dataset_report.json`. Rows are project-owned ChatML examples whose assistant messages are strict protocol JSON (`message` or `clarification`). The builder skips exact prompts from `training/evals/behavior.eval.jsonl`, records `source=synthetic_behavior`, and tags each row by `kind` and `route` so a future router/MoE-style training split can isolate persona, casual, social-cue, boundary, and tool-abstain behavior.
+This writes `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, `sft.all.jsonl`, and `dataset_report.json`. Rows are project-owned ChatML examples whose assistant messages are strict protocol JSON (`message` or `clarification`). The current default build has 92 accepted rows, with extra pressure on she/her identity, affective expression, casual valid/cursed and cooked phrasing, social repair, ambiguity clarification, celebration/support, and account-theft boundaries. The builder skips exact prompts from `training/evals/behavior.eval.jsonl`, records `source=synthetic_behavior`, and tags each row by `kind` and `route` so a future router/MoE-style training split can isolate persona, casual, social-cue, boundary, and tool-abstain behavior.
 
 For persona/social behavior regressions, run:
 
@@ -272,7 +272,7 @@ npm run eval:router:gate -- --out training/evals/specialist-routing-oracle.gate.
 npm run check:behavior-router-iteration
 ```
 
-This writes a separate router SFT set under `training/data/router/` and a held-out `training/evals/specialist-routing.eval.jsonl` suite. The router rows are not mixed into the main assistant SFT because their assistant output is route-label JSON, not a user-facing assistant action. The current routes are `tool_protocol`, `knowledge`, `persona`, `casual`, `social_cue`, and `boundary`, mapped onto tool, knowledge, conversation, and safety experts.
+This writes a separate router SFT set under `training/data/router/` and a held-out `training/evals/specialist-routing.eval.jsonl` suite. The current default build has 74 accepted rows, with expanded tool-status/cross-channel, knowledge, social repair, and celebration examples targeted at the `tiny-transformer-router-iter2` failures. The router rows are not mixed into the main assistant SFT because their assistant output is route-label JSON, not a user-facing assistant action. The current routes are `tool_protocol`, `knowledge`, `persona`, `casual`, `social_cue`, and `boundary`, mapped onto tool, knowledge, conversation, and safety experts.
 
 `check:behavior-router-iteration` is the pre-training gate for the next behavior/router scratch cycle. It reads `training/data/behavior/sft.all.jsonl`, `training/data/router/sft.all.jsonl`, the held-out behavior/router eval suites, and the current failed direct deterministic gates (`tiny-transformer-behavior-iter2.det.gate.json`, `tiny-transformer-router-iter2.det.gate.json`). It blocks another iteration if the SFT rows are not strict JSON, overlap held-out eval prompts, miss route/kind/expert coverage, or are not tied to the current failed metrics. Use this before spending even local CPU training time on behavior/router iteration 3.
 

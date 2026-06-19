@@ -48,8 +48,8 @@ const DEFAULTS = {
   routerDatasetPath: "training/data/router/sft.all.jsonl",
   routerEvalSuitePath: "training/evals/specialist-routing.eval.jsonl",
   routerGatePath: "training/evals/tiny-transformer-router-iter2.det.gate.json",
-  minBehaviorRecords: 56,
-  minRouterRecords: 42,
+  minBehaviorRecords: 90,
+  minRouterRecords: 70,
   minRecordsPerBehaviorRoute: 4,
   minRecordsPerRouterRoute: 4,
 };

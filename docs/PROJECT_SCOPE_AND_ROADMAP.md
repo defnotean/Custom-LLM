@@ -277,7 +277,7 @@ Goal: behavior and router specialists must emit valid JSON before quality can be
 
 Tasks:
 
-- Increase behavior/router SFT examples with more held-out-safe paraphrases.
+- Continue increasing behavior/router SFT examples with held-out-safe paraphrases. Current builders generate 92 behavior rows and 74 router rows targeted at the iter2 behavior JSON/persona/social and router route/expert failures.
 - Add JSON skeleton starts and explicit end-token examples.
 - Add constrained decoding or grammar repair for scratch direct evals only if documented separately from model-native quality.
 - Add a small route-only classifier baseline outside the LM if that is faster and more reliable.

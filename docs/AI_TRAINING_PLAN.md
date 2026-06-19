@@ -229,8 +229,8 @@ Artifacts:
 - `training/data/mixtures/production-sft.report.json` records source presence, accepted/skipped counts, over-length filtering, synthetic share, hashes, and output sizes.
 - `training/data/mixtures/production-sft.sequence-report.json` records deterministic sequence-length and packed-step estimates for the 2048-token QLoRA budget.
 - `training/data/protocol/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the protocol-only scratch SFT set with exact held-out eval prompts excluded and deterministic paraphrase augmentation recorded.
-- `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the behavior/persona scratch SFT set with exact held-out behavior eval prompts excluded and route metadata preserved.
-- `training/data/router/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the separate specialist-router SFT set with exact held-out router eval prompts excluded.
+- `training/data/behavior/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the behavior/persona scratch SFT set with exact held-out behavior eval prompts excluded and route metadata preserved. The current generated set has 92 accepted rows: 74 train, 18 validation, 23 seeds, and 69 deterministic augmentations.
+- `training/data/router/sft.train.jsonl`, `sft.validation.jsonl`, and `dataset_report.json` are the separate specialist-router SFT set with exact held-out router eval prompts excluded. The current generated set has 74 accepted rows: 60 train, 14 validation, 20 seeds, and 58 deterministic augmentations.
 - `training/evals/knowledge.eval.jsonl` is the held-out knowledge suite. It currently has 200 balanced cases from Dolly and OpenAssistant, including context-grounded, technical/code, long-prompt, long-form, and concise-answer coverage protected by `npm run check:knowledge-coverage`.
 - `training/evals/behavior.eval.jsonl` is the held-out persona/social behavior suite. It currently has 11 seed cases covering she/her identity, affective style, Discord-native casual replies, social support/repair, direct safety boundaries, and tool abstention.
 - `training/evals/specialist-routing.eval.jsonl` is the held-out route/expert suite. It currently has 18 balanced cases covering tool protocol, knowledge, persona, casual, social-cue, and boundary routing.
@@ -243,9 +243,9 @@ Artifacts:
 - `training/train_tiny_transformer_lm.py` writes both `tiny_transformer_lm.pt` and `tiny_transformer_lm.best.pt`; the best checkpoint is updated whenever validation loss improves.
 - `npm run eval:tool:tiny` runs a scratch Transformer checkpoint against the held-out protocol/tool suite and writes the same prediction JSONL shape as the live LLM runner.
 - `npm run eval:knowledge:tiny` runs the promoted scratch Transformer checkpoint against held-out knowledge cases for behavioral tracking.
-- `npm run build:behavior-sft` creates a small project-owned behavior SFT dataset for the persona/social specialist path without training on the held-out behavior eval prompts.
+- `npm run build:behavior-sft` creates a project-owned behavior SFT dataset for the persona/social specialist path without training on the held-out behavior eval prompts.
 - `npm run build:router-sft` creates a separate project-owned specialist-router dataset whose route-label outputs are not mixed into user-facing assistant SFT.
-- `npm run check:behavior-router-iteration` blocks behavior/router iteration 2 unless the SFT data is strict JSON, balanced across the target routes/kinds/experts, free of exact held-out prompt overlap, and tied to the current failed direct gates.
+- `npm run check:behavior-router-iteration` blocks the next behavior/router scratch run unless the expanded SFT data is strict JSON, balanced across the target routes/kinds/experts, free of exact held-out prompt overlap, and tied to the current failed direct gates.
 
 ## Current Local Iterations
 

@@ -2,7 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { auditDataContamination } from "../src/training/quality/DataContaminationAudit";
+import {
+  DEFAULT_CONTAMINATION_TRAIN_PATHS,
+  auditDataContamination,
+} from "../src/training/quality/DataContaminationAudit";
 
 describe("DataContaminationAudit", () => {
   let dir: string | null = null;
@@ -10,6 +13,15 @@ describe("DataContaminationAudit", () => {
   afterEach(async () => {
     if (dir) await rm(dir, { recursive: true, force: true });
     dir = null;
+  });
+
+  it("includes behavior and router specialist SFT in the default train paths", () => {
+    expect(DEFAULT_CONTAMINATION_TRAIN_PATHS).toEqual(
+      expect.arrayContaining([
+        "training/data/behavior/sft.train.jsonl",
+        "training/data/router/sft.train.jsonl",
+      ]),
+    );
   });
 
   it("passes when train and eval records are separated", async () => {

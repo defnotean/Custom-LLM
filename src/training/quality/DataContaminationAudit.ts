@@ -4,6 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 export const DEFAULT_CONTAMINATION_TRAIN_PATHS = [
   "training/data/processed/sft.train.jsonl",
   "training/data/mixtures/production-sft.train.jsonl",
+  "training/data/behavior/sft.train.jsonl",
   "training/data/router/sft.train.jsonl",
 ];
 
