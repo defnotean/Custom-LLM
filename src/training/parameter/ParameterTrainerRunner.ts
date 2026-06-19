@@ -10,6 +10,11 @@ import {
 } from "./ParameterModuleStagingGate";
 import { checkParameterGrowthDatasetQuality } from "./ParameterGrowthDatasetQuality";
 import {
+  checkParameterTrainerPreflight,
+  type ParameterTrainerPreflightOptions,
+  type ParameterTrainerPreflightStatus,
+} from "./ParameterTrainerPreflightGate";
+import {
   parameterTrainerDispatchRequestSchema,
   type ParameterTrainerDatasetManifest,
   type ParameterTrainerDispatchRequest,
@@ -30,6 +35,8 @@ export interface ParameterTrainerRunnerEvalReportInput {
   summary?: string;
 }
 
+export type ParameterTrainerRunnerPreflightOptions = Omit<ParameterTrainerPreflightOptions, "datasetManifestPath">;
+
 export interface ParameterTrainerRunnerOptions {
   requestPath: string;
   mode?: ParameterTrainerRunnerMode;
@@ -41,6 +48,8 @@ export interface ParameterTrainerRunnerOptions {
   timeoutMs?: number;
   env?: Record<string, string>;
   trainingReportPath?: string;
+  preflight?: ParameterTrainerRunnerPreflightOptions;
+  preflightReportPath?: string;
   artifactDir?: string;
   artifacts?: ParameterTrainerRunnerArtifactInput[];
   evalReports?: ParameterTrainerRunnerEvalReportInput[];
@@ -65,6 +74,8 @@ export interface ParameterTrainerRunnerReport {
   planPath: string;
   trainingCommand?: ParameterTrainerRunnerCommandReport;
   trainingReportPath?: string;
+  preflightReportPath?: string;
+  preflightStatus?: ParameterTrainerPreflightStatus;
   stdoutPath?: string;
   stderrPath?: string;
   exitCode?: number | null;
@@ -137,6 +148,10 @@ export async function runParameterTrainer(options: ParameterTrainerRunnerOptions
   }
 
   if (mode === "execute-training") {
+    const preflight = await runPreflight({ request, options, generatedAt });
+    if (options.execute && preflight.report.status !== "pass") {
+      throw new Error(`parameter trainer preflight failed; see ${preflight.path}`);
+    }
     const command = buildTrainingCommand({
       request,
       requestPath: options.requestPath,
@@ -147,7 +162,18 @@ export async function runParameterTrainer(options: ParameterTrainerRunnerOptions
     if (!options.execute) {
       await writeFile(
         trainingReportPath,
-        `${JSON.stringify(buildTrainingExecutionPlan({ request, command, framework, generatedAt }), null, 2)}\n`,
+        `${JSON.stringify(
+          buildTrainingExecutionPlan({
+            request,
+            command,
+            framework,
+            generatedAt,
+            preflightReportPath: preflight.path,
+            preflightStatus: preflight.report.status,
+          }),
+          null,
+          2,
+        )}\n`,
         "utf8",
       );
       return {
@@ -160,13 +186,27 @@ export async function runParameterTrainer(options: ParameterTrainerRunnerOptions
         planPath,
         trainingCommand: commandReport(command),
         trainingReportPath,
+        preflightReportPath: preflight.path,
+        preflightStatus: preflight.report.status,
       };
     }
 
     const result = await executeTrainingCommand(command, request.expectedOutput.runDir);
     await writeFile(
       trainingReportPath,
-      `${JSON.stringify(buildTrainingExecutionReport({ request, command, result, framework, generatedAt }), null, 2)}\n`,
+      `${JSON.stringify(
+        buildTrainingExecutionReport({
+          request,
+          command,
+          result,
+          framework,
+          generatedAt,
+          preflightReportPath: preflight.path,
+          preflightStatus: preflight.report.status,
+        }),
+        null,
+        2,
+      )}\n`,
       "utf8",
     );
     if (result.timedOut || result.exitCode !== 0) {
@@ -182,6 +222,8 @@ export async function runParameterTrainer(options: ParameterTrainerRunnerOptions
       planPath,
       trainingCommand: commandReport(command),
       trainingReportPath,
+      preflightReportPath: preflight.path,
+      preflightStatus: preflight.report.status,
       stdoutPath: result.stdoutPath,
       stderrPath: result.stderrPath,
       exitCode: result.exitCode,
@@ -222,6 +264,21 @@ export async function runParameterTrainer(options: ParameterTrainerRunnerOptions
         sha256: report.sha256,
       })),
   };
+}
+
+async function runPreflight(input: {
+  request: ParameterTrainerDispatchRequest;
+  options: ParameterTrainerRunnerOptions;
+  generatedAt: string;
+}): Promise<{ path: string; report: Awaited<ReturnType<typeof checkParameterTrainerPreflight>> }> {
+  const path = input.options.preflightReportPath ?? join(input.request.expectedOutput.runDir, "trainer-preflight-report.json");
+  const report = await checkParameterTrainerPreflight({
+    ...(input.options.preflight ?? {}),
+    datasetManifestPath: input.request.datasetManifestPath,
+    now: () => input.generatedAt,
+  });
+  await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  return { path, report };
 }
 
 async function readDispatchRequest(path: string): Promise<ParameterTrainerDispatchRequest> {
@@ -327,6 +384,8 @@ function buildTrainingExecutionPlan(input: {
   command: ParameterTrainerRunnerCommandSpec;
   framework: ParameterTrainerRunnerFramework;
   generatedAt: string;
+  preflightReportPath?: string;
+  preflightStatus?: ParameterTrainerPreflightStatus;
 }): Record<string, unknown> {
   return {
     runtimeContract: "parameter-trainer-execution-plan-v1",
@@ -339,6 +398,8 @@ function buildTrainingExecutionPlan(input: {
     stagingManifestPath: input.request.expectedOutput.stagingManifestPath,
     framework: input.framework,
     architectureTarget: ARCHITECTURE_TARGET,
+    preflightReportPath: input.preflightReportPath,
+    preflightStatus: input.preflightStatus,
     command: commandReport(input.command),
     note: "Dry run only. Re-run with --execute after preflight gates pass to launch training.",
   };
@@ -350,6 +411,8 @@ function buildTrainingExecutionReport(input: {
   result: ParameterTrainerRunnerCommandResult;
   framework: ParameterTrainerRunnerFramework;
   generatedAt: string;
+  preflightReportPath?: string;
+  preflightStatus?: ParameterTrainerPreflightStatus;
 }): Record<string, unknown> {
   return {
     runtimeContract: "parameter-trainer-execution-report-v1",
@@ -362,6 +425,8 @@ function buildTrainingExecutionReport(input: {
     stagingManifestPath: input.request.expectedOutput.stagingManifestPath,
     framework: input.framework,
     architectureTarget: ARCHITECTURE_TARGET,
+    preflightReportPath: input.preflightReportPath,
+    preflightStatus: input.preflightStatus,
     command: commandReport(input.command),
     result: {
       exitCode: input.result.exitCode,

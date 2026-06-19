@@ -63,14 +63,17 @@ describe("ParameterTrainerRunner", () => {
       framework: "custom",
       command: process.execPath,
       commandArgs: ["-e", "console.log('should not run')"],
+      preflight: { requireSubqArchitecture: false, requireProductionReadiness: false },
       now: () => "2026-06-19T00:17:00.000Z",
     });
     const executionPlan = JSON.parse(await readFile(requirePath(report.trainingReportPath), "utf8")) as Record<string, unknown>;
+    const preflight = JSON.parse(await readFile(requirePath(report.preflightReportPath), "utf8")) as Record<string, unknown>;
 
     expect(report).toMatchObject({
       status: "training_dry_run",
       mode: "execute-training",
       framework: "custom",
+      preflightStatus: "pass",
       trainingCommand: {
         command: process.execPath,
         args: ["-e", "console.log('should not run')"],
@@ -81,6 +84,17 @@ describe("ParameterTrainerRunner", () => {
       runtimeContract: "parameter-trainer-execution-plan-v1",
       status: "dry_run",
       architectureTarget: "subquadratic-sparse-attention",
+      preflightStatus: "pass",
+      preflightReportPath: report.preflightReportPath,
+    });
+    expect(preflight).toMatchObject({
+      runtimeContract: "parameter-trainer-preflight-v1",
+      status: "pass",
+      summary: {
+        datasetQuality: "pass",
+        subqArchitecture: "skipped",
+        productionReadiness: "skipped",
+      },
     });
     expect(await exists(join(fixture.request.expectedOutput.runDir, "trainer-stdout.log"))).toBe(false);
   });
@@ -96,6 +110,7 @@ describe("ParameterTrainerRunner", () => {
       command: process.execPath,
       commandArgs: ["-e", "console.log(process.env.PARAMETER_TRAINER_ARCHITECTURE_TARGET)"],
       timeoutMs: 10_000,
+      preflight: { requireSubqArchitecture: false, requireProductionReadiness: false },
       now: () => "2026-06-19T00:18:00.000Z",
     });
     const stdout = await readFile(requirePath(report.stdoutPath), "utf8");
@@ -106,12 +121,15 @@ describe("ParameterTrainerRunner", () => {
       mode: "execute-training",
       framework: "custom",
       exitCode: 0,
+      preflightStatus: "pass",
     });
     expect(stdout.trim()).toBe("subquadratic-sparse-attention");
     expect(executionReport).toMatchObject({
       runtimeContract: "parameter-trainer-execution-report-v1",
       status: "pass",
       architectureTarget: "subquadratic-sparse-attention",
+      preflightStatus: "pass",
+      preflightReportPath: report.preflightReportPath,
       result: {
         exitCode: 0,
         timedOut: false,

@@ -20,6 +20,7 @@ interface Args {
   timeoutMs?: number;
   env: Record<string, string>;
   trainingReportPath?: string;
+  preflightReportPath?: string;
   artifactDir?: string;
   artifacts: ParameterTrainerRunnerArtifactInput[];
   evalReports: ParameterTrainerRunnerEvalReportInput[];
@@ -51,6 +52,7 @@ async function main(): Promise<void> {
     ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
     env: args.env,
     ...(args.trainingReportPath ? { trainingReportPath: args.trainingReportPath } : {}),
+    ...(args.preflightReportPath ? { preflightReportPath: args.preflightReportPath } : {}),
     ...(args.artifactDir ? { artifactDir: args.artifactDir } : {}),
     artifacts: args.artifacts,
     evalReports: args.evalReports,
@@ -80,6 +82,7 @@ function parseArgs(argv: string[]): Args {
   let timeoutMs: number | undefined;
   const env: Record<string, string> = {};
   let trainingReportPath: string | undefined;
+  let preflightReportPath: string | undefined;
   let artifactDir: string | undefined;
   const artifacts: ParameterTrainerRunnerArtifactInput[] = [];
   const evalReports: ParameterTrainerRunnerEvalReportInput[] = [];
@@ -105,6 +108,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--timeout-ms") timeoutMs = parsePositiveInteger(argv[++index], arg);
     else if (arg === "--env") Object.assign(env, parseEnv(requireValue(argv[++index], arg)));
     else if (arg === "--training-report") trainingReportPath = requireValue(argv[++index], arg);
+    else if (arg === "--preflight-report") preflightReportPath = requireValue(argv[++index], arg);
     else if (arg === "--artifact-dir") artifactDir = requireValue(argv[++index], arg);
     else if (arg === "--artifact") artifacts.push(parseArtifact(requireValue(argv[++index], arg)));
     else if (arg === "--eval-report") evalReports.push(parseEvalReport(requireValue(argv[++index], arg)));
@@ -131,6 +135,7 @@ function parseArgs(argv: string[]): Args {
     ...(cwd ? { cwd } : {}),
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(trainingReportPath ? { trainingReportPath } : {}),
+    ...(preflightReportPath ? { preflightReportPath } : {}),
     artifacts,
     evalReports,
     ...(artifactDir ? { artifactDir } : {}),

@@ -93,7 +93,7 @@ npm run run:parameter-trainer -- --request training/runs/parameter-modules/<run-
 npm run check:parameter-module-staging -- --manifest training/runs/parameter-modules/<run-id>/staging-manifest.json
 ```
 
-`execute-training` is a dry run until `--execute` is present. The explicit execution path writes trainer stdout/stderr and `trainer-execution-report.json`; it does not auto-promote or stage anything. Attach every eval kind required by the staged module type before promotion. Adapters need protocol, knowledge, and behavior reports in addition to dataset quality, parameter growth, training report, and contamination evidence. Specialists/experts need skill and protocol reports. Router modules need router and protocol reports.
+`execute-training` is a dry run until `--execute` is present. It writes `trainer-preflight-report.json` before any launch and requires parameter-growth dataset quality, SubQ/SSA architecture readiness, and production training readiness. The explicit execution path writes trainer stdout/stderr and `trainer-execution-report.json`; it does not auto-promote or stage anything. Attach every eval kind required by the staged module type before promotion. Adapters need protocol, knowledge, and behavior reports in addition to dataset quality, parameter growth, training report, and contamination evidence. Specialists/experts need skill and protocol reports. Router modules need router and protocol reports.
 
 ## Long-Context Retrieval Gate
 
