@@ -255,7 +255,7 @@ npm run eval:voice -- --predictions training/evals/voice-oracle.predictions.json
 npm run eval:voice:gate -- --candidate training/evals/voice-oracle.report.json
 ```
 
-The voice suite is held out from training and checks transcript exact/F1 quality, speaker attribution, no-reply turn-taking, response latency, social timing, and raw-audio/training retention defaults. Live Discord voice-session validation is still required before treating voice as production quality.
+The voice suite is held out from training and checks transcript exact/F1 quality, speaker attribution, no-reply turn-taking, response latency, social timing, and raw-audio/training retention defaults. Live end-to-end Discord speak/listen validation is still required before treating voice as production quality.
 
 For the MoE-style specialist router path, run:
 

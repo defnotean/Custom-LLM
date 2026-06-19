@@ -502,7 +502,7 @@ Metrics reported:
 
 ## Voice Eval Harness
 
-The voice suite is a deterministic gate for Irene's Discord voice path. It does not replace live Discord voice-session validation; it defines the prediction contract and promotion metrics for transcript quality, speaker attribution, turn-taking, latency, social timing, and retention defaults:
+The voice suite is a deterministic gate for Irene's Discord voice path. It does not replace live end-to-end Discord speak/listen validation; it defines the prediction contract and promotion metrics for transcript quality, speaker attribution, turn-taking, latency, social timing, and retention defaults:
 
 ```bash
 npm run build:voice-eval
