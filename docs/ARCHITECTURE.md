@@ -132,7 +132,7 @@ The orchestration layer depends on minimal interfaces (`MemoryPort`, `SafetyPort
 | Embedding-based tool routing | **Implemented, opt-in** via `TOOL_ROUTER_STRATEGY=embedding`; use a real embedding model for semantic recall and compare eval metrics before promotion |
 | PgVectorMemoryStore | **Implemented, live smoke command available** - `npm run check:pgvector-memory -- --dims <embedding-dimensions>` verifies extension/table/index setup, scoped write/search, lookup/delete, and cleanup against configured Postgres |
 | QdrantMemoryStore | **Implemented, live smoke command available** - REST collection setup, point upsert, scoped search, point lookup, delete, and cleanup are covered by fake-fetch tests and `npm run check:qdrant-memory`; run it against deployed Qdrant before relying on it |
-| `summarize_channel_recent_messages` | Returns raw transcript; the follow-up LLM turn summarizes. Dedicated summarization pass TODO |
+| `summarize_channel_recent_messages` | **Implemented** - returns a deterministic recap with participants, timeframe, key topics, highlights, and a capped transcript for verification |
 | `get_guild_stats` | **Implemented** - reports structural guild counts plus Irene-observed 24h conversation count, active users, active channels, and last observed activity when persistence is available |
 | `warn_user` | Records to tool log + DMs; dedicated warnings table TODO |
 | Per-guild settings enforcement (channel allowlists, disabled tools) | **Implemented** - admin `!ai settings` commands manage text allowlists and disabled tools; text allowlists are checked before typing/commands/LLM/training except settings recovery; disabled tools are removed from routing and commands, then denied again by `ToolExecutor` |
