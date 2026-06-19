@@ -13,6 +13,12 @@ import {
   checkDatasetGovernanceReadiness,
   type DatasetGovernanceReadinessReport,
 } from "./DatasetGovernanceReadiness";
+import {
+  DEFAULT_CONTAMINATION_EVAL_PATHS,
+  DEFAULT_CONTAMINATION_TRAIN_PATHS,
+  auditDataContamination,
+  type DataContaminationAuditReport,
+} from "./DataContaminationAudit";
 
 const outputFileSchema = z.object({
   path: z.string().min(1),
@@ -206,6 +212,13 @@ export interface ProductionTrainingReadinessOptions {
   maxSftOverLengthRate?: number;
   maxSftTokenBudgetUsage?: number;
   minSftPackingEfficiency?: number;
+  contaminationTrainPaths?: string[];
+  contaminationEvalPaths?: string[];
+  contaminationNgramSize?: number;
+  contaminationOverlapThreshold?: number;
+  maxContaminationExactIdMatches?: number;
+  maxContaminationExactTextMatches?: number;
+  maxContaminationHighOverlapMatches?: number;
   minSftTrainRecords?: number;
   minSftValidationRecords?: number;
   maxSyntheticTrainShare?: number;
@@ -285,6 +298,13 @@ const DEFAULTS = {
   maxSftOverLengthRate: 0,
   maxSftTokenBudgetUsage: 0.95,
   minSftPackingEfficiency: 0.5,
+  contaminationTrainPaths: DEFAULT_CONTAMINATION_TRAIN_PATHS,
+  contaminationEvalPaths: DEFAULT_CONTAMINATION_EVAL_PATHS,
+  contaminationNgramSize: 13,
+  contaminationOverlapThreshold: 0.8,
+  maxContaminationExactIdMatches: 0,
+  maxContaminationExactTextMatches: 0,
+  maxContaminationHighOverlapMatches: 0,
   minSftTrainRecords: 1000,
   minSftValidationRecords: 100,
   minDatasetAcceptedRecords: 1_000,
@@ -324,6 +344,7 @@ export async function checkProductionTrainingReadiness(
     skillRetrievalGate,
     subqArchitectureReport,
     datasetGovernanceReport,
+    contaminationReport,
   ] =
     await Promise.all([
       readJson(config.toolEvalReportPath, toolEvalReportSchema),
@@ -353,6 +374,15 @@ export async function checkProductionTrainingReadiness(
         minEvalSeedSourceShare: config.minDatasetEvalSeedSourceShare,
         maxSyntheticTrainShare: config.maxSyntheticTrainShare,
       }),
+      auditDataContamination({
+        trainPaths: config.contaminationTrainPaths,
+        evalPaths: config.contaminationEvalPaths,
+        ngramSize: config.contaminationNgramSize,
+        overlapThreshold: config.contaminationOverlapThreshold,
+        maxExactIdMatches: config.maxContaminationExactIdMatches,
+        maxExactTextMatches: config.maxContaminationExactTextMatches,
+        maxHighOverlapMatches: config.maxContaminationHighOverlapMatches,
+      }),
     ]);
   const [axolotlSft, axolotlDpo, unslothSft, unslothDpo] = await Promise.all([
     readFile(config.axolotlSftConfigPath, "utf8"),
@@ -380,6 +410,7 @@ export async function checkProductionTrainingReadiness(
     ),
   );
   checks.push(datasetGovernanceReadinessCheck(datasetGovernanceReport));
+  checks.push(contaminationReadinessCheck(contaminationReport));
 
   if (config.stage === "dpo" || config.stage === "all") {
     checks.push(...dpoChecks(preferenceReport, config, true));
@@ -426,6 +457,24 @@ function datasetGovernanceReadinessCheck(report: DatasetGovernanceReadinessRepor
           .filter((check) => check.status === "fail")
           .map((check) => ({ id: check.id, summary: check.summary, details: check.details })),
         warnings,
+      });
+}
+
+function contaminationReadinessCheck(report: DataContaminationAuditReport): ReadinessCheck {
+  return report.status === "pass"
+    ? pass("contamination-audit", `Contamination audit is clean across ${report.evalRecords} eval records`, {
+        trainRecords: report.trainRecords,
+        evalRecords: report.evalRecords,
+        evalPaths: report.evalPaths,
+        maxOverlapRatio: report.maxOverlapRatio,
+      })
+    : fail("contamination-audit", "Contamination audit found held-out eval leakage", {
+        trainRecords: report.trainRecords,
+        evalRecords: report.evalRecords,
+        exactIdMatches: report.exactIdMatches,
+        exactTextMatches: report.exactTextMatches,
+        highOverlapMatches: report.highOverlapMatches,
+        failures: report.failures,
       });
 }
 

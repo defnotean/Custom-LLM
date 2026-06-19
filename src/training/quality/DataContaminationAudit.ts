@@ -1,6 +1,24 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 
+export const DEFAULT_CONTAMINATION_TRAIN_PATHS = [
+  "training/data/processed/sft.train.jsonl",
+  "training/data/mixtures/production-sft.train.jsonl",
+  "training/data/router/sft.train.jsonl",
+];
+
+export const DEFAULT_CONTAMINATION_EVAL_PATHS = [
+  "training/evals/knowledge.eval.jsonl",
+  "training/evals/tool-routing.eval.jsonl",
+  "training/evals/behavior.eval.jsonl",
+  "training/evals/voice.eval.jsonl",
+  "training/evals/specialist-routing.eval.jsonl",
+  "training/evals/tool-router.eval.jsonl",
+  "training/evals/skill-retrieval.eval.json",
+  "training/evals/memory-continuity.eval.json",
+  "training/evals/long-context.eval.jsonl",
+];
+
 export interface DataContaminationAuditOptions {
   trainPaths: string[];
   evalPaths: string[];

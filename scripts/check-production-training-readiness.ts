@@ -44,7 +44,21 @@ function parseArgs(argv: string[]): ProductionTrainingReadinessOptions {
     else if (arg === "--tiny-evaluator") options.tinyEvaluatorPath = requireValue(argv[++index], arg);
     else if (arg === "--sft-train") options.sftTrainPath = requireValue(argv[++index], arg);
     else if (arg === "--sft-validation") options.sftValidationPath = requireValue(argv[++index], arg);
-    else if (arg === "--sequence-len") options.sequenceLength = parsePositiveInt(argv[++index], arg);
+    else if (arg === "--contamination-train") {
+      options.contaminationTrainPaths = [...(options.contaminationTrainPaths ?? []), requireValue(argv[++index], arg)];
+    } else if (arg === "--contamination-eval") {
+      options.contaminationEvalPaths = [...(options.contaminationEvalPaths ?? []), requireValue(argv[++index], arg)];
+    } else if (arg === "--contamination-ngram-size") {
+      options.contaminationNgramSize = parsePositiveInt(argv[++index], arg);
+    } else if (arg === "--contamination-overlap-threshold") {
+      options.contaminationOverlapThreshold = parseRatio(argv[++index], arg);
+    } else if (arg === "--max-contamination-exact-id-matches") {
+      options.maxContaminationExactIdMatches = parseNonnegativeInt(argv[++index], arg);
+    } else if (arg === "--max-contamination-exact-text-matches") {
+      options.maxContaminationExactTextMatches = parseNonnegativeInt(argv[++index], arg);
+    } else if (arg === "--max-contamination-high-overlap-matches") {
+      options.maxContaminationHighOverlapMatches = parseNonnegativeInt(argv[++index], arg);
+    } else if (arg === "--sequence-len") options.sequenceLength = parsePositiveInt(argv[++index], arg);
     else if (arg === "--max-sft-over-length-rate") options.maxSftOverLengthRate = parseRatio(argv[++index], arg);
     else if (arg === "--max-sft-token-budget-usage") options.maxSftTokenBudgetUsage = parseRatio(argv[++index], arg);
     else if (arg === "--min-sft-packing-efficiency") options.minSftPackingEfficiency = parseRatio(argv[++index], arg);

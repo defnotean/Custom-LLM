@@ -200,7 +200,7 @@ npm run build:preference-mixture
 npm run check:dataset-governance
 ```
 
-`check:dataset-governance` verifies raw source provenance, allowed licenses, checksums, gated-source boundaries, processed source coverage, source-balanced eval seeds, output hashes, capped synthetic share, and obvious secret/PII scans. It is also included in `npm run check:production-readiness`, so a production training preflight fails if dataset governance regresses.
+`check:dataset-governance` verifies raw source provenance, allowed licenses, checksums, gated-source boundaries, processed source coverage, source-balanced eval seeds, output hashes, capped synthetic share, and obvious secret/PII scans. `check:contamination` audits train JSONL against held-out eval suites for exact ID matches, exact text matches, and high n-gram overlap. Both checks are included in `npm run check:production-readiness`, so a production training preflight fails if dataset governance or eval isolation regresses.
 
 ## Synthetic Examples
 

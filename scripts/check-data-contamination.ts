@@ -1,4 +1,8 @@
-import { auditDataContamination } from "../src/training/quality/DataContaminationAudit";
+import {
+  DEFAULT_CONTAMINATION_EVAL_PATHS,
+  DEFAULT_CONTAMINATION_TRAIN_PATHS,
+  auditDataContamination,
+} from "../src/training/quality/DataContaminationAudit";
 
 interface Args {
   trainPaths: string[];
@@ -10,24 +14,6 @@ interface Args {
   maxHighOverlapMatches: number;
   outPath?: string;
 }
-
-const defaultTrainPaths = [
-  "training/data/processed/sft.train.jsonl",
-  "training/data/mixtures/production-sft.train.jsonl",
-  "training/data/router/sft.train.jsonl",
-];
-
-const defaultEvalPaths = [
-  "training/evals/knowledge.eval.jsonl",
-  "training/evals/tool-routing.eval.jsonl",
-  "training/evals/behavior.eval.jsonl",
-  "training/evals/voice.eval.jsonl",
-  "training/evals/specialist-routing.eval.jsonl",
-  "training/evals/tool-router.eval.jsonl",
-  "training/evals/skill-retrieval.eval.json",
-  "training/evals/memory-continuity.eval.json",
-  "training/evals/long-context.eval.jsonl",
-];
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -81,8 +67,8 @@ function parseArgs(argv: string[]): Args {
   }
 
   return {
-    trainPaths: trainPaths.length > 0 ? trainPaths : defaultTrainPaths,
-    evalPaths: evalPaths.length > 0 ? evalPaths : defaultEvalPaths,
+    trainPaths: trainPaths.length > 0 ? trainPaths : DEFAULT_CONTAMINATION_TRAIN_PATHS,
+    evalPaths: evalPaths.length > 0 ? evalPaths : DEFAULT_CONTAMINATION_EVAL_PATHS,
     ngramSize,
     overlapThreshold,
     maxExactIdMatches,

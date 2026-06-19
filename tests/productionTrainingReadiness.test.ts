@@ -36,6 +36,7 @@ describe("ProductionTrainingReadiness", () => {
     expect(checkStatus(report.checks, "skill-retrieval-gate")).toBe("pass");
     expect(checkStatus(report.checks, "subq-architecture-contract")).toBe("pass");
     expect(checkStatus(report.checks, "dataset-governance")).toBe("pass");
+    expect(checkStatus(report.checks, "contamination-audit")).toBe("pass");
     expect(checkStatus(report.checks, "dpo-real-preferences")).toBe("warn");
   });
 
@@ -93,6 +94,17 @@ describe("ProductionTrainingReadiness", () => {
 
     expect(report.status).toBe("not_ready");
     expect(checkStatus(report.checks, "skill-retrieval-gate")).toBe("fail");
+  });
+
+  it("fails production readiness when held-out eval data leaks into training data", async () => {
+    const fixture = await writeFixture({
+      contaminationEvalRows: [{ id: "sft-1", prompt: "Held-out user prompt.", expected: "Held-out assistant answer." }],
+    });
+
+    const report = await checkProductionTrainingReadiness(fixture.options);
+
+    expect(report.status).toBe("not_ready");
+    expect(checkStatus(report.checks, "contamination-audit")).toBe("fail");
   });
 
   async function writeFixture(overrides: Partial<FixtureOverrides> = {}): Promise<{
@@ -222,6 +234,7 @@ describe("ProductionTrainingReadiness", () => {
     const memoryContinuityGatePath = join(evalDir, "memory-continuity.gate.json");
     const skillRetrievalGatePath = join(evalDir, "skill-retrieval.gate.json");
     const longContextSuitePath = join(evalDir, "long-context.eval.jsonl");
+    const contaminationEvalPath = join(evalDir, "contamination.eval.jsonl");
     await writeJson(toolEvalReportPath, {
       total: 200,
       validJsonRate: 1,
@@ -300,6 +313,12 @@ describe("ProductionTrainingReadiness", () => {
     await writeJson(memoryContinuityGatePath, overrides.memoryContinuityGate ?? goodMemoryContinuityGate());
     await writeJson(skillRetrievalGatePath, overrides.skillRetrievalGate ?? goodSkillRetrievalGate());
     await writeLongContextSuiteFixture(longContextSuitePath);
+    await writeJsonl(
+      contaminationEvalPath,
+      overrides.contaminationEvalRows ?? [
+        { id: "contamination-clean", prompt: "Clean held-out prompt.", expected: "Clean held-out answer." },
+      ],
+    );
 
     const axolotlSftConfigPath = join(configDir, "qwen3-qlora-sft.yaml");
     const axolotlDpoConfigPath = join(configDir, "qwen3-qlora-dpo.yaml");
@@ -358,6 +377,8 @@ describe("ProductionTrainingReadiness", () => {
         axolotlDpoConfigPath,
         unslothSftConfigPath,
         unslothDpoConfigPath,
+        contaminationTrainPaths: [sftTrain],
+        contaminationEvalPaths: [contaminationEvalPath],
         minSftTrainRecords: 3,
         minSftValidationRecords: 1,
         minDatasetAcceptedRecords: 4,
@@ -377,6 +398,7 @@ interface FixtureOverrides {
   unslothDpo: string;
   memoryContinuityGate: Record<string, unknown>;
   skillRetrievalGate: Record<string, unknown>;
+  contaminationEvalRows: unknown[];
 }
 
 function goodMemoryContinuityGate(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -436,6 +458,10 @@ function checkStatus(checks: Array<{ id: string; status: string }>, id: string):
 
 async function writeJson(path: string, body: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+}
+
+async function writeJsonl(path: string, rows: unknown[]): Promise<void> {
+  await writeFile(path, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`, "utf8");
 }
 
 async function writeLongContextSuiteFixture(path: string): Promise<void> {
