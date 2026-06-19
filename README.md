@@ -98,6 +98,7 @@ Run `npm run register:discord-commands` after setting `DISCORD_TOKEN` and `DISCO
 | `npm run check:knowledge-coverage` | Verify knowledge suite source balance, context-grounded cases, technical/code cases, long prompts, long-form answers, concise answers, unique rows, and reference hashes |
 | `npm run eval:knowledge:tiny` | Run the promoted local scratch Transformer checkpoint against the held-out knowledge suite |
 | `npm run build:behavior-eval` / `npm run eval:behavior:llm` / `npm run eval:behavior:tiny` / `npm run eval:behavior` / `npm run eval:behavior:gate` | Build held-out persona/social-cue evals, collect live or scratch-checkpoint JSON outputs, score behavior requirements, and enforce behavior gates |
+| `npm run eval:behavior:heuristic` | Generate deterministic behavior/persona baseline predictions for the current persona/social suite |
 | `npm run check:behavior-coverage` | Verify behavior suite coverage for she/her identity, affective voice, casual slang/opinion, social support/repair, candid boundaries, and tool abstention |
 | `npm run build:voice-eval` / `npm run eval:voice:oracle` / `npm run eval:voice` / `npm run eval:voice:gate` | Build and gate voice transcript, speaker-attribution, turn-taking, latency, social-timing, and retention-policy eval cases |
 | `npm run check:voice-coverage` | Verify voice suite coverage for transcription, speaker/crosstalk attribution, turn-taking, latency, social timing, raw-audio retention, and training-review policy |

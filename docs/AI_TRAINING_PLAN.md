@@ -81,6 +81,8 @@ Promotion criteria for this track are stricter than "it trains": the checkpoint 
 
 Latest local contract check: `npm run check:subq-architecture` passes with 28 long-context cases, every case pinned to `preferredProvider="subq"` and `architectureTarget="subquadratic-sparse-attention"`. The 64k-token sparse budget uses about 0.13% of dense causal edges, averages about 43 keys per token, and reports growth exponent 1.037578, so the checked local/log path remains subquadratic.
 
+Architecture invariant: the SubQ/SSA contract is code-level, not only roadmap text. `SubquadraticArchitectureReadiness` reports `provider="subq"`, `architectureTarget="subquadratic-sparse-attention"`, and `mode="local-log-sparse"` for the local sparse smoke path. Do not promote long-context, memory-scale, or repository-scale reasoning modules unless this contract and the long-context gate still pass.
+
 ## Parameter Trainer Runner
 
 Parameter-growth training starts from a checked `parameter-training-dispatch-v1` request. The repo-owned runner is safe by default: plan mode writes the run contract and SubQ/SSA expectations, while import mode only stages artifacts that an external Axolotl/Unsloth/custom trainer already produced.
@@ -197,6 +199,8 @@ Current scratch behavior report:
 | `tiny-transformer-behavior-iter4` | 845,005 | 90 / 22 | 79,802 / 19,585 | 6.3008 | 0.1350 / 0.1601 | Targeted behavior-data rerun with 112 accepted rows. Direct deterministic eval improves she/her persona consistency to 0.666667, but requirement pass rate, action-type accuracy, and social-cue accuracy regress, so this is review evidence only. |
 
 `tiny-transformer-behavior-iter4` is the current scratch checkpoint aimed at the social/persona specialist surface: she/her identity, affective persona, casual Discord replies, social repair/support, boundary wording, and no-tool discipline. It is useful evidence that the behavior data path trains and reports cleanly, not proof of broad intelligence. Deterministic direct held-out behavior generation still fails the behavior gate with valid JSON rate 0.545455, action type accuracy 0.818182, requirement pass rate 0.454545, persona consistency 0.666667, social-cue accuracy 0.400000, casual tone 0.500000, tool abstention 1.000, and boundary accuracy 1.000. The next behavior iteration must fix strict action JSON and action-type stability before tone quality can be judged. The saved training report is `training/reports/tiny-transformer-behavior-iter4.report.json`; the current direct gate summary is `training/evals/tiny-transformer-behavior-iter4.det.gate.json`.
+
+`heuristic_behavior_responder_v1` is the current deterministic fallback for the same behavior/persona surface. It is not a learned checkpoint and adds no model parameters, but it passes the 11-case behavior gate with valid JSON rate 1.000, action-type accuracy 1.000, requirement pass rate 1.000, persona/social/casual/boundary rates 1.000, and p95 latency below 1 ms. Use it as a guarded runtime baseline and as teacher/review evidence while the learned behavior specialist is trained to match the same behavior. The gate summary is `training/evals/behavior-heuristic.gate.json`.
 
 Current scratch router report:
 
@@ -475,6 +479,9 @@ npm run check:behavior-coverage
 npm run eval:behavior:oracle
 npm run eval:behavior -- --predictions training/evals/behavior-oracle.predictions.jsonl --out training/evals/behavior-oracle.report.json
 npm run eval:behavior:gate -- --candidate training/evals/behavior-oracle.report.json --out training/evals/behavior-oracle.gate.json
+npm run eval:behavior:heuristic
+npm run eval:behavior -- --predictions training/evals/behavior-heuristic.predictions.jsonl --out training/evals/behavior-heuristic.report.json
+npm run eval:behavior:gate -- --candidate training/evals/behavior-heuristic.report.json --out training/evals/behavior-heuristic.gate.json
 
 # Live configured model sample, then score it
 npm run eval:behavior:llm -- --max-cases 5

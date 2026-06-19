@@ -238,6 +238,7 @@ For persona/social behavior regressions, run:
 ```bash
 npm run build:behavior-eval
 npm run eval:behavior:oracle
+npm run eval:behavior:heuristic
 npm run eval:behavior -- --predictions training/evals/behavior-oracle.predictions.jsonl --out training/evals/behavior-oracle.report.json
 npm run eval:behavior:gate -- --candidate training/evals/behavior-oracle.report.json
 npm run check:behavior-router-iteration
@@ -249,6 +250,8 @@ npm run eval:behavior:gate -- --candidate training/evals/behavior-llm.report.jso
 ```
 
 The behavior suite is held out from training and checks the she/her persona contract, affective persona wording, Discord-native casual replies, no generic refusal/filter language for allowed prompts, social support/repair, direct safety boundaries, and tool abstention for no-tool prompts. It is deliberately small today so it can act as a fast CI gate; grow it with reviewed first-party examples before using DPO to tune persona.
+
+`npm run eval:behavior:heuristic` writes predictions from `heuristic_behavior_responder_v1`, a deterministic non-parametric fallback that is scored by the same behavior eval and gate. It gives Irene a reliable current persona/social guardrail while learned behavior checkpoints are still failing promotion.
 
 For voice-facing regressions, run:
 

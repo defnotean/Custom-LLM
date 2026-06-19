@@ -5,6 +5,10 @@ import {
   type SparseAttentionBudgetReport,
 } from "./SparseAttentionBudget";
 
+export const SUBQ_PROVIDER_ID = "subq" as const;
+export const SUBQ_ARCHITECTURE_TARGET = "subquadratic-sparse-attention" as const;
+export const LOCAL_LOG_SPARSE_ATTENTION_MODE = "local-log-sparse" as const;
+
 export type SubquadraticArchitectureReadinessStatus = "pass" | "fail";
 
 export interface SubquadraticArchitectureReadinessOptions {
@@ -38,11 +42,14 @@ export interface SubquadraticArchitectureReadinessReport {
   trainerPath: string;
   evaluatorPath: string;
   summary: {
+    provider: typeof SUBQ_PROVIDER_ID;
+    architectureTarget: typeof SUBQ_ARCHITECTURE_TARGET;
     cases: number;
     maxTargetContextChars: number;
     sources: Record<string, number>;
     taskTypes: Record<string, number>;
     sparseAttentionBudget: {
+      mode: typeof LOCAL_LOG_SPARSE_ATTENTION_MODE;
       sequenceLengths: number[];
       localWindow: number;
       logBase: number;
@@ -167,15 +174,15 @@ export async function checkSubquadraticArchitectureReadiness(
       : fail("long-context-metadata-flag", "Some long-context cases are missing metadata.longContext=true", {
           failures: mismatchIds(cases, "longContext", true),
         }),
-    allCasesMatch(cases, "preferredProvider", "subq")
-      ? pass("long-context-provider-target", 'Every long-context case targets preferredProvider="subq"')
-      : fail("long-context-provider-target", 'Some long-context cases do not target preferredProvider="subq"', {
-          failures: mismatchIds(cases, "preferredProvider", "subq"),
+    allCasesMatch(cases, "preferredProvider", SUBQ_PROVIDER_ID)
+      ? pass("long-context-provider-target", `Every long-context case targets preferredProvider="${SUBQ_PROVIDER_ID}"`)
+      : fail("long-context-provider-target", `Some long-context cases do not target preferredProvider="${SUBQ_PROVIDER_ID}"`, {
+          failures: mismatchIds(cases, "preferredProvider", SUBQ_PROVIDER_ID),
         }),
-    allCasesMatch(cases, "architectureTarget", "subquadratic-sparse-attention")
+    allCasesMatch(cases, "architectureTarget", SUBQ_ARCHITECTURE_TARGET)
       ? pass("subq-architecture-target", "Every long-context case targets subquadratic sparse attention")
       : fail("subq-architecture-target", "Some long-context cases do not target subquadratic sparse attention", {
-          failures: mismatchIds(cases, "architectureTarget", "subquadratic-sparse-attention"),
+          failures: mismatchIds(cases, "architectureTarget", SUBQ_ARCHITECTURE_TARGET),
         }),
     includesAllKeys(sources, requiredSources)
       ? pass("long-context-source-coverage", "Long-context suite covers synthetic and real repository sources")
@@ -207,7 +214,7 @@ export async function checkSubquadraticArchitectureReadiness(
             "SUBQ_ALLOW_DENSE_FALLBACK",
           ],
         }),
-    trainerSource.includes('"local-log-sparse"') &&
+    trainerSource.includes(`"${LOCAL_LOG_SPARSE_ATTENTION_MODE}"`) &&
     trainerSource.includes("sparse_attention_indices") &&
     trainerSource.includes("local_log_sparse_attention") &&
     trainerSource.includes("sparse_local_window") &&
@@ -244,11 +251,14 @@ export async function checkSubquadraticArchitectureReadiness(
     trainerPath: config.trainerPath,
     evaluatorPath: config.evaluatorPath,
     summary: {
+      provider: SUBQ_PROVIDER_ID,
+      architectureTarget: SUBQ_ARCHITECTURE_TARGET,
       cases: cases.length,
       maxTargetContextChars,
       sources,
       taskTypes,
       sparseAttentionBudget: {
+        mode: sparseBudget.mode,
         sequenceLengths: sparseBudget.points.map((point) => point.sequenceLength),
         localWindow: sparseBudget.localWindow,
         logBase: sparseBudget.logBase,

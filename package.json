@@ -60,6 +60,7 @@
     "build:behavior-eval": "tsx scripts/build-behavior-eval-suite.ts",
     "eval:behavior:llm": "tsx scripts/run-behavior-eval-llm.ts",
     "eval:behavior:oracle": "tsx scripts/make-behavior-oracle-predictions.ts",
+    "eval:behavior:heuristic": "tsx scripts/run-behavior-baseline.ts",
     "eval:behavior": "tsx scripts/evaluate-behavior-predictions.ts",
     "eval:behavior:gate": "tsx scripts/check-behavior-eval-promotion.ts",
     "build:voice-eval": "tsx scripts/build-voice-eval-suite.ts",

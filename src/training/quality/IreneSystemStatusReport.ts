@@ -25,6 +25,7 @@ export interface IreneSystemStatusOptions {
   productionReadinessOptions?: ProductionTrainingReadinessOptions;
   toolProtocolGatePath?: string;
   behaviorScratchGatePath?: string;
+  behaviorBaselineGatePath?: string;
   routerScratchGatePath?: string;
   specialistRouterBaselineGatePath?: string;
   toolRouterGatePath?: string;
@@ -118,6 +119,7 @@ const DEFAULTS = {
   plannedProductionBaseParams: 4_000_000_000,
   toolProtocolGatePath: "training/evals/tiny-transformer-protocol-iter16.clean.det.tool.gate.json",
   behaviorScratchGatePath: "training/evals/tiny-transformer-behavior-iter4.det.gate.json",
+  behaviorBaselineGatePath: "training/evals/behavior-heuristic.gate.json",
   routerScratchGatePath: "training/evals/tiny-transformer-router-iter4.det.gate.json",
   specialistRouterBaselineGatePath: "training/evals/specialist-routing-heuristic.gate.json",
   toolRouterGatePath: "training/evals/tool-router-keyword.gate.json",
@@ -170,6 +172,7 @@ export async function buildIreneSystemStatusReport(
   const [
     toolProtocolGate,
     behaviorGate,
+    behaviorBaselineGate,
     routerGate,
     specialistRouterBaselineGate,
     toolRouterGate,
@@ -180,6 +183,7 @@ export async function buildIreneSystemStatusReport(
   ] = await Promise.all([
     readGate(config.toolProtocolGatePath),
     readGate(config.behaviorScratchGatePath),
+    readGate(config.behaviorBaselineGatePath),
     readGate(config.routerScratchGatePath),
     readGate(config.specialistRouterBaselineGatePath),
     readGate(config.toolRouterGatePath),
@@ -219,6 +223,16 @@ export async function buildIreneSystemStatusReport(
       metrics: ["validJsonRate", "requirementPassRate", "personaConsistencyRate", "socialCueAccuracy", "casualToneAccuracy", "boundaryAccuracy"],
       passSummary: "Behavior scratch specialist is promotion-ready on the held-out persona/social suite.",
       failSummary: "Behavior scratch specialist still fails direct held-out JSON/persona/social checks.",
+    }),
+    gateSurface({
+      id: "behavior_heuristic_baseline",
+      label: "Deterministic behavior/persona baseline",
+      gate: behaviorBaselineGate,
+      evidencePath: config.behaviorBaselineGatePath,
+      params: null,
+      metrics: ["validJsonRate", "requirementPassRate", "personaConsistencyRate", "socialCueAccuracy", "casualToneAccuracy", "boundaryAccuracy"],
+      passSummary: "Deterministic behavior/persona fallback passes the current held-out persona/social gate.",
+      failSummary: "Deterministic behavior/persona fallback is not reliable enough for the current persona/social suite.",
     }),
     gateSurface({
       id: "router_scratch",
@@ -497,9 +511,15 @@ function buildOverall(
   const routerPass = surfaces.find((surface) => surface.id === "router_scratch")?.status === "pass";
   const foundationPass = surfaces
     .filter((surface) =>
-      ["router_heuristic_baseline", "tool_router_retrieval", "memory_continuity", "skill_retrieval", "long_context_subq", "voice_gate"].includes(
-        surface.id,
-      ),
+      [
+        "behavior_heuristic_baseline",
+        "router_heuristic_baseline",
+        "tool_router_retrieval",
+        "memory_continuity",
+        "skill_retrieval",
+        "long_context_subq",
+        "voice_gate",
+      ].includes(surface.id),
     )
     .every((surface) => surface.status === "pass");
 
@@ -537,7 +557,12 @@ function buildNextActions(
 ): string[] {
   const actions: string[] = [];
   if (surfaces.find((surface) => surface.id === "behavior_scratch")?.status === "fail") {
-    actions.push("Fix behavior/persona JSON stability before judging social quality.");
+    const baselinePass = surfaces.find((surface) => surface.id === "behavior_heuristic_baseline")?.status === "pass";
+    actions.push(
+      baselinePass
+        ? "Use the deterministic behavior/persona baseline as the guarded fallback while training the learned behavior specialist to match it."
+        : "Fix behavior/persona JSON stability before judging social quality.",
+    );
   }
   const routerSurface = surfaces.find((surface) => surface.id === "router_scratch");
   if (routerSurface?.status === "fail") {

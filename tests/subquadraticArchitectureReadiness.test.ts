@@ -19,6 +19,8 @@ describe("SubquadraticArchitectureReadiness", () => {
 
     expect(report.status).toBe("pass");
     expect(report.summary.cases).toBe(28);
+    expect(report.summary.provider).toBe("subq");
+    expect(report.summary.architectureTarget).toBe("subquadratic-sparse-attention");
     expect(report.summary.sources).toMatchObject({
       "synthetic-needle-in-context": expect.any(Number),
       "synthetic-repo-artifact": expect.any(Number),
@@ -26,6 +28,7 @@ describe("SubquadraticArchitectureReadiness", () => {
       "real-repo-multifile": expect.any(Number),
     });
     expect(report.summary.sparseAttentionBudget).toMatchObject({
+      mode: "local-log-sparse",
       sequenceLengths: [2048, 8192, 64000],
       localWindow: 32,
       logBase: 2,
@@ -46,6 +49,17 @@ describe("SubquadraticArchitectureReadiness", () => {
 
     expect(report.status).toBe("fail");
     expect(checkStatus(report.checks, "subq-architecture-target")).toBe("fail");
+  });
+
+  it("fails when a long-context case is not pinned to the SubQ provider", async () => {
+    const fixture = await writeFixture({
+      caseOverride: { preferredProvider: "dense" },
+    });
+
+    const report = await checkSubquadraticArchitectureReadiness(fixture);
+
+    expect(report.status).toBe("fail");
+    expect(checkStatus(report.checks, "long-context-provider-target")).toBe("fail");
   });
 
   it("fails when the trainer cannot prove local sparse attention support", async () => {

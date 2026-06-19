@@ -20,6 +20,7 @@ describe("IreneSystemStatusReport", () => {
       includeProductionReadiness: false,
       toolProtocolGatePath: fixture.gates.toolProtocol,
       behaviorScratchGatePath: fixture.gates.behavior,
+      behaviorBaselineGatePath: fixture.gates.behaviorBaseline,
       routerScratchGatePath: fixture.gates.router,
       specialistRouterBaselineGatePath: fixture.gates.specialistRouterBaseline,
       toolRouterGatePath: fixture.gates.toolRouter,
@@ -82,6 +83,11 @@ describe("IreneSystemStatusReport", () => {
       params: 845_005,
       metrics: { validJsonRate: 0.545455, requirementPassRate: 0.454545 },
     });
+    expect(surface(report, "behavior_heuristic_baseline")).toMatchObject({
+      status: "pass",
+      params: null,
+      metrics: { validJsonRate: 1, requirementPassRate: 1, personaConsistencyRate: 1 },
+    });
     expect(surface(report, "router_scratch")).toMatchObject({
       status: "fail",
       params: 785_670,
@@ -99,7 +105,7 @@ describe("IreneSystemStatusReport", () => {
     });
     expect(report.nextActions).toEqual(
       expect.arrayContaining([
-        "Fix behavior/persona JSON stability before judging social quality.",
+        "Use the deterministic behavior/persona baseline as the guarded fallback while training the learned behavior specialist to match it.",
         "Use the deterministic MoE router baseline as the guarded fallback while training the learned router to match it.",
         "Keep expanding BFCL-style tool cases so the perfect-tool-call target stays measurable.",
       ]),
@@ -113,6 +119,7 @@ describe("IreneSystemStatusReport", () => {
       includeProductionReadiness: false,
       toolProtocolGatePath: join(dir, "missing-tool.json"),
       behaviorScratchGatePath: join(dir, "missing-behavior.json"),
+      behaviorBaselineGatePath: join(dir, "missing-behavior-baseline.json"),
       routerScratchGatePath: join(dir, "missing-router.json"),
       specialistRouterBaselineGatePath: join(dir, "missing-router-baseline.json"),
       toolRouterGatePath: join(dir, "missing-tool-router.json"),
@@ -133,7 +140,16 @@ describe("IreneSystemStatusReport", () => {
   async function writeFixture(): Promise<{
     runRoot: string;
     gates: Record<
-      "toolProtocol" | "behavior" | "router" | "specialistRouterBaseline" | "toolRouter" | "memory" | "skill" | "longContext" | "voice",
+      | "toolProtocol"
+      | "behavior"
+      | "behaviorBaseline"
+      | "router"
+      | "specialistRouterBaseline"
+      | "toolRouter"
+      | "memory"
+      | "skill"
+      | "longContext"
+      | "voice",
       string
     >;
   }> {
@@ -157,6 +173,7 @@ describe("IreneSystemStatusReport", () => {
     const gates = {
       toolProtocol: join(gateDir, "tool-protocol.gate.json"),
       behavior: join(gateDir, "behavior.gate.json"),
+      behaviorBaseline: join(gateDir, "behavior-baseline.gate.json"),
       router: join(gateDir, "router.gate.json"),
       specialistRouterBaseline: join(gateDir, "specialist-router-baseline.gate.json"),
       toolRouter: join(gateDir, "tool-router.gate.json"),
@@ -189,6 +206,20 @@ describe("IreneSystemStatusReport", () => {
         socialCueAccuracy: 0.4,
         casualToneAccuracy: 0.5,
         boundaryAccuracy: 1,
+      }),
+    );
+    await writeJson(
+      gates.behaviorBaseline,
+      gate("pass", {
+        total: 11,
+        validJsonRate: 1,
+        actionTypeAccuracy: 1,
+        requirementPassRate: 1,
+        personaConsistencyRate: 1,
+        socialCueAccuracy: 1,
+        casualToneAccuracy: 1,
+        boundaryAccuracy: 1,
+        latencyP95Ms: 1,
       }),
     );
     await writeJson(

@@ -43,6 +43,7 @@ The product identity is intentionally hardcoded to `Irene` / `she/her` in runtim
 | Tool protocol scratch specialist | Strong protocol proof, not a general assistant. | `tiny-transformer-protocol-iter16`: 775,358 params, valid JSON 1.000, action/tool/argument/no-tool accuracy 1.000, hallucinated tool rate 0.000 |
 | Knowledge scratch model | Not useful yet. | Tiny scratch knowledge reports have 0 exact match and very low overlap; QLoRA path is required for production quality |
 | Behavior scratch specialist | Iter4 improves she/her persona consistency, but JSON, action-type, requirement, and social-cue quality still fail promotion. | `tiny-transformer-behavior-iter4`: 845,005 params, best val loss 0.1350, final val loss 0.1601, direct deterministic gate has valid JSON rate 0.545455, requirement pass rate 0.454545, persona consistency 0.666667, and social-cue accuracy 0.400000 |
+| Deterministic behavior/persona baseline | Passing guarded fallback for current she/her persona, casual, social, clarification, and boundary cases while the learned behavior specialist catches up. | `heuristic_behavior_responder_v1`: 0 model params, valid JSON 1.000, requirement pass 1.000, persona/social/casual/boundary rates 1.000 |
 | Router scratch specialist | Iter4 improves route, expert, tool-vs-non-tool, and invalid-prediction metrics over iter3, but the gate still fails. | `tiny-transformer-router-iter4`: 785,670 params, best val loss 0.1587, final val loss 0.1664, direct deterministic gate has route accuracy 0.722222, expert accuracy 0.777778, tool-vs-non-tool accuracy 0.888889, invalid predictions 1 |
 | Deterministic MoE router baseline | Passing guarded fallback for the current route suite while the learned router catches up. | `heuristic_specialist_router_v1`: 0 model params, route accuracy 1.000, expert accuracy 1.000, tool-vs-non-tool accuracy 1.000, invalid predictions 0 |
 | Parameter and capability accounting | Current status can be regenerated from run metrics, gate artifacts, production readiness, and optional live-learning stats. | `npm run report:irene-status` reports active/staged params, scratch checkpoint params, planned production-base params, pass/fail capability surfaces, caveats, and next actions |
@@ -66,7 +67,11 @@ The intended architecture is MoE-style at the system level first:
 
 This gives us the practical benefits of an MoE system before training a true sparse MoE model. The long-context base architecture target is subquadratic sparse attention, not dense full attention at ever-larger context windows, and the `check:subq-architecture` gate stays part of the normal validation path. A true sparse MoE or SSA base can be considered for promotion only if hardware, data volume, and eval evidence justify it.
 
+The SubQ/SSA invariant is hardcoded as a contract: long-context cases must stay pinned to `preferredProvider="subq"` and `architectureTarget="subquadratic-sparse-attention"`, and local sparse smoke runs must stay on `local-log-sparse` unless the architecture gate is intentionally updated with new evidence.
+
 The current practical router fallback is `heuristic_specialist_router_v1`: it passes the 18-case held-out route gate and should be treated as a deterministic guardrail, not as evidence that the learned router model is promotion-ready. The learned router must still match or beat the same gate before it replaces the fallback.
+
+The current practical behavior fallback is `heuristic_behavior_responder_v1`: it passes the current 11-case held-out behavior gate and should be treated as a deterministic guardrail for persona/social response shape, not as evidence that the learned behavior model is promotion-ready. The learned behavior specialist must still match the same gate before it replaces the fallback.
 
 ### Discord Account and Voice Boundary
 
