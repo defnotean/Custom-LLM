@@ -59,6 +59,7 @@ import { createDiscordClient, startDiscordClient } from "./discord/client";
 import { createMessageHandler } from "./discord/events/messageCreate";
 import { createInteractionHandler } from "./discord/events/interactionCreate";
 import { DiscordVoiceService } from "./discord/voice/DiscordVoiceService";
+import { VoiceReceiveBridge } from "./discord/voice/VoiceReceiveBridge";
 import { VoiceSpeechQueue } from "./discord/voice/VoiceSpeechQueue";
 import { DiscordVoiceSpeechPlayer, HttpTtsProvider } from "./discord/voice/VoiceTtsPlayback";
 import { HttpSttProvider } from "./discord/voice/VoiceSttTranscription";
@@ -229,6 +230,18 @@ async function main(): Promise<void> {
     toolCallingEnabled: env.TOOL_CALLING_ENABLED,
     toolContextExtras: { db: prisma, memory: memoryService, discordClient },
   });
+
+  voiceService.setReceiveBridge(
+    new VoiceReceiveBridge({
+      transcribeBufferedAudio: (ctx, input) => voiceService.transcribeBufferedAudio(ctx, input),
+      agent,
+      speechQueue: voiceSpeechQueue,
+      getGuildSettings: guildRepo ? (guildId) => guildRepo.getSettings(guildId) : undefined,
+      client: discordClient,
+      logger: childLogger("voice-receive"),
+      receiveFormat: env.VOICE_RECEIVE_FORMAT,
+    }),
+  );
 
   // ── Health/stats providers (shared by API + !ai commands) ──────────────
   const getHealth = async (): Promise<HealthPayload> => ({

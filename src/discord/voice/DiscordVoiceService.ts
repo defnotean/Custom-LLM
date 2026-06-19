@@ -2,6 +2,7 @@ import {
   entersState,
   getVoiceConnection,
   joinVoiceChannel,
+  type VoiceConnection,
   VoiceConnectionStatus,
 } from "@discordjs/voice";
 import type { VoiceBasedChannel } from "discord.js";
@@ -13,6 +14,7 @@ import {
   resolveVoicePolicy,
   type GuildVoiceSettings,
   type ResolvedVoicePolicy,
+  type VoiceSession,
   VoiceSessionRegistry,
 } from "./VoiceSessionPolicy";
 import { type VoiceSpeechQueue } from "./VoiceSpeechQueue";
@@ -30,8 +32,14 @@ export interface DiscordVoiceServiceOptions {
   registry?: VoiceSessionRegistry;
   speechQueue?: VoiceSpeechQueue | null;
   sttProvider?: SttProvider | null;
+  receiveBridge?: VoiceReceiveBridgePort | null;
   logger?: Logger;
   readyTimeoutMs?: number;
+}
+
+export interface VoiceReceiveBridgePort {
+  attach(input: { guildId: string; channelId: string; connection: VoiceConnection; session: VoiceSession }): void;
+  detach(guildId: string): void;
 }
 
 export interface BufferedVoiceAudioInput {
@@ -47,6 +55,7 @@ export class DiscordVoiceService {
   private readonly registry: VoiceSessionRegistry;
   private readonly speechQueue: VoiceSpeechQueue | null;
   private readonly sttProvider: SttProvider | null;
+  private receiveBridge: VoiceReceiveBridgePort | null;
   private readonly logger?: Logger;
   private readonly readyTimeoutMs: number;
 
@@ -55,8 +64,13 @@ export class DiscordVoiceService {
     this.registry = options.registry ?? new VoiceSessionRegistry();
     this.speechQueue = options.speechQueue ?? null;
     this.sttProvider = options.sttProvider ?? null;
+    this.receiveBridge = options.receiveBridge ?? null;
     this.logger = options.logger;
     this.readyTimeoutMs = options.readyTimeoutMs ?? 10_000;
+  }
+
+  setReceiveBridge(receiveBridge: VoiceReceiveBridgePort | null): void {
+    this.receiveBridge = receiveBridge;
   }
 
   async enableCurrentChannel(ctx: BotMessageContext): Promise<VoiceCommandResult> {
@@ -161,12 +175,15 @@ export class DiscordVoiceService {
         selfMute: false,
       });
       await entersState(connection, VoiceConnectionStatus.Ready, this.readyTimeoutMs);
-      this.registry.start({
+      const started = this.registry.start({
         guildId: ctx.guildId,
         channelId: channel.id,
         startedByUserId: ctx.userId,
         settings,
       });
+      if (started.ok) {
+        this.receiveBridge?.attach({ guildId: ctx.guildId, channelId: channel.id, connection, session: started.session });
+      }
       return {
         ok: true,
         policy,
@@ -175,6 +192,7 @@ export class DiscordVoiceService {
     } catch (err) {
       getVoiceConnection(ctx.guildId)?.destroy();
       this.registry.stop(ctx.guildId);
+      this.receiveBridge?.detach(ctx.guildId);
       this.logger?.warn({ err: toErrorMessage(err), guildId: ctx.guildId, channelId: channel.id }, "voice join failed");
       return { ok: false, policy, message: `Voice join failed: ${toErrorMessage(err)}` };
     }
@@ -186,6 +204,7 @@ export class DiscordVoiceService {
     const connection = getVoiceConnection(ctx.guildId);
     connection?.destroy();
     void this.speechQueue?.stopGuild(ctx.guildId);
+    this.receiveBridge?.detach(ctx.guildId);
     const stopped = this.registry.stop(ctx.guildId);
     return {
       ok: true,
@@ -274,6 +293,7 @@ export class DiscordVoiceService {
       visibleIndicator: true,
     };
     await this.settingsStore.updateSettings(ctx.guildId, { ...settings, voice: nextVoice }, ctx.guildName ?? undefined);
+    if (!enabled) this.receiveBridge?.detach(ctx.guildId);
 
     const policy = resolveVoicePolicy({
       guildId: ctx.guildId,

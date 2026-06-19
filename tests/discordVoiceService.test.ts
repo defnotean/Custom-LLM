@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { GuildSettings } from "../src/database/repositories/GuildRepository";
 import { DiscordVoiceService } from "../src/discord/voice/DiscordVoiceService";
 import { VoiceSessionRegistry } from "../src/discord/voice/VoiceSessionPolicy";
@@ -196,6 +196,28 @@ describe("DiscordVoiceService", () => {
       visibleIndicator: true,
     });
     expect(result.message).toContain("Raw audio remains transient");
+  });
+
+  it("detaches the receive bridge when listening is disabled", async () => {
+    const settings = makeSettingsStore({
+      voice: { enabled: true, allowChannels: ["voice-1"], listenEnabled: true, transcriptionEnabled: true },
+    });
+    const service = new DiscordVoiceService({
+      settingsStore: settings.store,
+      sttProvider: { transcribe: async () => ({ text: "ok" }) },
+    });
+    const receiveBridge = { attach: vi.fn(), detach: vi.fn() };
+    service.setReceiveBridge(receiveBridge);
+
+    const result = await service.configureListening(makeCtx(), false);
+
+    expect(result.ok).toBe(true);
+    expect(receiveBridge.detach).toHaveBeenCalledWith("guild-1");
+    expect(settings.read().voice).toMatchObject({
+      listenEnabled: false,
+      transcriptionEnabled: false,
+      retainSummaries: false,
+    });
   });
 
   it("transcribes buffered audio only after policy allows transcription", async () => {
